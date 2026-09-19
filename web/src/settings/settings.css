@@ -1,0 +1,795 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   w_hud · settings/settings.css
+   Two things live here:
+     1. .hw*  -- the free-layout wrapper every HUD widget now sits in, and the
+                 chrome it grows while the layout is being edited.
+     2. .hs*  -- the control panel itself.
+
+   ★ The panel is built from the same materials as the HUD and the weapon wheel:
+     RDR2's own textures through a tinted mask, the three RDR fonts, white on black,
+     and one red for anything destructive. It reads the same --gold/--cream/--line
+     variables the HUD does, so a palette the player chooses recolours the panel that
+     chose it -- they are looking at the result while they pick it.
+
+   ⚠️ The panel is laid out as a rail beside a body, not a stack of everything.
+     The first version stacked tabs, a fourteen-row list with two buttons on every
+     row, and a permanent inspector into one narrow column; each part was defensible
+     and the column was unreadable. Six sections in a rail, one of them showing at a
+     time, is the whole fix.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   1 · the widget wrapper
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ⚠️ position: fixed, not absolute. .hud-root is a fixed, full-screen layer, so the
+   two agree today -- but a widget dragged to the far edge must be measured against
+   the viewport whatever happens to that container later. */
+.hw {
+  position: fixed;
+  z-index: 3;
+  display: block;
+  width: max-content;
+  max-width: 100vw;
+}
+
+/* ⚠️ Only while editing. A compositing layer per widget for the whole session is
+   fourteen layers the GPU holds for nothing: outside the editor these never move.
+
+   The minimum size is what lets a widget with nothing in it be placed at all: the
+   effects block draws nothing until something is running, and a box of zero size cannot
+   be grabbed, hovered or seen. Every real widget is larger than this, so it changes
+   nothing for them -- it is the floor under the empty ones. */
+.hw-edit { will-change: transform; min-width: 3.2rem; min-height: 3.2rem; }
+
+/* The right-anchored column keeps its contents against its own right edge. */
+.hw-right { display: flex; flex-direction: column; align-items: flex-end; }
+
+/* While the panel is closed nothing here takes a click: the HUD is scenery. */
+.hud-root .hw { pointer-events: none; }
+
+/* ── the editor chrome ─────────────────────────────────────────────────────── */
+.hud-root .hw.hw-edit { pointer-events: auto; cursor: grab; }
+.hud-root .hw.hw-edit.is-drag { cursor: grabbing; }
+.hud-root .hw.hw-edit.is-locked { cursor: not-allowed; }
+
+.hw-edit::before {
+  content: '';
+  position: absolute;
+  inset: -0.9rem;
+  border: 0.14rem dashed rgba(255, 255, 255, 0.28);
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.03);
+  pointer-events: none;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.hw-edit:hover::before { border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.07); }
+
+.hw-edit.is-sel::before {
+  border-style: solid;
+  border-color: var(--gold-1);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 0 0.12rem rgba(0, 0, 0, 0.75), 0 0 1.4rem rgba(255, 255, 255, 0.28);
+}
+.hw-edit.is-locked::before { border-color: rgba(203, 1, 1, 0.55); border-style: dotted; }
+
+/* Placed by the admin, for everyone. Nobody else gets an outline suggesting otherwise. */
+.hud-root .hw.hw-edit.hw-fixed { pointer-events: none; cursor: default; }
+.hw-fixed::before { display: none; }
+.hw-edit.is-off { opacity: 0.28 !important; }
+
+/* The name tag -- outside the box so it never covers what it names, and it flips to the
+   underside for widgets near the top of the screen (see hw-high in layout.tsx). */
+.hw-tag {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 1rem);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  white-space: nowrap;
+  font-family: var(--f-title);
+  font-size: 1.35rem;
+  letter-spacing: 0.06em;
+  color: #0B0B0B;
+  background: var(--gold-1);
+  border-radius: 0.16rem;
+  box-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 0.15s var(--ease);
+}
+.hw-high .hw-tag { bottom: auto; top: calc(100% + 1rem); }
+.hw-edit:hover .hw-tag,
+.hw-edit.is-sel .hw-tag { opacity: 1; }
+.hw-tag-ic { font-style: normal; font-size: 1.2rem; }
+
+/* ── the grid and the alignment guides ─────────────────────────────────────── */
+.hw-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.055) 0.1rem, transparent 0.1rem),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 0.1rem, transparent 0.1rem);
+}
+
+/* A click on bare screen clears the selection -- below every widget, above the grid. */
+.hw-canvas { position: fixed; inset: 0; z-index: 2; pointer-events: auto; }
+
+.hw-guides { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+.hw-guide-v,
+.hw-guide-h {
+  position: absolute;
+  display: block;
+  background: var(--gold-1);
+  box-shadow: 0 0 0.7rem rgba(255, 255, 255, 0.85);
+  opacity: 0.9;
+}
+.hw-guide-v { top: 0; bottom: 0; width: 0.12rem; transform: translateX(-50%); }
+.hw-guide-h { left: 0; right: 0; height: 0.12rem; transform: translateY(-50%); }
+
+/* ── per-widget tint ───────────────────────────────────────────────────────────
+   ★ One variable, set on the wrapper, read by whatever the wrapper holds. The circle
+     already takes its colour through an inline prop, so this covers the rest: the
+     text-shaped widgets (name, wallet, player info, place) and the compass. */
+.hw[style*='--w-color'] .ti-server,
+.hw[style*='--w-color'] .ti-val,
+.hw[style*='--w-color'] .location,
+.hw[style*='--w-color'] .ammo-clip:not(.empty) { color: var(--w-color); }
+.hw[style*='--w-color'] .compass-marker { border-top-color: var(--w-color); }
+.hw[style*='--w-color'] .compass-card { color: var(--w-color); }
+.hw[style*='--w-color'] .ti-server .dot { border-color: var(--w-color); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2 · the control panel
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.hs-root {
+  position: fixed;
+  z-index: 60;
+  width: 78rem;
+  max-width: 56vw;
+  direction: inherit;
+  font-family: 'Hapna Slab', 'Tajawal', 'Noto Sans Arabic', Georgia, serif;
+  color: var(--cream);
+  animation: hs-in 160ms var(--ease) both;
+}
+
+@keyframes hs-in {
+  from { opacity: 0; transform: translateY(1.2rem) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.hs-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0) 70%),
+    linear-gradient(180deg, rgba(22, 22, 22, 0.985), rgba(9, 9, 9, 0.99));
+  border: 0.12rem solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 1.4rem 4rem rgba(0, 0, 0, 0.85), inset 0 0 3rem rgba(0, 0, 0, 0.75);
+  overflow: hidden;
+}
+
+/* The lit rule along the top -- RDR2's menu bar texture, tinted. */
+.hs-edge {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 0.3rem;
+  background-color: var(--gold-1);
+  -webkit-mask: var(--tex-menu_bar) center / 100% 100% no-repeat;
+          mask: var(--tex-menu_bar) center / 100% 100% no-repeat;
+  opacity: 0.9;
+}
+
+/* ── header ─────────────────────────────────────────────────────────────────── */
+.hs-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem 1.8rem 1.2rem;
+  cursor: grab;
+  user-select: none;
+  border-bottom: 0.09rem solid var(--line);
+}
+.hs-head:active { cursor: grabbing; }
+.hs-head-text { flex: 1; min-width: 0; }
+.hs-head h1 {
+  font-family: var(--f-title);
+  font-size: 2.7rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: #FFFFFF;
+  text-shadow: 0 0.15rem 0.5rem rgba(0, 0, 0, 0.9);
+}
+.hs-head p {
+  margin-top: 0.35rem;
+  font-size: 1.6rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* ── rail + body ────────────────────────────────────────────────────────────── */
+.hs-main { display: flex; flex: 1; min-height: 0; }
+
+.hs-rail {
+  flex-shrink: 0;
+  width: 16rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.8rem 0;
+  background: rgba(0, 0, 0, 0.4);
+  border-inline-end: 0.09rem solid var(--line);
+}
+.hs-rail-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.3rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--f-title);
+  font-size: 1.75rem;
+  letter-spacing: 0.03em;
+  color: var(--dim);
+  text-align: start;
+  transition: color 0.14s var(--ease), background 0.14s var(--ease);
+}
+.hs-rail-btn:hover { color: var(--cream); background: rgba(255, 255, 255, 0.06); }
+.hs-rail-btn.is-on { color: #FFFFFF; background: rgba(255, 255, 255, 0.1); }
+/* The lit edge marks the open section -- inline-start so it flips with the language. */
+.hs-rail-btn.is-on::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.35rem; bottom: 0.35rem;
+  width: 0.24rem;
+  background: var(--gold-1);
+}
+.hs-rail-ic { display: block; width: 2.1rem; height: 2.1rem; flex-shrink: 0; opacity: 0.85; }
+.hs-rail-ic svg { width: 100%; height: 100%; display: block; }
+.hs-rail-btn.is-on .hs-rail-ic { opacity: 1; }
+
+.hs-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.4rem 1.8rem 1.6rem;
+}
+.hs-body::-webkit-scrollbar { width: 0.6rem; }
+.hs-body::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.5); }
+.hs-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.22); }
+.hs-body::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+.hs-section { padding: 1.3rem 0 0.5rem; }
+.hs-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+  font-family: var(--f-title);
+  font-size: 1.55rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.hs-section-title::after {
+  content: '';
+  flex: 1;
+  height: 0.16rem;
+  background-color: var(--line);
+  -webkit-mask: var(--tex-divider_line) left center / auto 100% repeat-x;
+          mask: var(--tex-divider_line) left center / auto 100% repeat-x;
+}
+
+.hs-note { margin-top: 0.7rem; font-size: 1.4rem; line-height: 1.65; color: var(--dim); }
+.hs-note.is-bad { color: #E88; }
+.hs-note.is-good { color: #8CC98A; }
+.hs-empty { padding: 2rem 0; font-size: 1.6rem; color: var(--dim); text-align: center; }
+
+/* ── the element chips ──────────────────────────────────────────────────────── */
+.hs-chips { display: flex; flex-direction: column; gap: 1rem; }
+.hs-chip-group { display: flex; flex-direction: column; gap: 0.4rem; }
+.hs-chip-cap {
+  font-family: var(--f-title);
+  font-size: 1.3rem;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  opacity: 0.75;
+}
+.hs-chip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.45rem; }
+.hs-chip-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 3.4rem;
+  padding: 0.5rem 0.7rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 0.09rem solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.16rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.55rem;
+  line-height: 1.25;
+  color: var(--cream);
+  text-align: center;
+  transition: background 0.14s var(--ease), border-color 0.14s var(--ease), color 0.14s var(--ease);
+}
+.hs-chip-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.4); }
+.hs-chip-btn.is-on {
+  background: var(--gold-1);
+  border-color: var(--gold-1);
+  color: #0B0B0B;
+}
+.hs-chip-btn.is-off { color: var(--dim); opacity: 0.6; }
+.hs-chip-btn.is-off.is-on { opacity: 1; }
+.hs-chip-mark { font-style: normal; font-size: 1.3rem; opacity: 0.8; }
+
+/* ── controls ───────────────────────────────────────────────────────────────── */
+.hs-inline { display: flex; flex-wrap: wrap; gap: 0.4rem 1.8rem; }
+
+.hs-posrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0 0.3rem;
+  font-size: 1.5rem;
+  color: var(--dim);
+}
+.hs-posrow b {
+  font-family: var(--f-num);
+  font-weight: 400;
+  color: var(--cream);
+  font-variant-numeric: tabular-nums;
+}
+
+.hs-linkbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.45rem;
+  color: var(--gold-1);
+  text-decoration: underline;
+  text-underline-offset: 0.3rem;
+  text-decoration-thickness: 0.08rem;
+}
+.hs-linkbtn svg { width: 1.5rem; height: 1.5rem; }
+.hs-linkbtn:hover { color: #FFFFFF; }
+.hs-linkbtn.is-warn { color: #E88; }
+.hs-linkbtn.is-warn:hover { color: #FF6B6B; }
+
+.hs-fieldrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0 0.3rem;
+}
+.hs-fieldrow > span { font-size: 1.65rem; color: var(--cream); }
+
+/* ── sliders ────────────────────────────────────────────────────────────────── */
+.hs-slider { display: block; padding: 0.6rem 0 0.75rem; }
+.hs-slider-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.hs-slider-label { font-size: 1.65rem; color: var(--cream); }
+.hs-slider-val {
+  font-family: var(--f-num);
+  font-size: 1.6rem;
+  color: var(--gold-1);
+  font-variant-numeric: tabular-nums;
+}
+.hs-slider input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 0.9rem;
+  margin-top: 0.6rem;
+  background: rgba(0, 0, 0, 0.62);
+  border: 0.09rem solid var(--line);
+  border-radius: 0.1rem;
+  cursor: pointer;
+}
+.hs-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1.5rem;
+  height: 2.3rem;
+  margin-top: -0.05rem;
+  background: var(--gold-1);
+  border: 0.09rem solid #0B0B0B;
+  border-radius: 0.1rem;
+  box-shadow: 0 0.15rem 0.5rem rgba(0, 0, 0, 0.9);
+}
+
+/* ── toggles ────────────────────────────────────────────────────────────────── */
+.hs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.65rem 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.65rem;
+  color: var(--cream);
+  text-align: start;
+}
+.hs-toggle-track {
+  position: relative;
+  display: block;
+  width: 3.6rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.7);
+  border: 0.09rem solid var(--line);
+  border-radius: 1rem;
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+.hs-toggle-knob {
+  position: absolute;
+  top: 0.18rem;
+  inset-inline-start: 0.2rem;
+  display: block;
+  width: 1.3rem;
+  height: 1.3rem;
+  background: var(--dim);
+  border-radius: 50%;
+  transition: transform 0.16s var(--ease), background 0.16s var(--ease);
+}
+.hs-toggle.is-on .hs-toggle-track { background: rgba(255, 255, 255, 0.2); border-color: var(--gold-2); }
+.hs-toggle.is-on .hs-toggle-knob { background: var(--gold-1); transform: translateX(1.7rem); }
+[dir='rtl'] .hs-toggle.is-on .hs-toggle-knob { transform: translateX(-1.7rem); }
+
+/* ── segmented choices ──────────────────────────────────────────────────────── */
+.hs-seg-wrap { padding: 0.7rem 0 0.4rem; }
+.hs-seg-label { display: block; margin-bottom: 0.5rem; font-size: 1.65rem; color: var(--cream); }
+.hs-seg {
+  display: flex;
+  border: 0.09rem solid var(--line);
+  border-radius: 0.16rem;
+  overflow: hidden;
+}
+.hs-seg-btn {
+  flex: 1;
+  padding: 0.7rem 0.4rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 0;
+  border-inline-end: 0.09rem solid var(--line);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.45rem;
+  line-height: 1.3;
+  color: var(--dim);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+.hs-seg-btn:last-child { border-inline-end: 0; }
+.hs-seg-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--cream); }
+.hs-seg-btn.is-on { background: var(--gold-1); color: #0B0B0B; }
+
+/* ── palettes ───────────────────────────────────────────────────────────────── */
+.hs-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; }
+.hs-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.62rem;
+  background: rgba(255, 255, 255, 0.035);
+  border: 0.09rem solid var(--line);
+  border-radius: 0.16rem;
+  cursor: pointer;
+  transition: background 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.hs-preset:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.42); }
+.hs-preset-strip { display: flex; height: 1.5rem; border-radius: 0.1rem; overflow: hidden; }
+.hs-preset-strip i { flex: 1; display: block; }
+.hs-preset-name {
+  font-family: var(--f-title);
+  font-size: 1.45rem;
+  letter-spacing: 0.05em;
+  color: var(--cream);
+  text-align: center;
+}
+
+/* ── colour fields ──────────────────────────────────────────────────────────── */
+.hs-fields { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+.hs-field {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 0.09rem solid rgba(255, 255, 255, 0.07);
+}
+.hs-field:last-child { border-bottom: 0; }
+.hs-field-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.hs-field-text b { font-size: 1.7rem; font-weight: 400; color: var(--cream); }
+.hs-field-text em { font-size: 1.35rem; font-style: normal; color: var(--dim); }
+
+.hs-color { position: relative; flex-shrink: 0; }
+.hs-swatch {
+  display: block;
+  min-width: 9.5rem;
+  padding: 0.5rem 0.8rem;
+  border: 0.12rem solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.14rem;
+  cursor: pointer;
+  font-family: var(--f-num);
+  font-size: 1.4rem;
+  letter-spacing: 0.05em;
+  box-shadow: inset 0 0 0.8rem rgba(0, 0, 0, 0.35);
+  transition: border-color 0.14s var(--ease);
+}
+.hs-swatch:hover, .hs-swatch.is-open { border-color: #FFFFFF; }
+
+/* ⚠️ fixed, and placed from JS, and portalled to <body>.
+   The panel's entrance animation ends on a transform that `animation-fill-mode: both`
+   leaves in place, which makes .hs-root the containing block for fixed descendants and
+   gives .hs-panel's `overflow: hidden` something to clip. Out at the body, viewport
+   coordinates mean the viewport -- see place() in ColorField.tsx. */
+.hs-picker {
+  position: fixed;
+  z-index: 80;
+  width: 26rem;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: linear-gradient(180deg, rgba(24, 24, 24, 0.99), rgba(8, 8, 8, 0.99));
+  border: 0.12rem solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.9);
+}
+.hs-sv {
+  position: relative;
+  height: 13rem;
+  border: 0.09rem solid rgba(255, 255, 255, 0.22);
+  cursor: crosshair;
+  touch-action: none;
+}
+.hs-sv-dot {
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: -0.75rem 0 0 -0.75rem;
+  border: 0.18rem solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.hs-hue {
+  position: relative;
+  height: 1.9rem;
+  cursor: pointer;
+  touch-action: none;
+  border: 0.09rem solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00);
+}
+.hs-hue-dot {
+  position: absolute;
+  top: -0.25rem;
+  bottom: -0.25rem;
+  width: 0.45rem;
+  margin-inline-start: -0.22rem;
+  background: #fff;
+  border: 0.09rem solid #0B0B0B;
+  pointer-events: none;
+}
+.hs-shelf { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; }
+.hs-chip {
+  height: 2.2rem;
+  border: 0.12rem solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.1rem;
+  cursor: pointer;
+}
+.hs-chip:hover, .hs-chip.is-on { border-color: #fff; }
+
+.hs-hexrow { display: flex; align-items: center; gap: 0.5rem; }
+.hs-hex {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  background: rgba(0, 0, 0, 0.65);
+  border: 0.09rem solid var(--line);
+  border-radius: 0.1rem;
+  color: var(--cream);
+  font-family: var(--f-num);
+  font-size: 1.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  outline: none;
+}
+.hs-hex:focus { border-color: var(--gold-1); }
+.hs-mini {
+  padding: 0.45rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.09rem solid var(--line);
+  border-radius: 0.1rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.35rem;
+  color: var(--cream);
+  white-space: nowrap;
+}
+.hs-mini.is-on { background: var(--gold-1); color: #0B0B0B; border-color: var(--gold-1); }
+
+/* ── saved layouts and the share code ───────────────────────────────────────── */
+.hs-slots { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+.hs-slot {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 0.09rem solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.16rem;
+}
+.hs-slot.is-empty { border-style: dashed; background: none; }
+.hs-slot-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 0.7rem; font-size: 1.6rem; color: var(--cream); }
+.hs-slot.is-empty .hs-slot-name { color: var(--dim); }
+.hs-slot-name b {
+  font-family: var(--f-num);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: var(--gold-1);
+  opacity: 0.8;
+}
+.hs-slot-acts { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+
+/* The link field stands on its own line: a URL is long, and putting it beside its label
+   leaves it too narrow to read what you pasted. It reuses .hs-code below -- same
+   monospace-ish numerals, same forced LTR, which a URL needs even in an Arabic panel. */
+.hs-urlrow { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem 0 0.2rem; }
+.hs-urlrow > span { font-size: 1.65rem; color: var(--cream); }
+.hs-urlrow .hs-code { width: 100%; }
+.hs-code::placeholder { color: var(--dim); opacity: 0.6; }
+
+.hs-coderow { display: flex; align-items: stretch; gap: 0.5rem; }
+.hs-code {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.8rem;
+  background: rgba(0, 0, 0, 0.65);
+  border: 0.09rem solid var(--line);
+  border-radius: 0.12rem;
+  color: var(--cream);
+  font-family: var(--f-num);
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  outline: none;
+  direction: ltr;
+  text-align: left;
+}
+.hs-code:focus { border-color: var(--gold-1); }
+
+/* ── the admin section ──────────────────────────────────────────────────────── */
+
+/* ★ What the sliders above actually mean, spelled out.
+   "1 every 90 seconds" tells nobody that a character starves in two and a half hours,
+   and that arithmetic going unread is the reason the old numbers sat broken as long as
+   they did. The consequence gets its own block, marked, under the controls. */
+.hs-facts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-inline-start: 0.24rem solid var(--gold-1);
+}
+.hs-facts li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 1.5rem;
+  color: var(--dim);
+}
+.hs-facts b {
+  font-family: var(--f-num);
+  font-weight: 400;
+  font-size: 1.6rem;
+  color: var(--cream);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Fourteen switches in one column is a scroll; in two it is a list you can read. */
+.hs-featgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 1.4rem; }
+.hs-featgrid .hs-toggle { font-size: 1.5rem; padding: 0.5rem 0; }
+
+/* The server name is prose, not a URL: it keeps the panel's direction and its font. */
+.hs-code-text {
+  direction: inherit;
+  text-align: start;
+  font-family: inherit;
+  font-size: 1.6rem;
+  letter-spacing: 0;
+}
+
+/* The line that says "everything below reaches every player". */
+.hs-note.is-warnbox {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  font-size: 1.5rem;
+  color: var(--cream);
+  background: rgba(var(--danger-rgb), 0.14);
+  border-inline-start: 0.24rem solid var(--danger);
+}
+
+/* A button standing alone in a section rather than in a row of them. */
+.hs-section > .hs-btn { width: 100%; }
+
+/* ── footer and buttons ─────────────────────────────────────────────────────── */
+.hs-foot {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.7rem;
+  padding: 1.1rem 1.8rem 1.4rem;
+  border-top: 0.09rem solid var(--line);
+}
+.hs-btnrow { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.hs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  flex: 1;
+  padding: 0.85rem 1.2rem;
+  background: rgba(255, 255, 255, 0.075);
+  border: 0.12rem solid rgba(255, 255, 255, 0.24);
+  border-radius: 0.14rem;
+  cursor: pointer;
+  font-family: var(--f-title);
+  font-size: 1.75rem;
+  letter-spacing: 0.05em;
+  color: var(--cream);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.hs-btn svg { width: 1.7rem; height: 1.7rem; }
+.hs-btn:hover { background: rgba(255, 255, 255, 0.18); border-color: #FFFFFF; color: #FFFFFF; }
+.hs-btn:disabled { opacity: 0.45; cursor: default; }
+.hs-btn:disabled:hover { background: rgba(255, 255, 255, 0.075); border-color: rgba(255, 255, 255, 0.24); color: var(--cream); }
+.hs-btn-tight { flex: 0 0 auto; font-size: 1.5rem; padding: 0.6rem 1.1rem; }
+.hs-btn.is-primary { background: var(--gold-1); border-color: var(--gold-1); color: #0B0B0B; }
+.hs-btn.is-primary:hover { background: #FFFFFF; border-color: #FFFFFF; color: #0B0B0B; }
+.hs-btn.is-primary.is-done { background: #4E9A4A; border-color: #4E9A4A; color: #FFFFFF; }
+.hs-btn.is-warn { border-color: rgba(203, 1, 1, 0.6); color: #E88; }
+.hs-btn.is-warn:hover { background: rgba(203, 1, 1, 0.28); border-color: #CB0101; color: #FFFFFF; }
+
+.hs-icon {
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  padding: 0;
+  background: none;
+  border: 0.09rem solid transparent;
+  border-radius: 0.14rem;
+  cursor: pointer;
+  color: var(--cream);
+  transition: background 0.14s var(--ease), color 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+.hs-icon svg { width: 1.85rem; height: 1.85rem; }
+.hs-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.24); }
+.hs-close { margin-inline-start: auto; }
+
+/* Focus rings would trail the player around the panel; the hover and selected states
+   already say where they are, and the fields that need one get it explicitly. */
+.hs-root :focus { outline: none; }

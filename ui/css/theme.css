@@ -1,0 +1,123 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   w_hud -- the w_crafting theme over the original design (the exact same layout).
+   Loaded after styles.css so it wins. We change only: colours + backgrounds + fonts.
+   The idea: the original design uses a CSS variable per colour -- so we redefine the
+   variables alone and the whole HUD is recoloured without touching any layout or position.
+   No CDN -- the RDR fonts are local.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* -- RDR + Arabic fonts (local, from ui/fonts) -- */
+@font-face { font-family: 'RDR Lino';         src: url('../fonts/RDRLino-Regular.woff2') format('woff2');        font-weight: normal; font-display: swap; }
+@font-face { font-family: 'RDR Catalogue';    src: url('../fonts/RDRCatalogueBold-Bold.woff2') format('woff2');  font-weight: bold;   font-display: swap; }
+@font-face { font-family: 'Hapna Slab';       src: url('../fonts/HapnaSlabSerif-DemiBold.woff2') format('woff2'); font-weight: 600;   font-display: swap; }
+@font-face { font-family: 'Noto Sans Arabic'; src: url('../fonts/NotoSansArabic.woff2') format('woff2');         font-weight: normal; font-display: swap; }
+@font-face { font-family: 'Tajawal'; src: url('../fonts/tajawal-arabic-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Tajawal'; src: url('../fonts/tajawal-arabic-500-normal.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Tajawal'; src: url('../fonts/tajawal-arabic-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Tajawal'; src: url('../fonts/tajawal-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; unicode-range: U+0000-00FF; }
+@font-face { font-family: 'Tajawal'; src: url('../fonts/tajawal-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; unicode-range: U+0000-00FF; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   1) redefining the colour variables -> the w_crafting palette (cream/black/red)
+   This alone recolours every bar, border, icon, the compass, the temperature and the mic.
+   ════════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* the w_crafting palette */
+  --wc-text:   #EDE6D6;   /* warm cream (RDR) */
+  --wc-panel:  #0B0B0B;   /* w_crafting black */
+  --wc-red:    #CB0101;   /* red -- for negatives only */
+  --wc-line:   rgba(237, 230, 214, 0.20);
+  /* A strict palette: red/white/black only -- no other colours (the w_crafting identity) */
+
+  /* the original design's own variable names -- with w_crafting values */
+  --inventory-bg:     var(--wc-panel);
+  --inventory-accent: var(--wc-text);
+  --inventory-border: var(--wc-line);
+  --main-color:       var(--wc-text);
+  --server-color:     var(--wc-text);          /* the accent colour (fills/icons) -> cream */
+  --engine-off:       #050505;
+  --micOff:           rgba(11, 11, 10, 0.72);
+  --dy-border:        var(--wc-text);
+  --empty-bar:        rgba(237, 230, 214, 0.12); /* the empty track */
+  --RPM-bar:          rgba(11, 11, 10, 0.47);
+  --rpm-color:        #dbdbdbbd;
+  --cm-op:            rgba(11, 11, 10, 0.62);   /* the compass/temperature background */
+  --under-op:         rgba(0, 0, 0, 0.55);
+  --main-border:      var(--wc-line);
+  --box-shadow:       rgba(237, 230, 214, 0.18);
+  --box-shadow-2:     rgba(237, 230, 214, 0.12);
+  --dark-color:       var(--wc-panel);
+  --color292929:      #141414;
+  --redcolor:         var(--wc-red);
+  --drakGray-bg:      var(--wc-panel);          /* the status square background -> w_crafting black */
+  --icon-color:       var(--wc-text);
+  --radio-talk:       var(--wc-text);           /* the radio is white (not gold) */
+  --radio-wave:       var(--wc-text);
+  --hotTemp:          var(--wc-red);             /* heat alone is red (negative) */
+  --normalTemp:       var(--wc-text);
+  --coldTemp:         var(--wc-text);            /* cold is white (not blue) */
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   2) backgrounds: removing the expired CDN images from the fill bars -> a clean solid colour
+   (Discord links expire and do not load inside the game in any case)
+   ════════════════════════════════════════════════════════════════════════════ */
+.playerDynamicBars,
+.DynamicMountStaminaBars,
+.DynamicMountHealthBars,
+.playerDynamicStaminaBars,
+.playerDynamicArmorBars,
+.linecomp,
+.bigCrc {
+  background-image: none !important;
+}
+
+/* A w_crafting touch: a faint cream glow instead of green on the squares */
+.player-Hud,
+.player-HudNumber,
+.compDiv,
+.temp {
+  box-shadow: 0 0 0.4vh rgba(0, 0, 0, 0.55), inset 0 0 0.4vh rgba(237, 230, 214, 0.05);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   3) fonts: RDR for Latin + Tajawal/Noto for Arabic (they beat the Google fonts in styles.css)
+   ════════════════════════════════════════════════════════════════════════════ */
+body,
+.hud-main, .hud-holder,
+.live-server, .liveTime, .serverName,
+.radio-wave, .talking-stats {
+  font-family: 'RDR Lino', 'Tajawal', 'Noto Sans Arabic', 'Hapna Slab', Georgia, serif !important;
+  color: var(--wc-text);
+}
+
+/* Numbers (money/temperature/compass/counters) in the RDR Catalogue numeral font */
+.infoDiv, .infoDiv-data, .infoDiv-icon,
+.temp, #tempsDiv,
+.compDiv,
+.player-HudNumber,
+#playerCash .infoDiv-data, #playerGold .infoDiv-data {
+  font-family: 'RDR Catalogue', 'Tajawal', 'Noto Sans Arabic', Georgia, serif !important;
+  letter-spacing: .02em;
+}
+
+/* Money and status icons in one unified cream */
+.infoDiv-icon i,
+#infoDiv-cashicon i,
+#infoDiv-Goldicon i { color: var(--wc-text) !important; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   4) Arabic / RTL support -- swapping the font only (the layout stays as it is)
+   ════════════════════════════════════════════════════════════════════════════ */
+html[dir='rtl'] body,
+html[dir='rtl'] .hud-main,
+html[dir='rtl'] .infoDiv,
+html[dir='rtl'] .temp,
+html[dir='rtl'] .compDiv {
+  font-family: 'Tajawal', 'Noto Sans Arabic', 'RDR Lino', Georgia, serif !important;
+  font-weight: 500;
+}
+html[dir='rtl'] .moneyInfo { direction: rtl; }
+
+/* English: an RDR character with slightly wider letter spacing */
+html[dir='ltr'] .infoDiv { letter-spacing: .04em; }

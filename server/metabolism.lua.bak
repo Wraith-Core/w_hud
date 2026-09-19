@@ -1,0 +1,546 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- w_hud — نواة الحاجات (metabolism) framework-agnostic عبر w_lib
+--
+--   الحاجات كلُّها بمقياس ٠–١٠٠:
+--     hunger · thirst · stress · toxicity · bladder · bowel · cleanliness
+--   والمنشّطات (buffs) ٠–١٠٠ لكلّ نوع، تنحسر على السيرفر ويطبّقها العميل.
+--
+--   • تُحفظ بمُعرّف الشخصيّة (exports.w_lib:FwGetCharacterIdentifier)
+--     ⇒ تعمل على كل الأنظمة (فورب/RSG/QBR) بلا الحاجة لـ metadata.
+--   • السلطة على السيرفر (anti-cheat): الاضمحلال والحدود والحوادث هنا.
+--   • تُبثّ للعميل عبر أحداث الهود القائمة + حدثٍ شاملٍ جديد.
+--
+-- ★ عطّل vorp_metabolism على سيرفرات فورب — هذا المورد يحلّ محلّه كاملًا.
+-- ════════════════════════════════════════════════════════════════════════════
+
+local Scale = 100
+
+--- الحاجات التي تُحفظ في القاعدة (cleanliness يُحسب على العميل من وسخ الشخصيّة)
+local PERSIST  = { 'hunger', 'thirst', 'stress', 'toxicity', 'bladder', 'bowel' }
+local DEFAULTS = {
+    hunger = 100, thirst = 100, stress = 0,
+    toxicity = 0, bladder = 0, bowel = 0, cleanliness = 100,
+}
+
+--- [src] = { hunger=…, thirst=…, …, buffs = { health = 40, … } }
+local State = {}
+
+--- واجهةٌ داخليّة تستعملها بقيّة ملفّات السيرفر في هذا المورد
+--- (server/consumables.lua يُحمَّل قبل هذا الملف، فالنداء يجب أن يكون وقت التشغيل لا وقت التحميل)
+WNeeds = {}
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- الجدول + الترقية
+-- ════════════════════════════════════════════════════════════════════════════
+CreateThread(function()
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `w_hud_needs` (
+            `cid` VARCHAR(64) NOT NULL,
+            `hunger` INT DEFAULT 100,
+            `thirst` INT DEFAULT 100,
+            `stress` INT DEFAULT 0,
+            PRIMARY KEY (`cid`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]])
+
+    -- ترقيةُ جداولٍ قديمة: نضيف الأعمدة الناقصة فقط.
+    -- ‎ADD COLUMN IF NOT EXISTS‎ غير مدعومٍ في MySQL 8، فنسأل information_schema.
+    local have = MySQL.query.await([[
+        SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'w_hud_needs'
+    ]]) or {}
+
+    local present = {}
+    for i = 1, #have do present[string.lower(have[i].COLUMN_NAME)] = true end
+
+    local wanted = {
+        toxicity = 'INT DEFAULT 0',
+        bladder  = 'INT DEFAULT 0',
+        bowel    = 'INT DEFAULT 0',
+    }
+
+    for column, definition in pairs(wanted) do
+        if not present[column] then
+            MySQL.query.await(('ALTER TABLE `w_hud_needs` ADD COLUMN `%s` %s'):format(column, definition))
+            print(('[w_hud] added column `%s` to w_hud_needs'):format(column))
+        end
+    end
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- أدوات
+-- ════════════════════════════════════════════════════════════════════════════
+local function cidOf(src)
+    local ok, id = pcall(function() return exports.w_lib:FwGetCharacterIdentifier(src) end)
+    return ok and id or nil
+end
+
+local function clamp(v)
+    v = tonumber(v) or 0
+    if v < 0 then return 0 elseif v > Scale then return Scale end
+    return math.floor(v + 0.5)
+end
+
+local function notify(src, title, color, icon)
+    TriggerClientEvent('w_hud:client:notify', src, {
+        title = title, description = '', icon = icon or 'tick',
+        placement = 'middle-right', duration = 5000, useBackground = false,
+        contentAlignment = 'center', isRTL = Config.IsRTL,
+        titleColor = color or '#34b895', descriptionColor = 'rgba(255,255,255,0.8)',
+    })
+end
+WNeeds.notify = notify
+
+local function broadcast(src)
+    local s = State[src]; if not s then return end
+
+    -- الأحداث القديمة — لا نكسر أيّ سكربتٍ يستمع لها
+    TriggerClientEvent('hud:client:UpdateNeeds', src, s.hunger, s.thirst, s.cleanliness or 100)
+    TriggerClientEvent('hud:client:UpdateStress', src, s.stress)
+
+    -- الحدث الشامل: الحاجات الجديدة + المنشّطات
+    TriggerClientEvent('w_hud:client:needs', src, {
+        hunger = s.hunger, thirst = s.thirst, stress = s.stress,
+        toxicity = s.toxicity, bladder = s.bladder, bowel = s.bowel,
+        buffs = s.buffs,
+    })
+
+    local Ply = Player(src)
+    if Ply and Ply.state then Ply.state:set('needs', s, true) end
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- التحميل والحفظ
+-- ════════════════════════════════════════════════════════════════════════════
+local function load(src)
+    local cid = cidOf(src); if not cid then return end
+
+    local row = MySQL.single.await(
+        'SELECT hunger, thirst, stress, toxicity, bladder, bowel FROM w_hud_needs WHERE cid = ?', { cid })
+
+    local s = { buffs = {}, cleanliness = 100 }
+
+    for i = 1, #PERSIST do
+        local key = PERSIST[i]
+        s[key] = (row and row[key]) or DEFAULTS[key]
+    end
+
+    State[src] = s
+
+    if not row then
+        MySQL.insert(
+            'INSERT INTO w_hud_needs (cid, hunger, thirst, stress, toxicity, bladder, bowel) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            { cid, s.hunger, s.thirst, s.stress, s.toxicity, s.bladder, s.bowel })
+    end
+
+    broadcast(src)
+end
+
+local function save(src)
+    local s, cid = State[src], cidOf(src)
+    if not s or not cid then return end
+
+    MySQL.update([[
+        INSERT INTO w_hud_needs (cid, hunger, thirst, stress, toxicity, bladder, bowel)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            hunger = VALUES(hunger), thirst = VALUES(thirst), stress = VALUES(stress),
+            toxicity = VALUES(toxicity), bladder = VALUES(bladder), bowel = VALUES(bowel)
+    ]], { cid, s.hunger, s.thirst, s.stress, s.toxicity, s.bladder, s.bowel })
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- قراءة/كتابة الحاجات
+-- ════════════════════════════════════════════════════════════════════════════
+
+--- حالة اللاعب أو محاولةُ تحميلها.
+---
+--- ★ بلا هذا كان كلُّ تعديلٍ يسقط صامتاً إذا لم تكن الحالة محمّلة: يأكل
+---   اللاعب فتُحذف القطعة ولا يزيد جوعه، ولا سطر في الكونسول يشرح لماذا.
+---   يحدث هذا كلّما فات حدثُ التحميل — إعادة تشغيل مورد، أو ترتيب إقلاع
+---   يسبق فيه استعمالُ الغرضِ وصولَ 'w_hud:server:load'.
+---@param src number
+---@return table|nil
+local function ensure(src)
+    if State[src] then return State[src] end
+    if not cidOf(src) then return nil end -- لا شخصيّة مُحمّلة بعد
+
+    load(src)
+    return State[src]
+end
+
+local function getNeed(src, key)
+    local s = ensure(src); return s and s[key]
+end
+
+local function setNeed(src, key, v)
+    local s = ensure(src); if not s or DEFAULTS[key] == nil then return end
+    s[key] = clamp(v)
+    broadcast(src)
+end
+
+local function addNeed(src, key, d)
+    local s = ensure(src); if not s or DEFAULTS[key] == nil then return end
+    s[key] = clamp((s[key] or 0) + (tonumber(d) or 0))
+    broadcast(src)
+end
+
+--- تعديلُ عدّة حاجاتٍ ببثٍّ واحد — يستعمله استهلاك الأصناف
+local function addNeeds(src, deltas)
+    local s = ensure(src); if not s then return end
+
+    for key, d in pairs(deltas) do
+        if DEFAULTS[key] ~= nil and d ~= 0 then
+            s[key] = clamp((s[key] or 0) + d)
+        end
+    end
+
+    broadcast(src)
+end
+
+local function reset(src)
+    if not State[src] then State[src] = { buffs = {} } end
+    local s = State[src]
+    s.hunger, s.thirst, s.stress = 100, 100, 0
+    s.toxicity, s.bladder, s.bowel = 0, 0, 0
+    s.buffs = {}
+    broadcast(src); save(src)
+end
+
+WNeeds.get, WNeeds.set, WNeeds.add, WNeeds.addMany = getNeed, setNeed, addNeed, addNeeds
+WNeeds.save, WNeeds.broadcast = save, broadcast
+WNeeds.state = function(src) return State[src] end
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- المنشّطات (buffs)
+-- ════════════════════════════════════════════════════════════════════════════
+local function giveBuff(src, kind, amount)
+    local s = ensure(src); if not s then return false end
+    if not (Config.Buffs and Config.Buffs[kind]) then return false end
+
+    s.buffs = s.buffs or {}
+    local v = (s.buffs[kind] or 0) + (tonumber(amount) or 0)
+    s.buffs[kind] = (v > Scale) and Scale or (v < 0 and 0 or v)
+
+    if s.buffs[kind] <= 0 then s.buffs[kind] = nil end
+
+    broadcast(src)
+    return true
+end
+WNeeds.giveBuff = giveBuff
+
+RegisterNetEvent('w_hud:server:giveBuff', function(kind, amount)
+    local src = source
+    if not exports.w_lib:FwGetUser(src) then return end
+    giveBuff(src, kind, amount)
+end)
+
+-- ── دورة المنشّطات ─────────────────────────────────────────────────────────
+-- تنحسر هنا، وما يمسّ **الحاجات** منها يُطبَّق هنا أيضًا (التهدئة والتغذية):
+-- تطبيقُه على العميل كان سيعني حدثَ شبكةٍ كلّ ثانيتين لكلّ لاعب. أمّا ما يمسّ
+-- الشخصيّةَ نفسها (الصحّة · النوى · لياقة الخيل) فمكانه العميل — client/needs.lua.
+CreateThread(function()
+    while true do
+        Wait((Config.Buffs and Config.Buffs.TickInterval) or 2000)
+
+        if Config.Systems.buffs then
+            for src, s in pairs(State) do
+                if s.buffs and next(s.buffs) then
+                    -- التهدئة: تُنقص التوتّر
+                    if (s.buffs.calm or 0) > 0 and (s.stress or 0) > 0 then
+                        s.stress = clamp(s.stress - (Config.Buffs.calm.amount or 3))
+                    end
+
+                    -- الغذاء الصحّي: يجدّد الجوع والعطش
+                    if (s.buffs.vegan or 0) > 0 then
+                        local gain = Config.Buffs.vegan.amount or 2
+                        s.hunger = clamp((s.hunger or 0) + gain)
+                        s.thirst = clamp((s.thirst or 0) + gain)
+                    end
+
+                    for kind, value in pairs(s.buffs) do
+                        local cfg = Config.Buffs[kind]
+                        local left = value - ((cfg and cfg.drain) or 1)
+
+                        s.buffs[kind] = (left > 0) and left or nil
+                    end
+
+                    broadcast(src)
+                end
+            end
+        end
+    end
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- دورة الحياة
+-- ════════════════════════════════════════════════════════════════════════════
+RegisterNetEvent('w_hud:server:load', function() load(source) end)
+
+RegisterNetEvent('w_hud:server:setNeed', function(key, value)
+    -- ★ الجوع/العطش/الإجهاد فقط: لا نسمح للعميل بضبط التسمّم أو البول أو الغائط
+    if key == 'hunger' or key == 'thirst' or key == 'stress' then
+        setNeed(source, key, value)
+    end
+end)
+
+AddEventHandler('playerDropped', function()
+    local src = source; save(src); State[src] = nil
+end)
+
+-- حفظٌ دوريّ
+CreateThread(function()
+    while true do
+        Wait(120000)
+        for src in pairs(State) do save(src) end
+    end
+end)
+
+-- ── إعادة تشغيل المورد أثناء اللعب ──────────────────────────────────────
+-- أحداث اختيار الشخصيّة تُطلق مرّةً واحدة عند الدخول ولا تُعاد عند `ensure w_hud`.
+-- فبعد إعادة التشغيل يبقى State فارغاً ولا يصل العميل شيء — وهذا سبب «الهود ما
+-- يلود ويعلّق». السيرفر هو من يبادر هنا: يمرّ على كلّ لاعبٍ متّصلٍ له شخصيّة
+-- مُحمّلة، يقرأ قيمه من القاعدة ويدفعها إليه.
+AddEventHandler('onServerResourceStart', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+
+    CreateThread(function()
+        Wait(1000) -- مهلةٌ حتّى يجهز جسر الإطار (w_lib) وقاعدة البيانات
+
+        for _, id in ipairs(GetPlayers()) do
+            local src = tonumber(id)
+
+            if src and cidOf(src) then
+                load(src)
+                TriggerClientEvent('w_hud:client:forceLoaded', src)
+            end
+        end
+    end)
+
+    -- ★ تحذيرٌ صريح: تشغيل vorp_metabolism معنا يعني اضمحلالاً مزدوجاً وقيمًا متضاربة.
+    CreateThread(function()
+        Wait(3000)
+
+        if GetResourceState('vorp_metabolism') == 'started' then
+            print('^1[w_hud]^7 WARNING: vorp_metabolism is running alongside w_hud.')
+            print('^1[w_hud]^7   w_hud fully replaces it - disable it in server.cfg (#ensure vorp_metabolism)')
+            print('^1[w_hud]^7   Otherwise needs decay twice and the two values diverge.')
+        end
+    end)
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- حلقات الاضمحلال والامتلاء
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- الجوع والعطش
+CreateThread(function()
+    local interval = ((Config.NeedsDecreaseInterval or 144)) * 1000
+
+    while true do
+        Wait(interval)
+
+        for src, s in pairs(State) do
+            s.hunger = clamp(s.hunger - (Config.HungerDecreaseRate or 1))
+            s.thirst = clamp(s.thirst - (Config.ThirstDecreaseRate or 1))
+            broadcast(src)
+        end
+    end
+end)
+
+-- التسمّم ينحسر وحده
+CreateThread(function()
+    while true do
+        Wait((Config.Toxicity and Config.Toxicity.DecayInterval) or 20000)
+
+        if Config.Systems.toxicity then
+            for src, s in pairs(State) do
+                if (s.toxicity or 0) > 0 then
+                    s.toxicity = clamp(s.toxicity - (Config.Toxicity.DecayAmount or 1))
+                    broadcast(src)
+                end
+            end
+        end
+    end
+end)
+
+-- التوتّر ينحسر وحده
+CreateThread(function()
+    while true do
+        Wait((Config.Stress and Config.Stress.DecayInterval) or 120000)
+
+        if Config.Systems.stress then
+            for src, s in pairs(State) do
+                if (s.stress or 0) > 0 then
+                    s.stress = clamp(s.stress - (Config.Stress.DecayAmount or 1))
+                    broadcast(src)
+                end
+            end
+        end
+    end
+end)
+
+-- ── امتلاء المثانة/الأمعاء + الحوادث ────────────────────────────────────────
+-- الحادثُ يُقرَّر هنا لا على العميل: السيرفر يملك القيمة، فلا يستطيع لاعبٌ
+-- تعطيله بتعديل ملفّه. العميل يتلقّى الأمر ويلعب الحركة فقط.
+local function fillLoop(need, cfg)
+    CreateThread(function()
+        while true do
+            Wait(cfg.FillInterval or 180000)
+
+            if Config.Systems[need] then
+                for src, s in pairs(State) do
+                    local before = s[need] or 0
+
+                    if before < Scale then
+                        s[need] = clamp(before + (cfg.FillAmount or 1))
+                        broadcast(src)
+                    end
+
+                    if s[need] >= (cfg.AccidentAt or 100) then
+                        s[need] = 0
+                        addNeed(src, 'stress', cfg.AccidentStress or 20)
+                        TriggerClientEvent('w_hud:client:accident', src, need, cfg.AccidentClean or -35)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+CreateThread(function()
+    Wait(500) -- ننتظر Config الكامل
+    fillLoop('bladder', Config.Bladder or {})
+    fillLoop('bowel', Config.Bowel or {})
+end)
+
+-- ── طلب التفريغ (‎/pee‎ و ‎/poop‎) ───────────────────────────────────────────
+-- العميل يُنهي الحركة ثم يطلب التفريغ؛ السيرفر يطبّقه على قيمته هو.
+RegisterNetEvent('w_hud:server:relieve', function(need)
+    local src = source
+    if need ~= 'bladder' and need ~= 'bowel' then return end
+    if not Config.Systems[need] then return end
+
+    local s = State[src]; if not s then return end
+    local cfg = (need == 'bladder') and (Config.Bladder or {}) or (Config.Bowel or {})
+
+    -- ★ الحدّ الأدنى يُفحص هنا أيضاً لا على العميل وحده: القيمة ملكُ السيرفر،
+    --   وبلا هذا يكفي بثُّ الحدث يدويّاً لإفراغ المثانة متى شاء صاحبُه.
+    if (s[need] or 0) < (tonumber(cfg.MinToRelieve) or 0) then return end
+
+    addNeeds(src, {
+        [need] = -(cfg.ReliefAmount or 100),
+        stress = cfg.ReliefStress or 0,
+    })
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- أحداث التوتّر/العطش القديمة — تبقى كما هي للتوافق
+-- ════════════════════════════════════════════════════════════════════════════
+RegisterNetEvent('hud:server:GainStress', function(amount)
+    local src = source
+    if not exports.w_lib:FwGetUser(src) then return end
+    if exports.w_lib:FwGetJob(src) == 'police' then return end
+    addNeed(src, 'stress', amount)
+    notify(src, Config.Notify.stressGain, '#a98bd4', 'tick')
+end)
+
+RegisterNetEvent('hud:server:Gainbrain', function(amount) -- اسمٌ قديم من thread.lua = إجهاد
+    local src = source
+    if not exports.w_lib:FwGetUser(src) then return end
+    if exports.w_lib:FwGetJob(src) == 'police' then return end
+    addNeed(src, 'stress', amount)
+end)
+
+RegisterNetEvent('hud:server:RelieveStress', function(amount)
+    local src = source
+    if not exports.w_lib:FwGetUser(src) then return end
+    addNeed(src, 'stress', -amount)
+    notify(src, Config.Notify.stressRelief, '#34b895', 'awards_set_p_003')
+end)
+
+RegisterNetEvent('hud:server:GainThirst', function(amount)
+    local src = source
+    if not exports.w_lib:FwGetUser(src) then return end
+    addNeed(src, 'thirst', amount)
+    notify(src, Config.Notify.thirstGain, '#4dabf7', 'awards_set_g_013')
+end)
+
+-- التسمّم من سكربتاتٍ أخرى
+RegisterNetEvent('hud:server:GainToxicity', function(amount)
+    local src = source
+    if not exports.w_lib:FwGetUser(src) then return end
+    addNeed(src, 'toxicity', amount)
+end)
+
+-- ── التقيّؤ ────────────────────────────────────────────────────────────────
+-- العميل يبلّغ أنّه تقيّأ؛ السيرفر يطبّق الأثر على قيمه هو.
+-- ★ محروسٌ بمهلة: لولاها لأمكن بثُّ الحدث بلا توقّفٍ لإفراغ سُمٍّ بلا نهاية.
+local lastPuke = {}
+
+RegisterNetEvent('w_hud:server:puked', function()
+    local src = source
+    local s = State[src]; if not s then return end
+
+    local cfg = Config.Toxicity or {}
+    local now = GetGameTimer()
+
+    if lastPuke[src] and now - lastPuke[src] < ((cfg.PukeCooldown or 45000) - 2000) then return end
+    if (s.toxicity or 0) < (cfg.PukeAt or 60) then return end
+
+    lastPuke[src] = now
+
+    addNeeds(src, {
+        toxicity = -(cfg.PukeRelief or 8),
+        hunger   = cfg.PukeHunger or -10,
+        thirst   = cfg.PukeThirst or -5,
+    })
+end)
+
+AddEventHandler('playerDropped', function() lastPuke[source] = nil end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- توافق vorp_metabolism
+--
+--   عطّلنا ذاك المورد، لكنّ vorp_core نفسه وسكربتاتٍ كثيرةً تبثّ أحداثه.
+--   العميل يحوّل المقياس (٠–١٠٠٠ ⇐ ٠–١٠٠) ثمّ يمرّرها هنا.
+-- ════════════════════════════════════════════════════════════════════════════
+RegisterNetEvent('w_hud:server:vorpCompat', function(mode, need, value)
+    local src = source
+    if not State[src] then return end
+    if need ~= 'hunger' and need ~= 'thirst' and need ~= 'toxicity' then return end
+
+    if mode == 'set' then
+        setNeed(src, need, value)
+    else
+        addNeed(src, need, value)
+    end
+end)
+
+-- إعادة الضبط بعد الإحياء
+RegisterNetEvent('w_hud:server:respawn', function()
+    local src = source
+    if not State[src] then return end
+    reset(src)
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- الواجهة العامّة (exports) — لبقيّة الموارد
+-- ════════════════════════════════════════════════════════════════════════════
+exports('ResetNeeds', function(src) reset(src) end)
+exports('SaveNeeds', function(src) save(src) end)
+exports('GetNeeds', function(src) return State[src] end)
+exports('GetNeed', function(src, key) return getNeed(src, key) end)
+exports('SetNeed', function(src, key, v) setNeed(src, key, v); return true end)
+exports('AddNeed', function(src, key, d) addNeed(src, key, d); return true end)
+exports('AddNeeds', function(src, deltas) addNeeds(src, deltas); return true end)
+
+exports('GiveBuff', function(src, kind, amount) return giveBuff(src, kind, amount) end)
+exports('GetBuffs', function(src) local s = State[src]; return s and s.buffs or {} end)
+exports('ClearBuffs', function(src)
+    local s = State[src]; if not s then return false end
+    s.buffs = {}; broadcast(src); return true
+end)
+
+w.callback.register('w_hud:getNeed', function(src, key) return getNeed(src, key) end)
+w.callback.register('w_hud:getNeeds', function(src) return State[src] end)

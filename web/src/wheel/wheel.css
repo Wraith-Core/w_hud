@@ -1,0 +1,900 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   w_hud · the weapon wheel
+   Design ported from w_weaponwheel/web/src/styles/wheel.css
+
+   ═══ What sets this design apart ═══
+
+   ★ The selected sector turns **paper white** rather than red, and the weapon image inverts
+     to black on it. That is what makes the selection readable from the edge of the screen
+     without squinting -- and truer to RDR2's wheel than tinting it red.
+
+   ★ Weapon images are shown as white silhouettes (grayscale -> brightness(0) -> invert): so
+     however the inventory's image backgrounds differ, they all read as one set.
+
+   ★ And every surface comes from RDR2's own art through a tinted mask -- never a raw image:
+        background-color: <token>;  mask: var(--ww-tex-*) …
+     ('tinted through a mask, never raw' -- the w_crafting comment.)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.ww-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  direction: ltr;                 /* geometry is always LTR -- only the text flips */
+  pointer-events: auto;
+  user-select: none;
+  cursor: default;
+  isolation: isolate;
+  animation: ww-enter 130ms ease-out both;
+
+  /* ★ w_inventory / w_crafting tokens verbatim -- one interface, not three */
+  --ww-ink: #090909;
+  --ww-text: #FFFFFF;
+  --ww-text-dim: #A9A9A9;
+  --ww-text-faint: #6D6D6D;
+  --ww-line: rgba(255, 255, 255, 0.14);
+  --ww-line-strong: rgba(255, 255, 255, 0.30);
+  --ww-plate: #1F1F1F;
+  --ww-red: #CB0101;
+  --ww-red-soft: rgba(203, 1, 1, 0.16);
+  --ww-hover: rgba(255, 255, 255, 0.12);
+  --ww-accent: #EDEDED;
+  --ww-glow: rgba(255, 255, 255, 0.06);
+
+  /* RDR2 gold -- the colour of the selected sector */
+  --ww-gold: #C8A44D;
+  --ww-gold-lit: #E7CE8A;
+  --ww-gold-deep: #8C6D22;
+
+  --ww-glass:
+    radial-gradient(85% 40% at 50% 0%, var(--ww-glow), rgba(0, 0, 0, 0) 72%),
+    radial-gradient(130% 90% at 50% 0%, rgba(24, 24, 24, 0.97) 0%, rgba(14, 14, 14, 0.98) 42%, rgba(5, 5, 5, 0.99) 100%);
+
+  --ww-f-display: 'RDR Lino', 'Tajawal', 'Noto Sans Arabic', Georgia, serif;
+  --ww-f-body: 'Hapna Slab', 'Tajawal', 'Noto Sans Arabic', Georgia, serif;
+  --ww-f-num: 'RDR Catalogue', 'Tajawal', 'Noto Sans Arabic', Georgia, serif;
+
+  color: var(--ww-text);
+  font-family: var(--ww-f-body);
+}
+
+/* TAB is both the open key and the focus-traversal key -- never a focus ring here */
+.ww-root :focus,
+.ww-root :focus-visible { outline: none; }
+
+@keyframes ww-enter {
+  from { opacity: 0; transform: scale(0.965); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ★ No dimming from the UI.
+   There used to be two black sheets over the whole scene -- a pale imitation of what the
+   game itself does with far more depth: it slows time, saturates the colours and blurs the
+   background. So we invoke its own effect from client/wheel.lua and leave the UI transparent.
+
+   ⚠️ The element stays without a background on purpose: removing it from the DOM needs a
+   change to the component, and keeping it empty costs nothing and keeps the way back one line. */
+.ww-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ═══════════════ shared building blocks ═══════════════ */
+
+/* The eight-sided frame (crafting_highlight_*) -- a copy of .wc-frame */
+.ww-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  --ww-fr-px: 12px;
+  --ww-fr-c: var(--ww-accent);
+  opacity: var(--ww-fr-o, 0.5);
+}
+.ww-frame > span { position: absolute; background-color: var(--ww-fr-c); }
+.ww-fr-t, .ww-fr-b {
+  left: var(--ww-fr-px); right: var(--ww-fr-px); height: var(--ww-fr-px);
+  -webkit-mask-repeat: repeat-x; mask-repeat: repeat-x;
+  -webkit-mask-size: auto 100%; mask-size: auto 100%;
+}
+.ww-fr-l, .ww-fr-r {
+  top: var(--ww-fr-px); bottom: var(--ww-fr-px); width: var(--ww-fr-px);
+  -webkit-mask-repeat: repeat-y; mask-repeat: repeat-y;
+  -webkit-mask-size: 100% auto; mask-size: 100% auto;
+}
+.ww-fr-tl, .ww-fr-tr, .ww-fr-bl, .ww-fr-br {
+  width: var(--ww-fr-px); height: var(--ww-fr-px);
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+}
+.ww-fr-t  { top: 0;    -webkit-mask-image: var(--ww-tex-crafting_highlight_t);  mask-image: var(--ww-tex-crafting_highlight_t); }
+.ww-fr-b  { bottom: 0; -webkit-mask-image: var(--ww-tex-crafting_highlight_b);  mask-image: var(--ww-tex-crafting_highlight_b); }
+.ww-fr-l  { left: 0;   -webkit-mask-image: var(--ww-tex-crafting_highlight_l);  mask-image: var(--ww-tex-crafting_highlight_l); }
+.ww-fr-r  { right: 0;  -webkit-mask-image: var(--ww-tex-crafting_highlight_r);  mask-image: var(--ww-tex-crafting_highlight_r); }
+.ww-fr-tl { top: 0; left: 0;     -webkit-mask-image: var(--ww-tex-crafting_highlight_tl); mask-image: var(--ww-tex-crafting_highlight_tl); }
+.ww-fr-tr { top: 0; right: 0;    -webkit-mask-image: var(--ww-tex-crafting_highlight_tr); mask-image: var(--ww-tex-crafting_highlight_tr); }
+.ww-fr-bl { bottom: 0; left: 0;  -webkit-mask-image: var(--ww-tex-crafting_highlight_bl); mask-image: var(--ww-tex-crafting_highlight_bl); }
+.ww-fr-br { bottom: 0; right: 0; -webkit-mask-image: var(--ww-tex-crafting_highlight_br); mask-image: var(--ww-tex-crafting_highlight_br); }
+
+/* The stat bar -- a copy of .wc-bar: a rounded rail with a gradient, not segments */
+.ww-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: clamp(5px, 0.8vh, 8px);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.ww-bar-fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--ww-accent), rgba(0, 0, 0, 0.18));
+  transition: width 0.25s linear;
+}
+
+.ww-bar-fill.is-bright { background: linear-gradient(180deg, #FFFFFF, #B4B4B4); }
+.ww-bar.muted .ww-bar-fill { display: none; }
+
+/* ═══════════════ the header: R + the tabs ═══════════════ */
+
+.ww-header {
+  position: absolute;
+  top: 4.2vh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8vh;
+  z-index: 2;
+}
+
+.ww-header-plate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2.4vmin, 30px);
+  padding: clamp(6px, 1vh, 12px) clamp(22px, 4vmin, 48px);
+  isolation: isolate;
+}
+
+/* The ornate header plate -- a tinted mask, not a raw image */
+.ww-header-plate::before {
+  content: '';
+  position: absolute;
+  inset: -6px -14px;
+  z-index: -1;
+  background-color: var(--ww-plate);
+  -webkit-mask: var(--ww-tex-menu_header_1a) center / 100% 100% no-repeat;
+  mask: var(--ww-tex-menu_header_1a) center / 100% 100% no-repeat;
+  filter: drop-shadow(0 3px 9px rgba(0, 0, 0, 0.9));
+}
+
+.ww-tab {
+  position: relative;
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-family: var(--ww-f-display);
+  font-size: clamp(15px, 2.3vh, 26px);
+  line-height: 1;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  /* ★ It used to be --ww-text-faint (#6D6D6D) over a bright daylit scene -- unreadable.
+     And an inactive tab is an offered choice, not disabled text. */
+  color: var(--ww-text-dim);
+  text-shadow: 0 2px 10px #000, 0 0 22px #000;
+  transition: color 0.12s ease;
+}
+
+[dir="rtl"] .ww-tab {
+  font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.ww-tab:hover { color: var(--ww-text); }
+
+/* Active is plain white with a faint gold glow -- the colour separates it before the underline does */
+.ww-tab.active {
+  color: #FFFFFF;
+  text-shadow: 0 2px 10px #000, 0 0 22px #000, 0 0 14px rgba(232, 206, 138, 0.38);
+}
+
+
+/* A vertical divider between the two tabs, from the game's own art (vertical_divider_line) */
+.ww-tab-sep {
+  width: 2px;
+  align-self: stretch;
+  flex: 0 0 auto;
+  background-color: var(--ww-line-strong);
+  -webkit-mask: var(--ww-tex-vertical_divider_line) center / 100% 100% no-repeat;
+  mask: var(--ww-tex-vertical_divider_line) center / 100% 100% no-repeat;
+  opacity: 0.5;
+}
+
+/* The active tab: an underline made from the divider_line art */
+.ww-tab.active::after {
+  content: '';
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: -6px;
+  height: 3px;
+  background-color: var(--ww-line-strong);
+  -webkit-mask: var(--ww-tex-divider_line) center / 100% 100% no-repeat;
+  mask: var(--ww-tex-divider_line) center / 100% 100% no-repeat;
+}
+
+/* ★ No key caps here: every key the wheel answers to is drawn by the library's prompt group
+   (w.prompt, client/wheel.lua) -- one look for every prompt on the server. */
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The bubbles -- a disc per weapon, not a wedge sector
+
+   ★ Hit testing stays angular rather than on the bubble itself: so pointing works from any
+     distance from the centre, as in the game's wheel, and the player is never required to hit
+     a small disc.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.ww-surface {
+  position: absolute;
+  left: 34%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(69vh, 46vw, 640px);
+  aspect-ratio: 1;
+}
+
+.ww-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* The thin ring passing through the bubble centres */
+.ww-ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ww-overlay { position: absolute; inset: 0; pointer-events: none; }
+.ww-overlay { z-index: 4; }   /* the bubbles draw over the centre disc -- as in the reference */
+
+.ww-bubble {
+  position: absolute;
+  width: 14.7%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  transition: transform 110ms ease, opacity 110ms ease;
+}
+
+/* The bubble disc itself */
+.ww-bubble-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(120% 120% at 50% 12%, rgba(34, 34, 34, 0.97), rgba(8, 8, 8, 0.98) 70%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 6px 16px rgba(0, 0, 0, 0.75);
+  transition: box-shadow 110ms ease, background 110ms ease;
+}
+
+/* ★ The empty slot in the reference has **no disc**: a dim X on its own.
+   The disc made an empty slot look full and muddled the reading of the wheel. */
+.ww-bubble.empty .ww-bubble-face { background: none; box-shadow: none; }
+.ww-bubble.dim { opacity: 0.4; }
+.ww-bubble.stowed .ww-bubble-face { opacity: 0.62; }
+
+/* Equipped: a light grey ring */
+.ww-bubble.equipped .ww-bubble-face {
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.55), 0 6px 16px rgba(0, 0, 0, 0.8);
+}
+
+/* Assigned to quick select: a gold ring */
+.ww-bubble.pinned .ww-bubble-face {
+  box-shadow: inset 0 0 0 2px var(--ww-gold), 0 6px 16px rgba(0, 0, 0, 0.8);
+}
+
+/* ★ Selected: it grows and is ringed in bright white -- as in the reference */
+.ww-bubble.selected {
+  transform: translate(-50%, -50%) scale(1.21);
+  z-index: 3;
+}
+
+.ww-bubble.selected .ww-bubble-face {
+  background: radial-gradient(120% 120% at 50% 12%, rgba(42, 42, 42, 0.98), rgba(10, 10, 10, 0.99) 70%);
+  box-shadow:
+    inset 0 0 0 2px #FFFFFF,
+    0 0 14px rgba(255, 255, 255, 0.28),
+    0 8px 22px rgba(0, 0, 0, 0.85);
+}
+
+/* The empty slot: an X from the game's art */
+.ww-bubble-x {
+  width: 52%;
+  height: 52%;
+  opacity: 0.5;
+  background-color: var(--ww-text-faint);
+  -webkit-mask: var(--ww-tex-cross) center / contain no-repeat;
+  mask: var(--ww-tex-cross) center / contain no-repeat;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
+}
+
+.ww-icon-img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  filter: contrast(1.06) saturate(1.05) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.95));
+}
+
+/* The fist is a small square image -- filled more than the rectangular weapon images */
+.ww-icon-img.fist { width: 64%; height: 64%; }
+
+/* -- dual wield --
+ *
+ * ★ RDR2's own icon: w_lib/web/build/assets/images/wheel/weapon_dualwield.png -- the two arrows with their
+ *   worn texture, not an imitation drawing and not two weapon images composited.
+ *
+ * And it is **white on transparent** art like the rest of the game's, so it is masked and
+ * tinted with the text colour rather than drawn raw -- so it inverts to dark on the gold disc
+ * like every other icon.
+ */
+.ww-dual {
+  width: 78%;
+  height: 78%;
+  background-color: currentColor;
+  color: var(--ww-text);
+  -webkit-mask: var(--ww-tex-dualwield) center / contain no-repeat;
+  mask: var(--ww-tex-dualwield) center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
+}
+
+.ww-bubble.selected .ww-dual { color: var(--ww-ink); filter: none; }
+
+/* ⚠️ stroke: currentColor is required -- the icon's paths declare fill="none" and leave the
+   stroke to CSS. It was lost in a rewrite of the file and the two arrows were drawn with
+   neither colour nor fill: an empty disc where 'dual wield' should be. */
+.ww-vector {
+  width: 62%;
+  height: 62%;
+  color: var(--ww-text);
+  fill: none;
+  stroke: currentColor;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
+}
+
+/* -- bubble badges --
+ *
+ * ★ One cluster, not fixed corners.
+ *
+ *   The quick-select icon used to be pinned to the top-right corner, the '1/2' counter to the
+ *   top-left, and 'on the horse' above the centre -- while the cluster is computed from the
+ *   sector's angle. So wherever the outward side happened to coincide with one of those
+ *   corners (half the sectors) the icon landed on top of the ammo counter and the card symbol.
+ *
+ *   Now everything sits inside the cluster and flex orders it: overlap is impossible, not merely avoided.
+ */
+
+/* The badge container -- its position is computed in JSX, on the outward side from the centre */
+.ww-badges {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+/* The badge row: '1/2' <- counter <- card symbol <- quick select */
+.ww-badge-row { display: flex; align-items: center; gap: 3px; }
+
+.ww-ammo {
+  min-width: 1.7em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(6, 6, 6, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  font: 700 clamp(9px, 1.15vh, 13px) / 1.35 var(--ww-f-num);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.ww-ammo.empty { color: var(--ww-red); }
+
+.ww-hand {
+  width: 1.65em;
+  height: 1.65em;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(6, 6, 6, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  font-size: clamp(9px, 1.15vh, 13px);
+}
+
+.ww-suit { display: inline-flex; width: 0.85em; height: 0.85em; color: var(--ww-text); }
+.ww-suit-icon { width: 100%; height: 100%; fill: currentColor; }
+
+/* Quick select -- a disc in the row with a gold ring, not a tag in the bubble's corner */
+.ww-quick {
+  width: 1.65em;
+  height: 1.65em;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(6, 6, 6, 0.94);
+  box-shadow: inset 0 0 0 1px var(--ww-gold);
+  color: var(--ww-gold-lit);
+  font-size: clamp(9px, 1.15vh, 13px);
+}
+
+.ww-quick-icon { width: 0.95em; height: 0.95em; }
+
+/* ★ An order number instead of the icon when the default is more than one weapon: the icon says
+   'assigned' and the number says 'assigned second' -- and a TAB tap draws them in that order.
+   And they are never shown together: a disc 1.65em across has no room for both, so they overlap. */
+.ww-quick b {
+  font: 700 clamp(8px, 1vh, 11px) / 1 var(--ww-f-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--ww-gold-lit);
+}
+
+.ww-more {
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgba(6, 6, 6, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.8);
+  font: 700 clamp(7px, 0.9vh, 10px) / 1.4 var(--ww-f-num);
+}
+
+/* 'On the horse' -- a line under the row in the same cluster */
+.ww-stowed {
+  color: var(--ww-text-faint);
+  font-size: clamp(6px, 0.75vh, 8px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 4px #000;
+}
+
+/* The arrows for cycling between a sector's weapons -- on either side of the selected bubble */
+.ww-cycle {
+  position: absolute;
+  top: 50%;
+  width: 26%;
+  height: 34%;
+  transform: translateY(-50%);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  background-color: var(--ww-text);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.95));
+  transition: transform 0.1s ease;
+}
+
+.ww-cycle.prev {
+  left: -34%;
+  -webkit-mask: var(--ww-tex-selection_arrow_left) center / contain no-repeat;
+  mask: var(--ww-tex-selection_arrow_left) center / contain no-repeat;
+}
+
+.ww-cycle.next {
+  right: -34%;
+  -webkit-mask: var(--ww-tex-selection_arrow_right) center / contain no-repeat;
+  mask: var(--ww-tex-selection_arrow_right) center / contain no-repeat;
+}
+
+.ww-cycle:hover { transform: translateY(-50%) scale(1.25); }
+
+/* ════════════════ the centre disc ════════════════ */
+
+.ww-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 60%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 0.7vh, 9px);
+  padding: 13% 12%;
+  border-radius: 50%;
+  overflow: hidden;
+  text-align: center;
+  isolation: isolate;
+  background: var(--ww-glass);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 14px 40px rgba(0, 0, 0, 0.8);
+}
+
+/* Paper grain -- the same plates as the inventory */
+.ww-center::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background: var(--ww-tex-swatch_bg_1a) center / 100% 100% no-repeat;
+}
+
+.ww-info { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ww-info.empty { color: var(--ww-text-dim); font-size: clamp(9px, 1.15vh, 12px); min-height: 1em; }
+
+.ww-info.idle {
+  color: var(--ww-text-faint);
+  font-family: var(--ww-f-display);
+  font-size: clamp(10px, 1.35vh, 15px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[dir="rtl"] .ww-info.idle { font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; letter-spacing: 0; }
+
+/* The weapon class above its name -- 'Semi-Automatic Pistol' in the reference */
+.ww-cat {
+  color: var(--ww-text-dim);
+  font-size: clamp(10px, 1.3vh, 15px);
+  letter-spacing: 0.14em;
+}
+
+[dir="rtl"] .ww-cat { letter-spacing: 0; font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; }
+
+.ww-title {
+  max-width: 100%;
+  color: #FFFFFF;
+  font-family: var(--ww-f-display);
+  font-size: clamp(18px, 2.8vh, 33px);
+  line-height: 1.08;
+  letter-spacing: 0.03em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 7px #000;
+}
+
+.ww-title.long { font-size: clamp(14px, 2.15vh, 26px); }
+
+[dir="rtl"] .ww-title { font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; font-weight: 700; letter-spacing: 0; }
+
+/* The thin red line under the name -- as in the reference */
+.ww-rule {
+  width: 46%;
+  height: 1px;
+  margin-top: 3px;
+  background: linear-gradient(90deg, transparent, var(--ww-red), transparent);
+  opacity: 0.85;
+}
+
+.ww-mod {
+  color: var(--ww-gold-lit);
+  font: 700 clamp(10px, 1.25vh, 14px) / 1 var(--ww-f-num);
+}
+
+/* -- the ammo type switcher -- */
+
+.ww-ammo-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.4vmin, 16px);
+  width: 100%;
+}
+
+.ww-arrow {
+  width: clamp(11px, 1.6vmin, 17px);
+  height: clamp(15px, 2.2vmin, 23px);
+  flex: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  background-color: var(--ww-text);
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+.ww-arrow.left {
+  -webkit-mask: var(--ww-tex-selection_arrow_left) center / contain no-repeat;
+  mask: var(--ww-tex-selection_arrow_left) center / contain no-repeat;
+}
+
+.ww-arrow.right {
+  -webkit-mask: var(--ww-tex-selection_arrow_right) center / contain no-repeat;
+  mask: var(--ww-tex-selection_arrow_right) center / contain no-repeat;
+}
+
+.ww-arrow:hover:not(:disabled) { transform: scale(1.25); }
+.ww-arrow:disabled { background-color: var(--ww-text-faint); cursor: default; }
+
+.ww-ammo-label {
+  min-width: 0;
+  color: var(--ww-text);
+  font-size: clamp(12px, 1.6vh, 18px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[dir="rtl"] .ww-ammo-label { font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; font-weight: 500; }
+
+/* -- the magazine line -- */
+
+.ww-clip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.ww-clip-img {
+  width: clamp(16px, 2.3vh, 24px);
+  height: clamp(16px, 2.3vh, 24px);
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+
+.ww-clip b {
+  color: #FFFFFF;
+  font: 700 clamp(16px, 2.3vh, 26px) / 1 var(--ww-f-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.ww-clip b.empty { color: var(--ww-red); }
+
+.ww-clip span {
+  color: var(--ww-text-dim);
+  font-size: clamp(9px, 1.2vh, 13px);
+  letter-spacing: 0.1em;
+}
+
+[dir="rtl"] .ww-clip span { letter-spacing: 0; }
+
+/* -- the panel for the weapon in the other hand -- */
+
+.ww-other {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.ww-other-hand {
+  color: var(--ww-text-faint);
+  font-size: clamp(8px, 0.98vh, 11px);
+  white-space: nowrap;
+}
+
+.ww-other-name {
+  min-width: 0;
+  color: var(--ww-text);
+  font-family: var(--ww-f-display);
+  font-size: clamp(10px, 1.32vh, 15px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ww-other-img { width: clamp(16px, 2.2vh, 26px); height: clamp(16px, 2.2vh, 26px); object-fit: contain; }
+
+/* -- the clean button -- */
+
+.ww-clean {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  background: none;
+  color: var(--ww-text);
+  font-family: var(--ww-f-display);
+  font-size: clamp(9px, 1.2vh, 14px);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ww-clean::before {
+  content: '';
+  position: absolute;
+  inset: -2px -4px;
+  z-index: -1;
+  background-color: var(--ww-plate);
+  -webkit-mask: var(--ww-tex-selection_box_bg_1c) center / 100% 100% no-repeat;
+  mask: var(--ww-tex-selection_box_bg_1c) center / 100% 100% no-repeat;
+}
+
+.ww-clean:hover:not(:disabled) { color: var(--ww-gold-lit); }
+.ww-clean:disabled, .ww-clean.disabled { color: var(--ww-text-dim); cursor: default; }
+.ww-clean-img { width: 12px; height: 12px; object-fit: contain; }
+.ww-clean-count { color: var(--ww-text-dim); font-family: var(--ww-f-num); }
+
+/* ════════════════ the side stats panel ════════════════ */
+
+.ww-panel {
+  position: absolute;
+  left: 74%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* Reference: 23.9% of screen width and 51% height -- and a 7px gap between rows */
+  width: 23.9vw;
+  max-width: 420px;
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 0.79vh, 9px);
+}
+
+/* ★ The panel title on the ornate menu_header_1a art -- as in the reference, not a plain
+   rectangle. Its height is 1.15x the row height (53px against 46px there). */
+.ww-panel-title {
+  position: relative;
+  height: 1.15em;
+  min-height: clamp(34px, 4.6vh, 56px);
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
+  isolation: isolate;
+  color: #FFFFFF;
+  font-family: var(--ww-f-display);
+  font-size: clamp(13px, 1.85vh, 21px);
+  letter-spacing: 0.18em;
+  text-shadow: 0 2px 7px #000;
+}
+
+[dir="rtl"] .ww-panel-title { font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; font-weight: 700; letter-spacing: 0; }
+
+.ww-panel-title::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(180deg, rgba(26, 26, 26, 0.95), rgba(8, 8, 8, 0.95));
+}
+
+.ww-panel-title::after {
+  content: '';
+  position: absolute;
+  inset: -3px -6px;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--ww-line-strong);
+  -webkit-mask: var(--ww-tex-menu_header_1a) center / 100% 100% no-repeat;
+  mask: var(--ww-tex-menu_header_1a) center / 100% 100% no-repeat;
+}
+
+/* -- the stat row --
+   The reference measurements inside the row (which is 315px wide):
+       label ~ 44%   ·   bar 116px = 37%   ·   number and after 22%
+   Mine had the bar at 1fr so it swallowed the whole row -- the most visible difference from
+   the reference. */
+.ww-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40% 37% minmax(3ch, 1fr);
+  align-items: center;
+  gap: clamp(6px, 0.8vw, 11px);
+  min-height: clamp(28px, 3.9vh, 48px);   /* 46px of 881 = 5.2vh at full height */
+  padding: 0 clamp(9px, 0.8vw, 15px);
+  background: linear-gradient(180deg, rgba(28, 28, 28, 0.94), rgba(9, 9, 9, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.ww-row.muted { opacity: 0.4; }
+
+.ww-row-name {
+  color: #FFFFFF;
+  font-family: var(--ww-f-display);
+  font-size: clamp(9px, 1.3vh, 15px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px #000;
+}
+
+[dir="rtl"] .ww-row-name { font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; font-weight: 500; }
+
+/* The bar with a rounded handle -- as in the reference */
+/* The track is thin, and the handle clearly larger than it -- as in the reference */
+.ww-row-bar {
+  position: relative;
+  height: clamp(4px, 0.62vh, 7px);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+
+.ww-row-bar i {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #FFFFFF, #C6C6C6);
+  transition: width 0.2s ease-out;
+}
+
+.ww-row-bar b {
+  position: absolute;
+  top: 50%;
+  width: clamp(11px, 1.55vh, 17px);
+  height: clamp(11px, 1.55vh, 17px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #FFFFFF, #B0B0B0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  transition: inset-inline-start 0.2s ease-out;
+}
+
+/* ★ The number at the start of its column, not the end: in the reference there is space after
+   it up to the plate's edge, and aligning it to the edge made it look cropped there. */
+.ww-row-val {
+  color: var(--ww-text-dim);
+  font: 700 clamp(8px, 1.05vh, 12px) / 1 var(--ww-f-num);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+  white-space: nowrap;
+}
+
+/* The guidance line at the bottom of the panel */
+.ww-panel-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: clamp(24px, 3.2vh, 40px);
+  padding: 0 clamp(9px, 0.8vw, 15px);
+  background: linear-gradient(180deg, rgba(20, 20, 20, 0.92), rgba(6, 6, 6, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--ww-text-dim);
+  font-size: clamp(8px, 1.05vh, 12px);
+  white-space: nowrap;
+}
+
+[dir="rtl"] .ww-panel-hint { font-family: 'Tajawal', 'Noto Sans Arabic', sans-serif; }
+
+
+@media (max-height: 780px) {
+  .ww-header { top: 2.2vh; }
+  .ww-surface { width: min(68vh, 50vw, 580px); }
+  .ww-panel { inset-inline-end: 3vw; }
+}

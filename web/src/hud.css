@@ -1,0 +1,807 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Wraith HUD -- RDR3 design (original textures + colours), sized like the game's own cores
+   * Circles: health/food/water  * horse panel (while mounted)  * stamina + mic
+   * Compass bottom-centre + location  * top-right: name + id + cash + gold
+   The textures are injected in main.tsx as --tex-* variables (an absolute path that works inside CEF).
+   Sizes are in rem = 0.64vh (small -- the size of the game's cores). Positions in vh/vw (fixed).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Explicitly neutral white/black (no brown, no cream) */
+  --gold-1: #FFFFFF;   /* plain white */
+  --gold-2: #DCDCDC;   /* neutral light grey */
+  --gold-3: #8C8C8C;   /* neutral grey */
+  --cream:  #F5F5F5;   /* neutral white for text */
+  --dim:    #BFBFBF;   /* light grey for labels */
+  --line:   rgba(255, 255, 255, 0.28);
+  --f-title: 'RDR Lino', 'Tajawal', 'Noto Sans Arabic', Georgia, serif;
+  --f-num:   'RDR Catalogue', 'Tajawal', 'Noto Sans Arabic', Georgia, serif;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ★ أخضر التسمُّم — لونٌ واحدٌ يحمله متغيّر: القلب والحلقة والدخان تأخذه
+     منه، فتغييره سطرٌ واحدٌ لا خمسة. وهو أخضرُ عفنٍ مائلٌ إلى الصفرة لا
+     أخضرَ نضِر: الأخير يُقرأ «صحّة» وهو نقيض المقصود. */
+  --poison: #5AB054;
+
+  /* ── the state colours ──────────────────────────────────────────────────────
+     ★ These used to be written into the rules themselves (#E8C547 for the warning,
+       #E52D2D and #F04444 for the danger). They are variables now because the player
+       chooses them from the control panel -- and a colour written into thirty rules is
+       a colour nobody can change.
+
+     ⚠️ Each one comes twice: once as a colour and once as bare channels. A glow needs
+        the same hue at a dozen different alphas, and rgba() cannot take a hex -- so the
+        channels are what every rgba() in this file is built from, and settings/theme.ts
+        writes both from one chosen colour. */
+  --warn: #E8C547;
+  --warn-rgb: 232, 197, 71;
+
+  --danger: #E52D2D;
+  --danger-lit: #F04444;
+  --danger-rgb: 229, 45, 45;
+
+  --poison-rgb: 90, 176, 84;
+  --poison-lit-rgb: 126, 196, 110;
+  --poison-deep-rgb: 58, 110, 52;
+  --poison-track: rgba(18, 40, 20, 0.75);
+
+  /* ── the shape of the circles ────────────────────────────────────────────
+     The stock weights, so the HUD draws correctly before the player's settings
+     have arrived -- and so a reset lands on exactly these. */
+  --core-ring-w: 8;      /* ring thickness on the 0-100 SVG canvas */
+  --core-disc-a: 1;      /* how solid the dark disc behind the icon is */
+  --core-ic-size: 64%;   /* the icon's share of that disc */
+}
+
+/* ⚠️ A blanket rule, and it has to be one.
+   The heartbeat, the warning pulse, the gilding shimmer, the poison fumes and the voice
+   ripple are five animations declared in five different places; naming them here would
+   guarantee that the sixth one added later is the one nobody remembers to add. Scoped to
+   .hud-root so the control panel keeps its own entrance. */
+:root.no-motion .hud-root *,
+:root.no-motion .hud-root *::before,
+:root.no-motion .hud-root *::after { animation: none !important; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 0.64vh; }               /* small -- close to the size of the game's cores */
+html, body, #root { width: 100%; height: 100%; overflow: hidden; background: transparent !important; }
+body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing: antialiased; }
+
+/* The HUD layout is always LTR -- so the bars drain in the right direction and the circles
+   keep their order, while the text stays Arabic (the browser shapes it RTL inside the container). */
+.hud-root { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0; direction: ltr; transition: opacity 0.4s var(--ease); }
+.hud-root.visible { opacity: 1; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(0.8rem); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ══════════════════ top-right: name + id + cash + gold ══════════════════
+   ⚠️ There is no .top-info container any more. Every one of these is its own widget
+      with a position of its own (settings/types.ts), and the column they used to form
+      survives as their default coordinates -- so an untouched HUD looks as it did and
+      a player who wants their wallet somewhere else can simply drag it there.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Top-right is transparent (no black background) -- legibility comes from the text shadow */
+.ti-server {
+  display: flex; align-items: center; gap: 0.6rem;
+  font-family: var(--f-title); font-size: 2.6rem; letter-spacing: 0.12em;
+  color: var(--cream); text-transform: uppercase; text-shadow: 0 0.15rem 0.5rem rgba(0,0,0,0.9);
+}
+.ti-server .dot { width: 1.7rem; height: 1.7rem; border-radius: 50%; border: 0.16rem solid var(--gold-2);
+  background: radial-gradient(circle at 35% 30%, var(--gold-1), transparent 60%); }
+/* A stack of rows, right-aligned -- the wallet and the identity each use one. */
+.ti-stack {
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 0.72rem;
+}
+.ti-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.82rem; min-height: 2.85rem; }
+.ti-val {
+  font-family: var(--f-num); font-size: 2.55rem; line-height: 1; color: #FFFFFF;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.025em;
+  text-shadow: 0 0.16rem 0.56rem rgba(0,0,0,1), 0 0 0.38rem rgba(0,0,0,0.98);
+}
+.ti-ic {
+  width: 2.75rem; height: 2.75rem; display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0.14rem 0.4rem rgba(0,0,0,1));
+}
+.ti-ic svg { width: 100%; height: 100%; }
+.ti-ic img { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; }
+.ti-ic.currency { width: 3.15rem; height: 3.15rem; }
+/* Currency icon colours */
+.ti-ic.token, .ti-ic.gold, .ti-ic.cash, .ti-ic.dirty {
+  filter: drop-shadow(0 0.14rem 0.42rem rgba(0,0,0,1)) drop-shadow(0 0 0.14rem rgba(255,255,255,0.22));
+}
+/* The bank is drawn, not photographed: an SVG fills its box edge to edge while the
+   currency PNGs carry their own padding, so an equal box would print it larger than
+   the rest of the column. It is sized down to match what the eye reads, not what the
+   number says -- and it takes the palette's neutral grey, as this theme has no brown. */
+.ti-ic.bank { width: 2.45rem; height: 2.45rem; color: var(--gold-2); }
+.ti-ic.pvp   { color: #E05555; }
+.ti-ic.id    { color: #E05555; }
+.ti-ic.lv    { color: #D8D2C4; }
+
+/* ══════════════════ the wallet and the identity: ink plates ══════════════════
+   ★ The wheel's dialog language (w_wheel .ww-picker-modal): the plate is RDR's help_text_bg
+     tinted through a mask -- a brushed ink block with rough edges, never a CSS box -- and
+     the rows inside are right-aligned figures in RDR Catalogue with one-colour icons.
+     A divider_line rule sets the cash apart from the three balances; the gold row takes
+     the wraith gold, the dirty money a muted red, everything else the HUD's white.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.plate {
+  position: relative; isolation: isolate;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 0.55rem;
+  padding: 1.55rem 2.3rem 1.55rem 2.6rem; min-width: 21rem;
+}
+/* 2026-09-18: the owner wants no plate behind the money and the identity -- the figures sit
+   straight on the game, carried by their own shadows (like the level bar). The ink plate and
+   its blurred shadow are kept here, switched off, in case they are wanted back. */
+.plate::before, .plate::after { content: none; }
+/*
+.plate::before {
+  content: ''; position: absolute; inset: -0.4rem -0.9rem; z-index: -1; pointer-events: none;
+  background-color: rgba(9, 9, 9, 0.9);
+  -webkit-mask: var(--tex-panel-ink) center / 100% 100% no-repeat; mask: var(--tex-panel-ink) center / 100% 100% no-repeat;
+}
+.plate::after {
+  content: ''; position: absolute; inset: 18% 10%; z-index: -2; pointer-events: none;
+  background: rgba(0, 0, 0, 0.75); filter: blur(1.4rem);
+}
+*/
+.plate-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.9rem; min-height: 2.9rem; }
+.plate-val {
+  font-family: var(--f-num); font-size: 2.55rem; line-height: 1; color: #FFFFFF;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.025em;
+  text-shadow: 0 0.1rem 0.15rem #000, 0 0.16rem 0.5rem rgba(0, 0, 0, 0.95), 0 0 1.2rem rgba(0, 0, 0, 0.7);
+}
+.plate-val.is-word { font-family: var(--f-title); font-size: 2rem; letter-spacing: 0.06em; }
+.plate-ic {
+  width: 2.7rem; height: 2.7rem; display: flex; align-items: center; justify-content: center;
+  color: var(--gold-2); filter: drop-shadow(0 0.1rem 0.15rem #000) drop-shadow(0 0.14rem 0.5rem rgba(0, 0, 0, 0.9));
+}
+.plate-ic svg { width: 100%; height: 100%; }
+.plate-ic.is-medal { width: 3rem; height: 3rem; }
+.plate-rule {
+  display: block; width: 100%; height: 0.32rem; margin: 0.1rem 0 0.25rem;
+  background-color: rgba(255, 255, 255, 0.55);
+  -webkit-mask: var(--tex-divider_line) center / 100% 100% no-repeat; mask: var(--tex-divider_line) center / 100% 100% no-repeat;
+}
+.plate-row.is-cash .plate-val { font-size: 3rem; }
+.plate-row.is-cash .plate-ic { color: #FFFFFF; }
+.plate-row.is-gold .plate-val, .plate-row.is-gold .plate-ic { color: #E7CE8A; }
+.plate-row.is-dirty .plate-val, .plate-row.is-dirty .plate-ic { color: #D98A8A; }
+.plate-row.is-pvp .plate-ic { color: #E05555; }
+.plate-row.is-level .plate-val { color: #F2F2F2; }
+/* the identity plate is a short one: its rows sit side by side */
+.plate.ident { flex-direction: row; align-items: center; gap: 1.6rem; min-width: 0; padding: 1.1rem 2.3rem 1.1rem 2.6rem; }
+.plate.ident .plate-row { min-height: 3rem; }
+
+/* ══════════════════ bottom-left: the state, beside the minimap ══════════════════
+   ⚠️ .status-cluster is gone the same way .top-info is: every circle stands on its own
+      coordinate now. The row they used to form is written down as their defaults --
+      the arithmetic that produced those numbers is in settings/types.ts beside them.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+/* The status block is transparent -- legibility comes from the black core discs and the text shadow */
+
+/* The horse panel (shown only while mounted) */
+.horse-panel { display: flex; align-items: center; gap: 0.9rem; padding-bottom: 0.7rem;
+  border-bottom: 0.1rem solid var(--line); animation: fadeUp 0.3s var(--ease) both; }
+.horse-badge { width: 4rem; height: 4rem; border-radius: 50%; flex-shrink: 0; border: 0.16rem solid var(--gold-2);
+  background: radial-gradient(circle at 50% 36%, rgba(32,32,32,0.92), rgba(3,3,3,0.96)); display: flex; align-items: center; justify-content: center; }
+.horse-badge svg { width: 2.5rem; height: 2.5rem; color: var(--gold-1); }
+.horse-bars { display: flex; flex-direction: column; gap: 0.45rem; min-width: 15rem; }
+.hb-row { display: flex; flex-direction: column; gap: 0.22rem; }
+.hb-label { font-family: var(--f-title); font-size: 1.2rem; letter-spacing: 0.1em; color: var(--cream); text-transform: uppercase;
+  text-shadow: 0 0.12rem 0.4rem rgba(0,0,0,0.95), 0 0 0.3rem rgba(0,0,0,0.9); }
+
+/* An RDR bar (real texture) */
+.bar { height: 0.85rem; border-radius: 0.12rem; background: rgba(0,0,0,0.55); border: 0.08rem solid var(--line); overflow: hidden; }
+.bar-fill {
+  height: 100%; border-radius: 0.1rem;
+  background-image: linear-gradient(90deg, var(--gold-3), var(--gold-2) 45%, var(--gold-1));
+  box-shadow: 0 0 0.4rem rgba(255,255,255,0.25); transition: width 0.35s var(--ease);
+}
+.bar-fill.low { background-image: linear-gradient(90deg, #7a1a1a, #cb3b3b); box-shadow: 0 0 0.5rem rgba(203,60,60,0.5); }
+
+/* The row of circles: health / food / water */
+.gauges-row { display: flex; align-items: flex-start; gap: 1.1rem; animation: fadeUp 0.4s var(--ease) both; }
+.gauge { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+.gauge-ring { position: relative; width: 6.2rem; height: 6.2rem; filter: drop-shadow(0 0.15rem 0.4rem rgba(0,0,0,0.55)); }
+.gauge-ring.low { filter: drop-shadow(0 0.12rem 0.4rem rgba(0,0,0,0.75)) drop-shadow(0 0 0.55rem rgba(var(--danger-rgb),0.78)); }
+.gauge-ring svg { width: 100%; height: 100%; display: block; }
+.gauge-track-c { fill: none; stroke: rgba(0,0,0,0.55); }
+.gauge-fill-c  { fill: none; stroke: url(#goldGrad); stroke-linecap: round; transition: stroke-dasharray 0.4s var(--ease); }
+.gauge-fill-c.low { stroke: var(--danger); filter: drop-shadow(0 0 0.42rem rgba(var(--danger-rgb),0.95)); }
+/* A neutral black disc inside each circle (behind the icon) -- no brown */
+.gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 74%; height: 74%; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 36%, #1c1c1c, #050505 72%);
+  border: 0.09rem solid rgba(255,255,255,0.16);
+  box-shadow: inset 0 0 0.9rem rgba(0,0,0,0.95), 0 0 0.3rem rgba(0,0,0,0.6); }
+.gauge-center svg { width: 2.7rem; height: 2.7rem; color: #FFFFFF; filter: drop-shadow(0 0.1rem 0.25rem rgba(0,0,0,0.9)); transform-origin: center; }
+/* The heart: steady at 100%, white and pulsing after damage, fast red near empty. */
+.gauge-center.beat:not(.low) svg {
+  animation: heartbeat 1.35s ease-in-out infinite;
+  filter: drop-shadow(0 0.1rem 0.24rem rgba(0,0,0,0.95)) drop-shadow(0 0 0.48rem rgba(255,255,255,0.88));
+}
+.gauge-center.low svg {
+  color: var(--danger-lit);
+  filter: drop-shadow(0 0.1rem 0.24rem rgba(0,0,0,0.95)) drop-shadow(0 0 0.58rem rgba(var(--danger-rgb),0.98));
+}
+.gauge-center.beat.low svg { animation: heartbeatLow 0.72s ease-in-out infinite; }
+/* Food and water: a glowing red warning only near empty. */
+.gauge-center.low:not(.beat) svg { animation: warnPulse 0.9s ease-in-out infinite; }
+@keyframes heartbeat { 0%,30%,62%,100% { transform: scale(1); } 14% { transform: scale(1.22); } 44% { transform: scale(1.12); } }
+@keyframes heartbeatLow {
+  0%,30%,62%,100% { transform: scale(1); opacity: 1; }
+  14% { transform: scale(1.27); opacity: 0.76; }
+  44% { transform: scale(1.15); opacity: 0.9; }
+}
+@keyframes warnPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.66; } }
+.gauge-label { font-family: var(--f-title); font-size: 1.3rem; letter-spacing: 0.1em; color: var(--cream);
+  text-transform: uppercase; text-shadow: 0 0.14rem 0.4rem rgba(0,0,0,0.98), 0 0 0.3rem rgba(0,0,0,0.9); }
+
+/* Stamina + the mic */
+.stamina-row { display: flex; align-items: center; gap: 1rem; animation: fadeUp 0.45s var(--ease) both; }
+.stamina-box { display: flex; flex-direction: column; gap: 0.28rem; flex: 1; min-width: 16rem; }
+.stamina-box .hb-label { font-size: 1rem; }
+.voice { display: flex; align-items: flex-end; gap: 0.7rem; }
+.voice-mic svg { width: 2.8rem; height: 2.8rem; color: var(--cream); transition: color 0.2s;
+  filter: drop-shadow(0 0.1rem 0.35rem rgba(0,0,0,0.95)); }
+.voice.active .voice-mic svg { color: var(--gold-1); }
+.voice-bars { display: flex; align-items: flex-end; gap: 0.28rem; height: 3rem;
+  filter: drop-shadow(0 0.1rem 0.3rem rgba(0,0,0,0.9)); }
+.voice-bar { width: 0.5rem; border-radius: 0.15rem; background: rgba(255,255,255,0.2); transition: background 0.15s; }
+.voice-bar.lit { background: var(--dim); }
+.voice.active .voice-bar.on { background: var(--gold-1); animation: vpulse 0.5s ease-in-out infinite alternate; }
+@keyframes vpulse { from { opacity: 0.6; } to { opacity: 1; } }
+
+/* ══════════════════ pictures the player adds ══════════════════
+   A logo in place of the server name, or a picture of their own anywhere on screen --
+   from a link, of any kind the browser can draw (see HudMedia in App.tsx).
+
+   ★ Sized in rem like everything else in this file, so a logo keeps the same share of
+     the screen at 1080p and at 1440p rather than shrinking as the resolution grows.
+
+   ⚠️ object-fit: contain, always. When the player sets both a width and a height that
+     disagree with the picture's own proportions, contain letterboxes it; fill would
+     stretch a face sideways and leave them wondering what the HUD did to their logo. */
+.hud-media {
+  display: block;
+  max-width: 100vw;
+  height: auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 0.2rem 0.6rem rgba(0, 0, 0, 0.75));
+}
+
+/* An empty or broken slot. Drawn in the editor only -- in the live HUD a picture that
+   is missing is simply absent, because the game behind it is worth more than a notice
+   about our disappointment. The hatching says "a space is reserved here". */
+.hud-media-ph {
+  display: block;
+  min-width: 8rem;
+  min-height: 8rem;
+  border: 0.16rem dashed var(--line);
+  border-radius: 0.2rem;
+  background: repeating-linear-gradient(45deg,
+    rgba(255, 255, 255, 0.06) 0 0.8rem,
+    rgba(255, 255, 255, 0) 0.8rem 1.6rem);
+}
+.hud-media-ph.is-bad {
+  border-color: rgba(var(--danger-rgb), 0.75);
+  background: repeating-linear-gradient(45deg,
+    rgba(var(--danger-rgb), 0.14) 0 0.8rem,
+    rgba(255, 255, 255, 0) 0.8rem 1.6rem);
+}
+
+/* ══════════════════ top-centre: the compass + the location ══════════════════ */
+/* The compass is transparent -- the text shadow is enough for legibility */
+.compass { position: relative; width: 54rem; height: 4rem; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
+.compass-marker { position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0; border-left: 0.7rem solid transparent; border-right: 0.7rem solid transparent; border-top: 0.95rem solid var(--gold-1);
+  filter: drop-shadow(0 0.1rem 0.35rem rgba(0,0,0,0.9)); }
+.compass-card { position: absolute; top: 1.1rem; transform: translateX(-50%); font-family: var(--f-title);
+  font-size: 1.85rem; letter-spacing: 0.04em; color: #FFFFFF; text-transform: uppercase;
+  text-shadow: 0 0.14rem 0.4rem rgba(0,0,0,0.98), 0 0 0.35rem rgba(0,0,0,0.95); }
+.compass-card.minor { font-size: 1.4rem; color: var(--dim); }
+.compass-tick { position: absolute; top: 2.8rem; width: 0.11rem; height: 0.7rem; background: var(--dim); transform: translateX(-50%); opacity: 0.6; }
+.compass-line { position: absolute; top: 3.4rem; left: 0; right: 0; height: 0.12rem;
+  background: linear-gradient(90deg, transparent, var(--line) 16%, var(--line) 84%, transparent); }
+.location { display: flex; align-items: center; gap: 0.6rem; font-family: var(--f-title); font-size: 1.2rem;
+  letter-spacing: 0.18em; color: var(--cream); text-transform: uppercase; text-shadow: 0 0.1rem 0.4rem rgba(0,0,0,0.9); }
+.location .flourish { color: var(--gold-2); font-size: 0.95rem; opacity: 0.9; }
+
+[dir='rtl'] .ti-server, [dir='rtl'] .ti-id { letter-spacing: 0; }
+
+/* ══════════════════ bottom-right: ammo ══════════════════
+   A replacement for the game's own readout and bln_hud's. Both read GET_PED_AMMO_BY_TYPE,
+   and RDR3 keeps one pool per ammo **type** rather than per weapon -- so they show the sum of
+   two weapons' reserves beside each of them. This reads the inventory's accounting: each
+   weapon has its own magazine, and the reserve is items in the bag.
+
+   The large number = this weapon's magazine · the small one = the reserve · red = zero */
+/* Inside the top-right cluster, directly above the money and the id. Not absolutely positioned:
+   it flows with the panel so the rest shift below it and nothing overlaps. */
+.ammo-row {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 1.6rem; margin: 0 0 0.2rem;
+  animation: fadeIn 0.28s var(--ease) both;
+}
+
+.ammo-item { position: relative; display: flex; align-items: flex-start; gap: 0.35rem; }
+
+/* The numbers: the same numeral font used across the HUD, with a dark stroke separating them
+   from any background -- exactly as the game's readout does. */
+.ammo-clip {
+  font-family: var(--f-num); font-size: 2.8rem; line-height: 1;
+  color: var(--cream); letter-spacing: 0.02em;
+  text-shadow:
+    0 0 0.25rem rgba(0,0,0,0.95),
+    0 0.2rem 0.55rem rgba(0,0,0,0.9),
+    0.12rem 0 0 rgba(0,0,0,0.55), -0.12rem 0 0 rgba(0,0,0,0.55);
+}
+
+/* Zero is red */
+.ammo-clip.empty { color: var(--danger); }
+
+/* The reserve after the clip -- the game's own "6 | 94": smaller, a little dimmer */
+.ammo-reserve { display: inline-flex; align-items: baseline; gap: 0.35rem; margin-left: 0.35rem; }
+.ammo-sep { font-family: var(--f-num); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.45;
+  text-shadow: 0 0 0.25rem rgba(0,0,0,0.95), 0 0.2rem 0.55rem rgba(0,0,0,0.9); }
+.ammo-total { font-family: var(--f-num); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.85; letter-spacing: 0.02em;
+  text-shadow: 0 0 0.25rem rgba(0,0,0,0.95), 0 0.2rem 0.55rem rgba(0,0,0,0.9), 0.1rem 0 0 rgba(0,0,0,0.55), -0.1rem 0 0 rgba(0,0,0,0.55); }
+.ammo-total.empty { color: var(--danger); }
+
+.ammo-cart { display: block; width: 2.8rem; height: 2.8rem; margin-left: 0.45rem; }
+.ammo-cart svg,
+.ammo-cart img { width: 100%; height: 100%; display: block; object-fit: contain;
+  filter: drop-shadow(0 0.15rem 0.4rem rgba(0,0,0,0.9)); }
+.cart-ring { fill: none; stroke: var(--cream); stroke-width: 3.2; }
+.cart-mid  { fill: none; stroke: var(--cream); stroke-width: 2.2; }
+.cart-core { fill: var(--cream); }
+
+/* Left hand: the blue dot under the card -- the same marker the stock readout uses */
+.ammo-offhand {
+  position: absolute; right: -0.2rem; bottom: -0.9rem;
+  width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: #2FA8E0; box-shadow: 0 0 0.5rem rgba(47,168,224,0.85), 0 0.15rem 0.4rem rgba(0,0,0,0.9);
+}
+
+/* The active weapon is slightly clearer than its companion */
+.ammo-item:not(.active) .ammo-clip { opacity: 0.72; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Buff badges -- shown above the state circles while an effect is running
+   ════════════════════════════════════════════════════════════════════════════ */
+.buff-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+  padding-bottom: 0.6rem; animation: fadeUp 0.35s var(--ease) both; }
+.buff-chip { display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.35rem 0.75rem 0.35rem 0.5rem; min-width: 9.5rem;
+  background: linear-gradient(180deg, rgba(12,12,12,0.88), rgba(4,4,4,0.94));
+  border: 0.09rem solid var(--line); border-left-width: 0.28rem; border-radius: 0.16rem;
+  box-shadow: 0 0.15rem 0.5rem rgba(0,0,0,0.7); }
+.buff-ic { display: block; width: 1.9rem; height: 1.9rem; flex-shrink: 0; }
+.buff-ic svg { width: 100%; height: 100%; display: block;
+  filter: drop-shadow(0 0 0.35rem currentColor); }
+.buff-body { display: flex; flex-direction: column; gap: 0.22rem; flex: 1; }
+.buff-label { font-family: var(--f-title); font-size: 1.05rem; letter-spacing: 0.06em;
+  color: var(--cream); text-transform: uppercase; white-space: nowrap;
+  text-shadow: 0 0.12rem 0.35rem rgba(0,0,0,0.95); }
+.buff-bar { display: block; height: 0.4rem; border-radius: 0.1rem;
+  background: rgba(0,0,0,0.6); border: 0.06rem solid var(--line); overflow: hidden; }
+.buff-fill { display: block; height: 100%; transition: width 0.4s var(--ease); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The status panel -- the same visual language as w_crafting
+   Two horizontal bars (health · stamina) on the left, and small tiles on the right.
+   ════════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ★ One height for both bars and for the tile -- without this the alignment breaks every
+     time one of them is changed alone. */
+  --stat-h: 6.2rem;
+
+  /* ★ The grain is a surface, not a mask -- and it blends into the colour rather than sitting over it.
+
+     The two stacked layers (a gradient over an image) worked until a colour was set in the
+     config: at that point React writes an explicit colour onto the element and wipes the image
+     with it, so the fill alone loses its grain. background-blend-mode solves it at the root --
+     colour and grain are independent properties that blend, so neither cancels the other.
+
+     ⚠️ And the blend mode differs between the two surfaces because they are opposites. I tried
+     overlay for both and the fill blew out white: the texture itself is light, and overlay of
+     light on light drives brightness to its maximum. The correct choice:
+       the light fill  <- multiply : can never brighten, leaves only dark grain.
+       the dark plate  <- soft-light: reveals the grain gently without whitening. */
+  /* ★ Neutral black, not warm. #16120E leaned brown, and RDR's palette is white on black --
+     not wood and not leather. */
+  --plate-dark: #0B0B0B;
+  --plate-lite: #ECECEC;
+}
+
+.status-panel {
+  display: flex; align-items: flex-end; gap: 1.6rem;
+  animation: fadeUp 0.4s var(--ease) both;
+}
+
+/* -- the two horizontal bars -- */
+.sbars { display: flex; flex-direction: column; height: var(--stat-h);
+  justify-content: space-between; }
+
+.sbar-row { display: flex; align-items: center; gap: 1rem; }
+
+.sbar-ic { width: 3.2rem; height: 3.2rem; flex-shrink: 0; color: var(--cream); }
+.sbar-ic svg { width: 100%; height: 100%; display: block;
+  filter: drop-shadow(0 0.1rem 0.3rem rgba(0,0,0,0.95)); }
+.sbar-row.low .sbar-ic { color: var(--danger); animation: warnPulse 0.9s ease-in-out infinite; }
+
+/* The bar: a slim rectangle with soft corners and a thin inner border -- matching .wc-bar */
+.sbar {
+  position: relative; display: block;
+  width: 42rem; height: 2.4rem;
+  /* ★ No weapon_stats_bar mask here.
+     That texture is drawn for a **segmented** bar with dividers, so stretching it over a
+     continuous bar shows those dividers as black notches across the whole thing. w_crafting
+     went through the same experiment and ended on a bar drawn entirely in CSS -- we follow it:
+     a fully rounded edge and a thin inner border. */
+  border-radius: 999px; overflow: hidden;
+  background-color: var(--plate-dark);
+  background-image: var(--tex-panel);
+  background-size: cover;
+  background-blend-mode: soft-light;
+  box-shadow: inset 0 0 0 0.1rem rgba(255,255,255,0.16),
+              0 0.14rem 0.5rem rgba(0,0,0,0.8);
+}
+.sbar-fill {
+  position: absolute; inset-block: 0; inset-inline-start: 0;
+  width: var(--v, 0%);
+  border-radius: 999px;
+  background-color: var(--plate-lite);
+  background-image: var(--tex-panel);
+  background-size: cover;
+  background-blend-mode: multiply;
+  transition: width 0.28s var(--ease);
+}
+.sbar-row.low .sbar-fill {
+  background: linear-gradient(180deg, var(--danger), #7a1a1a) !important;
+  box-shadow: 0 0 0.5rem rgba(var(--danger-rgb),0.55);
+}
+
+/* -- the tiles -- */
+.stiles { display: flex; align-items: flex-end; gap: 0.7rem; }
+
+/* ★ Curved edges like the bar -- no swatch_bg_1a mask.
+   Its torn grain is lovely in its place, but it does not sit with a bar whose edge is smooth
+   and round in the same panel. Unity of language matters more than the beauty of one piece.
+   And without a mask, box-shadow works again for both the inner border and the shadow. */
+.stile {
+  position: relative; width: 4.4rem; height: var(--stat-h); flex-shrink: 0;
+  border-radius: 0.9rem; overflow: hidden;
+  background-color: var(--plate-dark);
+  background-image: var(--tex-panel);
+  background-size: cover;
+  background-blend-mode: soft-light;
+  box-shadow: inset 0 0 0 0.1rem rgba(255,255,255,0.16),
+              0 0.14rem 0.5rem rgba(0,0,0,0.8);
+  /* ★ Confines mix-blend-mode for the icon to inside the tile -- without isolation it blends
+     with everything behind the whole HUD and its colour becomes random with the scene. */
+  isolation: isolate;
+}
+/* The tile itself is the gauge: it fills from the bottom -- and the mask above clips it with it */
+.stile-fill {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: var(--v, 0%);
+  background-color: var(--plate-lite);
+  background-image: var(--tex-panel);
+  background-size: cover;
+  background-blend-mode: multiply;
+  transition: height 0.28s var(--ease);
+}
+.stile-ic {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+}
+.stile-ic svg {
+  width: 2.5rem; height: 2.5rem; color: var(--cream);
+  filter: drop-shadow(0 0.08rem 0.22rem rgba(0,0,0,0.95));
+  /* ★ The icon is subtracted from what is under it: white on the empty part, black on the
+     filled -- so it stays readable at any fill without computing contrast. */
+  mix-blend-mode: difference;
+}
+.stile.danger {
+  box-shadow: inset 0 0 0 0.12rem rgba(var(--danger-rgb),0.9),
+              0 0 0.55rem rgba(var(--danger-rgb),0.5),
+              0 0.14rem 0.5rem rgba(0,0,0,0.8);
+}
+.stile.danger .stile-ic svg { animation: warnPulse 0.9s ease-in-out infinite; }
+
+/* -- the voice tile --
+   The fill = the voice level. And while speaking: red + a ripple running from inside outwards.
+   ★ The three arcs animate on a staggered delay rather than together -- a running ripple reads
+     as 'sound going out' while a synchronised pulse reads as 'warning'. */
+/* ★ Subtraction like the other tiles: the icon's white on the paper fill gives black, and on
+   the dark background gives white -- so it reads at any fill level.
+   mix-blend-mode: normal here used to keep it white on paper, where it vanished. */
+.voice-tile .stile-ic svg { width: 2.3rem; height: 2.3rem; }
+.voice-tile .wv { opacity: 0.85; transform-origin: 20% 50%; }
+
+/* ⚠️ Red is exempt from the subtraction: red minus paper gives cyan, not red. So we switch the
+   blend off while speaking and guarantee contrast with a dark stroke around the icon. */
+.voice-tile.on .stile-ic svg {
+  mix-blend-mode: normal; color: var(--danger);
+  filter: drop-shadow(0 0 0.36rem rgba(var(--danger-rgb),0.95))
+          drop-shadow(0 0 0.12rem rgba(0,0,0,0.9));
+}
+.voice-tile.on .wv { animation: wvPulse 1s ease-in-out infinite; }
+.voice-tile.on .wv-2 { animation-delay: 0.14s; }
+.voice-tile.on .wv-3 { animation-delay: 0.28s; }
+
+@keyframes wvPulse {
+  0%, 100% { opacity: 0.28; transform: scaleX(0.86); }
+  45%      { opacity: 1;    transform: scaleX(1.06); }
+}
+
+/* ★ No divider between your tiles and your mount's: its width and margins added an extra gap
+   that broke the row's regularity. One spacing for all = the gap in .stiles. */
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The state cores -- one element for every need
+   ★ The same size and the same structure for all of them; no two differ except in icon and
+     colour. We tried bars, tiles and three other styles, and every one of them mixed visual
+     languages in a single panel. The game itself shows its states as circular cores -- so we follow it.
+   ════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ There is no .cores row any more.
+   It existed to keep the circles from ever wrapping onto a second line, because a wrap
+   moved every circle's place the moment a need appeared or disappeared. Free positioning
+   answers that better than the row did: a circle no longer has neighbours to be pushed by,
+   so where the player put it is where it stays whatever else comes and goes. */
+
+/* ★ Sized to match the game's own cores -- they used to be smaller and looked faded beside them. */
+.core { position: relative; width: 7.6rem; height: 7.6rem; flex-shrink: 0; }
+
+/* The outer ring is the gauge -- it starts at the top and runs clockwise */
+.core-ring-svg {
+  width: 100%; height: 100%; display: block;
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 0.12rem 0.4rem rgba(0,0,0,0.85));
+}
+/* ★ The weight of both rings is one number, and the player owns it (settings/theme.ts
+   writes --core-ring-w). The track and the gauge must never disagree: they are the same
+   circle drawn twice, and a track thinner than its gauge shows as a halo. */
+.core-track { fill: none; stroke: rgba(0,0,0,0.72); stroke-width: var(--core-ring-w, 8); }
+.core-ring {
+  fill: none; stroke: var(--cream); stroke-width: var(--core-ring-w, 8);
+  transition: stroke-dasharray 0.3s var(--ease);
+}
+
+/* The dark disc with RDR grain, and the icon over it */
+.core-disc {
+  /* ★ The core's colour is set here from the config, and the icon inherits it through
+     currentColor -- so the colour is not passed twice and no icon parts from its ring. */
+  color: var(--cream);
+  /* ★ No gap between the disc and the ring.
+     The ring has radius 44 and thickness 8 => its inner edge sits at 40.
+     So the disc must end at 40 too, i.e. inset: 10% -- and we took 9% so they overlap into one:
+     an exact touch leaves a transparent thread from the antialiasing, and the overlap swallows it.
+
+     ⚠️ The .core-ic percentage is measured against the disc, not the core, so whenever inset is
+        changed here that percentage must be adjusted inversely to keep the icon size constant:
+            icon% = (the fraction wanted of the core) / (1 - 2 x inset) */
+  position: absolute; inset: 9%; border-radius: 50%;
+  display: grid; place-items: center;
+}
+/* ★ The painted surface is a layer of its own rather than the element's own background.
+   The player can thin the disc down to nothing (--core-disc-a), and opacity on .core-disc
+   itself would take the icon with it -- the one thing that has to stay solid. Absolutely
+   positioned, so the grid centring above still belongs to the icon alone. */
+.core-disc::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: 50%;
+  background-color: var(--plate-dark);
+  background-image: var(--tex-panel);
+  background-size: cover;
+  background-blend-mode: soft-light;
+  /* ★ No light border: inset 0 0 0 0.09rem rgba(255,255,255,.14) used to draw a grey thread at
+     the disc's edge, so it read as a third ring between the white and the black. The ring itself
+     defines the shape, so no second border is needed. */
+  box-shadow: inset 0 0 0.9rem rgba(0,0,0,0.95);
+  opacity: var(--core-disc-a, 1);
+}
+/* ★ 64% of a disc that is 82% => ~52% of the core.
+   The game's core icon fills about half its radius, and we were at 43% so it read smaller. */
+/* ★ The icon is a second gauge -- RDR's other system.
+   Every need has two values: the outer ring (the bar) and the inner core. So the icon is drawn
+   as two layers over one another at exactly the same size:
+     dim  a faint, whole copy -- what has drained from the core
+     lit  a lit copy clipped from the top by the amount drained (clipPath from React)
+   And the clip is rectangular rather than following the icon's shape, so it looks like a liquid receding inside it. */
+.core-ic { position: relative; width: var(--core-ic-size, 64%); height: var(--core-ic-size, 64%); }
+.core-ic-dim,
+.core-ic-lit {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+}
+.core-ic-lit { transition: clip-path 0.3s var(--ease); }
+
+/* ★ The icon is either an SVG or a mask from RDR's art -- and the two rules are identical so
+   the two-layer system and the tinting work with both without exception. */
+.core-ic svg,
+.core-ic .tex-ic {
+  width: 100%; height: 100%; color: inherit;
+  filter: drop-shadow(0 0.08rem 0.24rem rgba(0,0,0,0.95));
+}
+/* The mask takes the image's shape, and background-color tints it from currentColor.
+   Which is why the icons are injected as masks and not as images: an image cannot be tinted. */
+.tex-ic {
+  display: block;
+  background-color: currentColor;
+  -webkit-mask: var(--ic) center / contain no-repeat;
+  mask: var(--ic) center / contain no-repeat;
+}
+/* ★ The dim layer takes the state colour too -- but at lower opacity.
+   Had it stayed white always, an empty core would read grey rather than red: the lit layer is
+   clipped away entirely at zero, so nothing but this remains. Tinting it with the state colour
+   is what makes 'empty' read as an alarm.
+
+   And the difference in opacity (0.5 against 1) is what keeps the fill level readable:
+   were they equal the icon would be one solid mass showing no loss. */
+.core .core-ic-dim svg,
+.core .core-ic-dim .tex-ic { color: rgba(255, 255, 255, 0.22); filter: none; }
+.core.warn   .core-ic-dim svg,
+.core.warn   .core-ic-dim .tex-ic { color: rgba(var(--warn-rgb), 0.34); }
+.core.danger .core-ic-dim svg,
+.core.danger .core-ic-dim .tex-ic {
+  color: rgba(var(--danger-rgb), 0.55);
+  /* And the pulse on it too: at complete emptiness there is no lit layer left to pulse */
+  animation: warnPulse 0.9s ease-in-out infinite;
+}
+
+/* ★ Three colours and no more -- and never a fourth.
+     White is the normal state · yellow is warning · red is danger.
+   The colour says the **state**, not the **kind of need**; the kind is said by its icon.
+   Which is why there is no per-need colour -- that spent red and yellow on decoration and left
+   no colour to distinguish the alarm.
+
+   !important so it beats a colour set in the config: the alarm outranks customisation. */
+.core.warn .core-ring { stroke: var(--warn) !important;
+  filter: drop-shadow(0 0 0.32rem rgba(var(--warn-rgb),0.75)); }
+/* The colour goes on the lit layer alone -- that is the one being read */
+.core.warn .core-ic-lit svg,
+.core.warn .core-ic-lit .tex-ic { color: var(--warn); }
+
+.core.danger .core-ring { stroke: var(--danger) !important;
+  filter: drop-shadow(0 0 0.4rem rgba(var(--danger-rgb),0.9)); }
+.core.danger .core-ic-lit svg,
+.core.danger .core-ic-lit .tex-ic { color: var(--danger-lit); animation: warnPulse 0.9s ease-in-out infinite; }
+
+/* Voice -- the same core, and it ripples while speaking */
+.voice-core { display: contents; }
+.voice-core .wv { opacity: 0.85; transform-origin: 20% 50%; }
+.voice-core.on .core-ic svg { color: var(--danger);
+  filter: drop-shadow(0 0 0.36rem rgba(var(--danger-rgb),0.95)); }
+.voice-core.on .wv { animation: wvPulse 1s ease-in-out infinite; }
+.voice-core.on .wv-2 { animation-delay: 0.14s; }
+.voice-core.on .wv-3 { animation-delay: 0.28s; }
+
+@keyframes wvPulse {
+  0%, 100% { opacity: 0.28; transform: scaleX(0.86); }
+  45%      { opacity: 1;    transform: scaleX(1.06); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Gilding (overpower) -- two degrees, not one
+
+   ★ The item decides which: goldHealthOuter gilds the ring alone -- a half gilding --
+     and goldHealthInner gilds the icon with it, which is a full one. So the player can
+     tell a tonic that fortified the bar from one that fortified the core itself, at a
+     glance and without a number.
+
+   ⚠️ Gilding sits *below* the warning colours in priority. A gilded core that has since
+      drained to danger must still read red: the gold says 'fortified' while the red says
+      'about to die', and the second is the one you act on. Which is why the .danger and
+      .warn rules carry !important and these do not.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --gild:     #E8B93F;   /* RDR's overpower gold */
+  --gild-lit: #FFDA7A;   /* its highlight */
+}
+
+/* The ring: gold, with a faint glow around it so it reads as fortified rather than merely coloured */
+.core.gold-ring .core-ring {
+  stroke: var(--gild);
+  filter: drop-shadow(0 0 0.35rem rgba(232, 185, 63, 0.75));
+}
+
+/* And the track under it warms slightly, or the gold ring floats over a cold black */
+.core.gold-ring .core-track { stroke: rgba(74, 56, 14, 0.72); }
+
+/* The icon: only when the inner is gilded too. The lit layer takes the gold and the dim
+   layer takes it faintly -- the same two-layer arrangement as every other state. */
+.core.gold-icon .core-ic-lit svg,
+.core.gold-icon .core-ic-lit .tex-ic {
+  color: var(--gild-lit);
+  filter: drop-shadow(0 0 0.3rem rgba(232, 185, 63, 0.6));
+}
+
+.core.gold-icon .core-ic-dim svg,
+.core.gold-icon .core-ic-dim .tex-ic { color: rgba(232, 185, 63, 0.3); }
+
+/* ★ A slow breath, not a pulse. The danger pulse is fast and alarming; gilding is a boon,
+   so it breathes calmly -- the two are never confused even out of the corner of an eye. */
+.core.gold-ring .core-ring,
+.core.gold-icon .core-ic-lit { animation: gildBreathe 2.4s ease-in-out infinite; }
+
+@keyframes gildBreathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.82; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   التسمُّم — القلب يخضرّ ويتصاعد منه دخانٌ عفن
+
+   ★ لماذا الأخضر يعلو على الأصفر والأحمر:
+     ألوان الحالة الثلاثة تقول «كم بقي»، والتسمُّم يقول «ماذا جرى لك» — وهو
+     خبرٌ آخر أندر وأهمّ. فلو تزاحما لرأى اللاعب قلباً أحمر وظنّه جوعاً أو
+     جرحاً وهو مسموم. ولذلك !important على اللون وحده لا على غيره: النبض
+     والانكسار وبقيّة سلوك الحالة تبقى كما هي.
+
+   ⚠️ والدخان داخل القرص لا فوق الشاشة: طلبُ «دخانٍ من القلب» يعني علامةً في
+     الهود يقرؤها اللاعب بنظرة، لا مؤثّراً يحجب المشهد. ومؤثّر الشاشة موجودٌ
+     معه ويُضبط من Config.Poison.Fx.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.core.poisoned .core-ring { stroke: var(--poison) !important; }
+.core.poisoned .core-track { stroke: var(--poison-track); }
+
+.core.poisoned .core-ic-lit svg,
+.core.poisoned .core-ic-lit .tex-ic {
+  color: var(--poison) !important;
+  filter: drop-shadow(0 0 6px rgba(var(--poison-rgb), 0.55));
+  animation: poisonThrob 1.6s ease-in-out infinite;
+}
+
+.core.poisoned .core-ic-dim svg,
+.core.poisoned .core-ic-dim .tex-ic { color: rgba(var(--poison-rgb), 0.3) !important; }
+
+/* ── الدخان ─────────────────────────────────────────────────────────────
+   ثلاث خصلاتٍ من قرصٍ واحد، لكلٍّ تأخيرها ومسارها. والحاوية بلا أبعادٍ
+   ثابتة: تتبع الأيقونة فتصعد من فوقها مهما تغيّر قياس الهود. */
+.core-fumes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  transition: opacity 0.6s var(--ease);
+}
+
+.core-fumes i {
+  position: absolute;
+  left: 50%;
+  bottom: 46%;
+  width: 0.62em;
+  height: 0.62em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%,
+              rgba(var(--poison-lit-rgb), 0.85), rgba(var(--poison-deep-rgb), 0.05) 70%);
+  filter: blur(1.2px);
+  opacity: 0;
+  animation: poisonFume 2.8s ease-out infinite;
+}
+
+/* ★ التأخير والإزاحة معاً: التأخير وحده يجعلها تصعد في خطٍّ واحد كالخرز. */
+.core-fumes i:nth-child(1) { animation-delay: 0s;    --fx: -0.55em; }
+.core-fumes i:nth-child(2) { animation-delay: 0.95s; --fx:  0.45em; }
+.core-fumes i:nth-child(3) { animation-delay: 1.8s;  --fx: -0.1em;  }
+
+@keyframes poisonFume {
+  0%   { opacity: 0;    transform: translate(-50%, 0)          scale(0.45); }
+  18%  { opacity: 0.85; }
+  100% { opacity: 0;    transform: translate(calc(-50% + var(--fx)), -2.6em) scale(1.5); }
+}
+
+@keyframes poisonThrob {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(var(--poison-rgb), 0.45)); }
+  50%      { filter: drop-shadow(0 0 11px rgba(var(--poison-lit-rgb), 0.8)); }
+}

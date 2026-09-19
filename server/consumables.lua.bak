@@ -1,0 +1,306 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- w_hud — تسجيل الأصناف المستهلَكة والعناية بالخيل في w_inventory
+--
+--   الجدول كلُّه في shared/consumables.lua — هذا الملف ينفّذه فقط.
+--   الأثر على الحاجات يُطبَّق هنا (السيرفر مرجع)، وما يخصّ الشخصيّة نفسها
+--   (النوى · الحركة · مؤثّر الشاشة) يُنفَّذ على العميل في client/consumables.lua.
+--
+-- ⚠️ هذا الملف يُحمَّل قبل server/metabolism.lua (ترتيب الحروف)، فكلُّ نداءٍ
+--    لـ WNeeds يقع **داخل** دالّة تُستدعى وقت التشغيل لا وقت التحميل.
+-- ════════════════════════════════════════════════════════════════════════════
+
+local Lang = Config.NeedsText or {}
+
+local function notify(src, text, color, icon)
+    if not text then return end
+
+    TriggerClientEvent('w_hud:client:notify', src, {
+        title = text, description = '', icon = icon or 'tick',
+        placement = 'middle-right', duration = 4000, useBackground = false,
+        contentAlignment = 'center', isRTL = Config.IsRTL,
+        titleColor = color or '#34b895', descriptionColor = 'rgba(255,255,255,0.8)',
+    })
+end
+
+local function labelOf(entry, item)
+    local l = entry and entry.label
+    if type(l) == 'table' then return l[Config.Locale] or l.en or item end
+    return l or item
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- استهلاك صنفٍ (أكل/شرب/دواء/تبغ)
+-- ════════════════════════════════════════════════════════════════════════════
+
+--- أثرُ الصنف بعد أن حُذفت القطعة — مفصولٌ عن الحذف لأنّ الأصناف المزدوجة
+--- (سكّر/نعناع) تُحذف أوّلًا ثمّ يُقرَّر: أيأكلها اللاعب أم يُطعمها الخيل؟
+local function applyEffects(src, item)
+    local entry = Config.Consumables[item]
+    if not entry then return end
+
+    -- الحاجات: بثٌّ واحدٌ لكلّ التعديلات
+    WNeeds.addMany(src, {
+        hunger   = entry.hunger or 0,
+        thirst   = entry.thirst or 0,
+        stress   = entry.stress or 0,
+        toxicity = entry.toxicity or 0,
+        bladder  = (Config.Systems.bladder and entry.bladder) or 0,
+        bowel    = (Config.Systems.bowel and entry.bowel) or 0,
+    })
+
+    -- المنشّط
+    if entry.buff and Config.Systems.buffs then
+        WNeeds.giveBuff(src, entry.buff.type, entry.buff.amount or 50)
+    end
+
+    -- ما يُعاد للاعب (قنّينةٌ فارغة مثلًا)
+    if entry.giveBack and entry.giveBack.item and entry.giveBack.item ~= '' then
+        exports.w_inventory:AddItem(src, entry.giveBack.item, entry.giveBack.amount or 1)
+    end
+
+    -- العميل: الحركة + النوى + مؤثّر الشاشة (يقرأ التفاصيل من shared/consumables.lua)
+    TriggerClientEvent('w_hud:client:consume', src, item)
+
+    if Lang.consumed then
+        notify(src, (Lang.consumed):format(labelOf(entry, item)), '#34b895', 'mp_anim_eat')
+    end
+
+    WNeeds.save(src)
+
+    -- أثرٌ في الكونسول عند التشخيص:  setr w_hud:debug 1
+    if GetConvarInt('w_hud:debug', 0) == 1 then
+        local n = WNeeds.state(src) or {}
+        print(("^2[w_hud]^7 player %s consumed '%s' -> hunger=%s thirst=%s toxicity=%s bladder=%s bowel=%s")
+            :format(tostring(src), item, tostring(n.hunger), tostring(n.thirst),
+                tostring(n.toxicity), tostring(n.bladder), tostring(n.bowel)))
+    end
+end
+
+--- حذفٌ ثمّ أثر. ★ لا نمنح شيئًا إلّا إن حُذفت القطعة فعلاً — حمايةٌ من التكرار.
+local function consume(src, item, data)
+    if not Config.Consumables[item] then return false end
+
+    -- ★ نلتقط سبب الفشل لا نتيجته فقط. w_inventory تُعيد
+    --   ('not_enough_items' · 'invalid_item' · 'invalid_inventory')، وبدونه
+    --   يبدو الأمر «أكلتُ ولم يحدث شيء» بلا أيّ دليل.
+    local removed, reason = exports.w_inventory:RemoveItem(src, item, 1, nil, data and data.slot)
+
+    if not removed then
+        print(("^1[w_hud]^7 RemoveItem failed for '%s' (player %s): %s (slot=%s)")
+            :format(item, tostring(src), tostring(reason or 'unknown reason'), tostring(data and data.slot)))
+        return false
+    end
+
+    applyEffects(src, item)
+    return true
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- العناية بالخيل
+--
+--   السيرفر يبدأ الطلب، والعميل ينفّذ ويؤكّد، ثمّ يُحذف الغرض.
+--   ★ لا نحذف قبل التأكيد كي لا يضيع الجزر إن كان اللاعب بعيدًا عن خيله.
+--     ولا نقبل تأكيدًا لم نبدأه نحن: لكلّ لاعبٍ طلبٌ معلّقٌ واحدٌ فقط بمهلة.
+-- ════════════════════════════════════════════════════════════════════════════
+local pending = {} -- [src] = { item = …, slot = …, expires = … }
+
+local function requestHorseCare(src, item, data)
+    local entry = Config.HorseItems[item]
+    if not entry then return false end
+
+    pending[src] = {
+        item = item,
+        slot = data and data.slot,
+        expires = os.time() + 30,
+    }
+
+    TriggerClientEvent('w_hud:client:horseCare', src, item)
+    return true
+end
+
+RegisterNetEvent('w_hud:server:horseCareDone', function(item)
+    local src = source
+    local p = pending[src]
+
+    -- تأكيدٌ لم نبدأه، أو لصنفٍ آخر، أو بعد فوات المهلة ⇒ يُرفض
+    if not p or p.item ~= item or os.time() > p.expires then return end
+    pending[src] = nil
+
+    local entry = Config.HorseItems[item]
+    if not entry then return end
+
+    if entry.consume ~= false then
+        exports.w_inventory:RemoveItem(src, item, 1, nil, p.slot)
+    end
+
+    local text = (entry.kind == 'brush' and Lang.horseBrushed)
+        or (entry.kind == 'stamina' and Lang.horseStamina)
+        or Lang.horseFed
+
+    notify(src, text, '#c9a227', 'awards_set_p_003')
+end)
+
+-- ── الأصناف المزدوجة (سكّر · نعناع الخيل) ──────────────────────────────────
+--   قريبٌ من خيله ⇒ يُطعمه. بعيدٌ ⇒ يأكلها هو. لا الاثنان معًا.
+--   القطعةُ تُحذف أوّلًا في الحالتين، والعميل يُبلّغ أيَّ فرعٍ سلك.
+--   ★ لا مطمع للغشّ هنا: القطعةُ ذهبت قبل الجواب، فأسوأُ ما يفعله المزوّر
+--     أن يختار الفرع الذي يريده — وهو حرٌّ فيه أصلاً بابتعاده عن الخيل.
+local dual = {} -- [src] = { item = …, expires = … }
+
+local function requestDual(src, item, data)
+    local removed = exports.w_inventory:RemoveItem(src, item, 1, nil, data and data.slot)
+    if not removed then return false end
+
+    dual[src] = { item = item, expires = os.time() + 30 }
+    TriggerClientEvent('w_hud:client:dualUse', src, item)
+    return true
+end
+
+RegisterNetEvent('w_hud:server:dualResult', function(item, target)
+    local src = source
+    local d = dual[src]
+
+    if not d or d.item ~= item or os.time() > d.expires then return end
+    dual[src] = nil
+
+    if target == 'horse' then
+        local entry = Config.HorseItems[item]
+        notify(src, (entry and entry.kind == 'stamina') and Lang.horseStamina or Lang.horseFed,
+            '#c9a227', 'awards_set_p_003')
+    else
+        applyEffects(src, item)
+    end
+end)
+
+AddEventHandler('playerDropped', function()
+    pending[source] = nil
+    dual[source] = nil
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- التسجيل — مرورٌ واحدٌ على اتّحاد الجدولين
+-- ════════════════════════════════════════════════════════════════════════════
+local function handleUse(src, item, data)
+    local horse = Config.Systems.horseCare and Config.HorseItems[item] or nil
+    local food  = Config.Systems.consumables and Config.Consumables[item] or nil
+
+    -- صنفٌ للخيل وحده ⇒ يذهب للخيل دائمًا
+    if horse and not (food and horse.playerFallback) then
+        return requestHorseCare(src, item, data)
+    end
+
+    -- صنفٌ مزدوج (سكّر/نعناع): للخيل إن كان قريبًا، وإلّا أكله اللاعب
+    if horse and food then
+        return requestDual(src, item, data)
+    end
+
+    if food then return consume(src, item, data) end
+
+    notify(src, Lang.cantUse, '#ff6b6b', 'cross')
+    return false
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ★ حارسٌ يُظهر الأخطاء بدل أن تُبتلع.
+--
+--   w_inventory تنادي معالجنا هكذا:  pcall(server.UseItem, source, name, data)
+--   فأيّ خطأٍ في الكود هنا يبتلعه ذلك الـpcall بلا سطرٍ واحد في الكونسول،
+--   والنتيجة عند اللاعب: يأكل ولا يزيد شيء — بلا أثرٍ يُتتبَّع.
+--   xpcall + traceback يجعل العطلَ مرئيًّا في اللحظة التي يقع فيها.
+-- ════════════════════════════════════════════════════════════════════════════
+local function guarded(src, item, data)
+    local ok, result = xpcall(handleUse, debug.traceback, src, item, data)
+
+    if not ok then
+        print(("^1[w_hud]^7 ERROR while using '%s' (player %s):\n%s")
+            :format(tostring(item), tostring(src), tostring(result)))
+        return false
+    end
+
+    return result
+end
+
+local function registerAll(why)
+    if GetResourceState('w_inventory') ~= 'started' then return 0 end
+
+    local names, count = {}, 0
+
+    if Config.Systems.consumables then
+        for item in pairs(Config.Consumables) do names[item] = true end
+    end
+
+    if Config.Systems.horseCare then
+        for item in pairs(Config.HorseItems) do names[item] = true end
+    end
+
+    -- ★ نقرأ قيمة التسجيل نفسها لا نجاحَ pcall.
+    --   كان العدّ على `ok` وحده، وهو لا يعني إلّا «لم يرمِ النداء خطأً» —
+    --   فيطبع ٨٨ ولو ردّت الحقيبة false على كلّ واحدٍ منها.
+    local refused = {}
+
+    for item in pairs(names) do
+        local ok, accepted = pcall(function()
+            return exports.w_inventory:RegisterUsableItem(item, function(source, data)
+                return guarded(source, item, data)
+            end)
+        end)
+
+        if ok and accepted == true then
+            count = count + 1
+        else
+            refused[#refused + 1] = item
+        end
+    end
+
+    -- ★ ثمّ نتحقّق من السجلّ نفسه بدل تصديق الردّ.
+    --   السجلّ جدولٌ في ذاكرة w_inventory، وقد يُمسح بعد التسجيل مباشرةً
+    --   (إعادة تشغيلها) — فالتسجيل الناجح لا يعني الاستقرار فيه.
+    local verified = 0
+    local canVerify = pcall(function() return exports.w_inventory:IsUsableItemRegistered('bread') end)
+
+    if canVerify then
+        for item in pairs(names) do
+            if exports.w_inventory:IsUsableItemRegistered(item) then verified = verified + 1 end
+        end
+    end
+
+    print(('[w_hud] usable items: accepted %d | present in registry %s (%s)')
+        :format(count, canVerify and tostring(verified) or 'غير معروف', why or 'start'))
+
+    if #refused > 0 then
+        print(('^1[w_hud]^7 inventory REFUSED %d items, first: %s')
+            :format(#refused, table.concat(refused, ', ', 1, math.min(5, #refused))))
+    end
+
+    if canVerify and verified < count then
+        print('^1[w_hud]^7 WARNING: items accepted but missing from registry - w_inventory restarted after us.')
+    end
+
+    return count
+end
+
+CreateThread(function()
+    -- ننتظر جهوز w_inventory و WNeeds (metabolism.lua يُحمَّل بعد هذا الملف)
+    Wait(1500)
+    registerAll('w_hud start')
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ★ إعادة التسجيل بعد إعادة تشغيل w_inventory
+--
+--   سجلّ الأغراض القابلة للاستعمال هناك (bridgeUsableItems) جدولٌ محلّيّ في
+--   الذاكرة، يُمسح كلّما أُعيد تشغيل المورد — ولا آليّة عنده لاستعادته، إذ
+--   لا يملك دوالّ الموارد الأخرى. فبعد `restart w_inventory` يبقى الطعام
+--   في الحقيبة بلا أثر: تأكله فلا يزيد شيء.
+--
+--   العلاج أن يُعيد كلُّ موردٍ تسجيلَ أغراضه حين يرى الحقيبة تُقلع.
+--   ⚠️ أيّ موردٍ آخر عندك يسجّل أغراضًا قابلة للاستعمال يحتاج نفس هذا.
+-- ════════════════════════════════════════════════════════════════════════════
+AddEventHandler('onResourceStart', function(resource)
+    if resource ~= 'w_inventory' then return end
+
+    CreateThread(function()
+        Wait(1500) -- حتّى يبني w_inventory سجلّه ويُنهي إقلاعه
+        registerAll('after w_inventory start')
+    end)
+end)
