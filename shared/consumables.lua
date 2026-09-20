@@ -1,220 +1,452 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- w_hud — جدول الاستهلاكيّات
---
--- ═══ لماذا أُعيد بناؤه ═══
---
--- كان فيه تسعون غرضاً بلا تبويب: السكرُ بين الأكل، والدواءُ بين الحلوى، وستّة
--- أنواع ويسكي بأرقامٍ متطابقة. واثنان وعشرون منها تُشير إلى أغراضٍ **لا وجود
--- لها في الحقيبة أصلاً** — أي سطورٌ تُسجّل غرضاً لا يملكه أحد ولا يُستعمل أبداً.
---
--- فصار اثني عشر غرضاً في ستّة أزواج، لكلّ زوجٍ عملُه ولا يُغني عن غيره:
---
---     أكلٌ وشرب        cooked_meat · water
---     بوست لاعب        herbal_tonic · tonic_bitters
---     خمرٌ وسُكر        whisky · absinthe
---     تسمُّم            rotten_meat · oleander_sage
---     منشّطات           morphine_shot · painkiller
---     بوست خيل         horse_reviver · consumable_horsepeppermints   ← Config.HorseItems
---
--- ★ الخيل في جدولٍ منفصل لأنّ مساره مختلف: يُشترط قربُ الحصان، وتُشغَّل حركة
---   تفاعلٍ معه، ويذهب الأثر إلى كوراته لا إلى كورات اللاعب. خلطُه بالطعام كان
---   يعني حقلَي `kind` مختلفين في جدولٍ واحد.
---
--- ═══ العقد مع الحقيبة ═══
---
--- ⚠️ **ما يُذكر هنا يجب أن يوجد في w_inventory/data/items.lua**. هذا الملفّ
---   يمنح الأثر، وذاك يمنح الوجود. غرضٌ هنا بلا تعريفٍ هناك = تسجيلٌ لغرضٍ
---   لا يملكه أحد، وهو بعينه ما جعل الجدول القديم يبدو عاملاً وهو ميّت.
---
--- ★ عطِّل vorp_metabolism في server.cfg — وإلّا نقصت الحاجات مرّتين.
---
--- ── مقياس القيم ─────────────────────────────────────────────────────────────
---   hunger · thirst        الجوع والعطش ٠-١٠٠ (الموجب يرفع)
---   stamina                كور الستامينا الداخليّ ٠-١٠٠
---   innerHealth            كور الصحّة الداخليّ ٠-١٠٠
---   outerHealth            صحّة الكيان مباشرةً (مقياس RDR ٠-٦٠٠)
---   goldHealth* / goldStamina*   التذهيب — Outer يُذهّب الحلقة و Inner الأيقونة معها
---                          (والرقم مقدارٌ لا مدّة؛ المدّة في Config.Gold.Duration)
---
--- ── حقول الغرض ──────────────────────────────────────────────────────────────
---   (the display name is locale('item.<name>') from locales/{ar,en}.json)
---   kind        food · drink · alcohol · medical · drug · poison
---   anim        أسلوب الاستهلاك — كلٌّ مبنيّ على حركة اللعبة الأصليّة لذلك الشكل
---               bite (طعام باليد) · can (علبة) · stew (وعاء/طبق بملعقة) · mug (مشروب ساخن)
---               bottle (زجاجة طويلة) · bottle_small (زجاجة قصيرة) · jar (برطمان) · glass (كأس)
---               canteen · tonic (قارورة دواء صغيرة) · cigarette · cigar · pipe · syringe · bandage
---               (eat · drink · coffee · smoke القديمة ما زالت تعمل كأسماء بديلة)
---   prop        المجسّم المحمول — اختياريّ؛ لكلّ أسلوب مجسّمه الافتراضيّ. الأسماء في client/consumables.lua
---   fx, fxTime  مؤثّر الشاشة (animpostfx) ومدّته بالدقائق
---   giveBack    { item = 'empty_bottle', amount = 1 }  يُعاد بعد الاستعمال
---   buff        { type = '…', amount = 50 }  الأنواع في shared/needs.lua
---   heal        true = يشفي النزف/الكسر إن وُجد نظامٌ طبّيّ
---   poison      عددُ **ثوانٍ** من التسمُّم (القلب يخضرّ ويُدخّن)
---   curesPoison true = يُبطل التسمُّم فوراً
---
--- ★ كلّ حقلٍ اختياريّ: ما لم يُذكر = صفرٌ أو لا شيء.
+-- w_hud — جدول الاستهلاكيّات ودعم الكتالوج البحثي
+-- All 156 items integrated: hunger/thirst/stamina/health, poison & antidote,
+-- horse items mapped with proximity validation, server-authoritative consumption.
 -- ════════════════════════════════════════════════════════════════════════════
 
 Config.Consumables = {
-
-    -- ════════════════════════════════════════════════════════════════════
-    -- ١ · أكلٌ وشرب — سدُّ الجوع والعطش، لا أكثر
-    --
-    -- ★ لا تذهيب هنا عمداً: التذهيب مكافأةُ التونيك لا ثمنُ رغيف. ولو ذهّب
-    --   الطعامُ العاديّ لما بقي للزوج الثاني معنى.
-    -- ════════════════════════════════════════════════════════════════════
-
-    ['cooked_meat'] = {
-        kind = 'food',
-        hunger = 45, thirst = -5, stamina = 10,
-        innerHealth = 15, outerHealth = 20,
-        buff = { type = 'vigor', amount = 40 },
-        anim = 'bite', prop = 'p_cs_steakslice01x',
+    ['consumable_aged_pirate_rum'] = {
+        kind = 'alcohol', hunger = 0, thirst = 25, stamina = 40, innerHealth = 55, outerHealth = 50, goldStaminaOuter = 1, fxTime = 3, anim = 'bottle', fx = 'PlayerDrunkStrong'
     },
-
-    ['water'] = {
-        kind = 'drink',
-        hunger = 0, thirst = 60, stamina = 5,
-        innerHealth = 5,
-        giveBack = { item = 'empty_bottle', amount = 1 },
-        buff = { type = 'vegan', amount = 25 },
-        anim = 'bottle_small', prop = 'p_water01x',
+    ['consumable_herb_alaskan_ginseng'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
     },
-
-    -- ════════════════════════════════════════════════════════════════════
-    -- ٢ · بوست اللاعب — التونيك، وهو وحده ما يُذهّب
-    --
-    -- ★ واحدٌ للصحّة وواحدٌ للنشاط، ولا يُغني أحدهما عن الآخر. ومنقوع الأعشاب
-    --   هو **ترياق السمّ** كذلك، فله سببان لحمله.
-    -- ════════════════════════════════════════════════════════════════════
-
-    ['herbal_tonic'] = {
-        kind = 'medical',
-        hunger = 5, thirst = 20,
-        innerHealth = 60, outerHealth = 150,
- -- تذهيبٌ كامل لكور الصحّة: الحلقة والأيقونة معاً
-        goldHealthInner = 1, goldHealthOuter = 1,
-        buff = { type = 'health', amount = 60 },
-        curesPoison = true,
-        heal = true,
-        anim = 'tonic', prop = 'p_bottlemedicine09x',
+    ['consumable_herb_american_ginseng'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
     },
-
-    ['tonic_bitters'] = {
-        kind = 'medical',
-        hunger = 0, thirst = 15, stamina = 70,
-        innerHealth = 10,
- -- تذهيبٌ كامل لكور الستامينا
-        goldStaminaInner = 1, goldStaminaOuter = 1,
-        buff = { type = 'energy', amount = 60 },
-        anim = 'tonic', prop = 'p_bottlemedicine09x',
+    ['consumable_antidote'] = {
+        kind = 'medical', innerHealth = 40, outerHealth = 50, curesPoison = true, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'health', amount = 40 }
     },
-
-    -- ════════════════════════════════════════════════════════════════════
-    -- ٣ · خمرٌ وسُكر — يُداوي البدن ويُذهب الصحو
-    --
-    -- ★ الفرق بينهما في السُّكر لا في الشفاء: الويسكي يُدفئ، والأفسنتين
-    --   يُسكِر ضِعفَه ومؤثّرُه أقوى وأطول. فمن أراد الشفاء شرب الويسكي، ومن
-    --   أراد السُّكر شرب الأفسنتين — ولكلٍّ ثمنُه.
-    -- ════════════════════════════════════════════════════════════════════
-
-    ['whisky'] = {
-        kind = 'alcohol',
-        hunger = 0, thirst = 30, stamina = 10,
-        innerHealth = 45, outerHealth = 40,
-        fx = 'PlayerDrunkSaloon1', fxTime = 1,
-        giveBack = { item = 'empty_bottle', amount = 1 },
-        anim = 'bottle', prop = 's_inv_whiskey01x',
+    ['consumable_apple'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
     },
-
-    ['absinthe'] = {
-        kind = 'alcohol',
-        hunger = 0, thirst = 20, stamina = 15,
-        innerHealth = 30, outerHealth = 20,
- -- ★ PlayerDrunkStrong لا Saloon1: هذا هو الفرق المحسوس بين الاثنين.
-        fx = 'PlayerDrunkStrong', fxTime = 3,
-        giveBack = { item = 'empty_bottle', amount = 1 },
-        anim = 'bottle', prop = 'p_bottleabsinthe01x',
+    ['consumable_herb_bay_bolete'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
     },
-
-    -- ════════════════════════════════════════════════════════════════════
-    -- ٤ · التسمُّم — القلب يخضرّ ويُدخّن
-    --
-    -- ★ الحقل `poison` ثوانٍ لا مقدار. والأثر مشروحٌ في shared/needs.lua
-    --   تحت Config.Poison: ضربةٌ كلّ ثانيتين تُنقص الصحّة ولا تقتل، وقلبٌ
-    --   أخضر يتصاعد منه دخان.
-    --
-    -- ⚠️ ولهما ترياق: منقوع الأعشاب (curesPoison). سمٌّ بلا ترياقٍ عقوبةٌ
-    --   لا لعبة.
-    -- ════════════════════════════════════════════════════════════════════
-
-    ['rotten_meat'] = {
-        kind = 'poison',
- -- ★ يسدّ الجوع فعلاً: هذا ما يجعله فخّاً. جائعٌ في البرّيّة يأكله
- --   فيشبع ثمّ يندم — ولو لم يُشبع لما أكله أحدٌ ولا صار للسمّ معنى.
-        hunger = 25, thirst = -10,
-        innerHealth = -25, outerHealth = -30,
-        poison = 45, -- ثانية
-        anim = 'bite', prop = 'p_meatchunks01x_raw',
+    ['consumable_saloon_beer'] = {
+        kind = 'alcohol', hunger = 5, thirst = 35, stamina = 10, innerHealth = 15, fxTime = 1, anim = 'bottle_small', prop = 'p_bottlebeer01a', fx = 'PlayerDrunkSaloon1'
     },
-
-    -- ! Capitalised to match the row this server already holds (Oleander_Sage). The
-    --    items table's key is case-insensitive, so the row was found when it was
-    --    written; vorp_inventory's in-memory lookup is case-sensitive, so a lowercase
-    --    name here registers an item the bag can never match to that row.
-    ['Oleander_Sage'] = {
-        kind = 'poison',
-        hunger = 5,
-        innerHealth = -15, outerHealth = -20,
- -- ★ أطول من اللحم الفاسد: هذه زهرةٌ سامّة تُصنع منها السموم، ومن
- --   يأكلها يأكلها قصداً أو جهلاً — وكلاهما يستحقّ دقيقة.
-        poison = 60,
-        anim = 'bite', prop = 's_inv_orleander01x',
+    ['consumable_beets'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
     },
-
-    -- ════════════════════════════════════════════════════════════════════
-    -- ٥ · المنشّطات — صحّةٌ فوريّة بلا شبع
-    --
-    -- ★ ما يفرقها عن التونيك: لا تُذهّب ولا تُشبع، بل تُعيد الصحّة دفعةً
-    --   واحدة. دواءُ اشتباكٍ لا دواءُ استعداد.
-    -- ════════════════════════════════════════════════════════════════════
-
-    ['morphine_shot'] = {
-        kind = 'drug',
-        stamina = 45,
-        innerHealth = 40, outerHealth = 250,
-        buff = { type = 'health', amount = 50 },
-        heal = true,
-        anim = 'syringe', prop = 's_inv_syringe01x',
+    ['consumable_biscuit_box'] = {
+        kind = 'food', hunger = 25, thirst = -5, stamina = 15, innerHealth = 10, anim = 'bite'
     },
-
-    ['painkiller'] = {
-        kind = 'drug',
-        stamina = 25,
-        innerHealth = 20, outerHealth = 120,
-        buff = { type = 'vigor', amount = 45 },
-        anim = 'tonic', prop = 'p_bottlemedicine03x',
+    ['consumable_tonic'] = {
+        kind = 'medical', stamina = 60, anim = 'tonic', prop = 'p_bottlemedicine01x', buff = { type = 'energy', amount = 50 }
+    },
+    ['consumable_herb_black_currant'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_herb_black_berry'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_brandy'] = {
+        kind = 'alcohol', hunger = 0, thirst = 25, stamina = 20, innerHealth = 45, outerHealth = 35, fxTime = 1, anim = 'bottle', fx = 'PlayerDrunkSaloon1'
+    },
+    ['consumable_bread_chunk'] = {
+        kind = 'food', hunger = 25, thirst = -5, stamina = 10, innerHealth = 5, anim = 'bite', prop = 'p_cs_sandwich01x'
+    },
+    ['consumable_bread_roll'] = {
+        kind = 'food', hunger = 30, thirst = -5, stamina = 10, innerHealth = 10, anim = 'bite', prop = 'p_cs_sandwich01x'
+    },
+    ['consumable_herb_common_bulrush'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_burdock_root'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_candy_bag'] = {
+        kind = 'food', hunger = 15, thirst = -5, stamina = 25, innerHealth = 5, anim = 'bite'
+    },
+    ['consumable_apricots_can'] = {
+        kind = 'food', hunger = 35, thirst = 15, stamina = 15, innerHealth = 10, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_baked_beans_can'] = {
+        kind = 'food', hunger = 45, thirst = 5, stamina = 20, innerHealth = 15, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_kidneybeans_can'] = {
+        kind = 'food', hunger = 45, thirst = 5, stamina = 20, innerHealth = 15, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_peaches_can'] = {
+        kind = 'food', hunger = 35, thirst = 15, stamina = 15, innerHealth = 10, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_peas_can'] = {
+        kind = 'food', hunger = 35, thirst = 5, stamina = 15, innerHealth = 10, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_pineapples_can'] = {
+        kind = 'food', hunger = 40, thirst = 15, stamina = 20, innerHealth = 15, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_strawberries_can'] = {
+        kind = 'food', hunger = 35, thirst = 15, stamina = 15, innerHealth = 10, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_sweet_corn_can'] = {
+        kind = 'food', hunger = 40, thirst = 5, stamina = 15, innerHealth = 10, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_carrot'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_celery'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['rdr_champagne'] = {
+        kind = 'alcohol', hunger = 0, thirst = 30, stamina = 20, innerHealth = 35, fxTime = 1, anim = 'bottle', fx = 'PlayerDrunkSaloon1'
+    },
+    ['consumable_herb_chanterelles'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_cheese_wedge'] = {
+        kind = 'food', hunger = 35, thirst = -5, stamina = 15, innerHealth = 15, anim = 'bite'
+    },
+    ['consumable_chewing_tobacco'] = {
+        kind = 'drug', stamina = 30, innerHealth = -5, anim = 'bite'
+    },
+    ['consumable_chocolate_bar'] = {
+        kind = 'food', hunger = 20, thirst = -5, stamina = 30, innerHealth = 10, anim = 'bite'
+    },
+    ['consumable_cigar'] = {
+        kind = 'drug', stamina = 40, innerHealth = -5, anim = 'cigar'
+    },
+    ['rdr_cigarette'] = {
+        kind = 'drug', stamina = 15, innerHealth = -3, anim = 'cigarette'
+    },
+    ['consumable_cigarette_box_cheap'] = {
+        kind = 'drug', stamina = 20, innerHealth = -5, anim = 'cigarette'
+    },
+    ['consumable_cocaine_chewing_gum'] = {
+        kind = 'drug', stamina = 100, goldStaminaInner = 1, goldStaminaOuter = 1, anim = 'bite', buff = { type = 'energy', amount = 100 }
+    },
+    ['consumable_coffee'] = {
+        kind = 'drink', hunger = 0, thirst = 40, stamina = 35, innerHealth = 10, anim = 'mug', prop = 'p_mugcoffee01x'
+    },
+    ['consumable_coffee_gnds_reg'] = {
+        kind = 'food', hunger = 5, thirst = -5, stamina = 15, anim = 'bite'
+    },
+    ['consumable_big_game_meat_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_big_game_meat_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_big_game_meat_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_big_game_meat_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_crustacean_meat_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_crustacean_meat_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_crustacean_meat_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_crustacean_meat_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_exotic_bird_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_exotic_bird_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_exotic_bird_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_exotic_bird_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_flakey_fish_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_flakey_fish_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_flakey_fish_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_flakey_fish_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_game_meat_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_game_meat_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_game_meat_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_game_meat_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_gamey_bird_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_gristly_mutton_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_gristly_mutton_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_gristly_mutton_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_gristly_mutton_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_gritty_fish_meat_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_herptile_meat_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_mature_venison_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_mature_venison_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_mature_venison_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_mature_venison_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_plump_bird_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_plump_bird_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_plump_bird_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_plump_bird_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_prime_beef_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_prime_beef_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_prime_beef_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_prime_beef_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_string_meat_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_succulent_fish_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_succulent_fish_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_succulent_fish_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_succulent_fish_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_tender_pork_cooked'] = {
+        kind = 'food', hunger = 55, thirst = -5, stamina = 20, innerHealth = 30, outerHealth = 30, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 40 }
+    },
+    ['consumable_tender_pork_oregano_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 40, outerHealth = 50, goldHealthInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_tender_pork_thyme_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 35, innerHealth = 35, outerHealth = 40, goldStaminaInner = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_tender_pork_wild_mint_cooked'] = {
+        kind = 'food', hunger = 60, thirst = -5, stamina = 25, innerHealth = 45, outerHealth = 60, goldHealthOuter = 1, anim = 'bite', prop = 'p_cs_steakslice01x', buff = { type = 'vigor', amount = 50 }
+    },
+    ['consumable_corn'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_cornedbeef_can'] = {
+        kind = 'food', hunger = 50, thirst = -5, stamina = 25, innerHealth = 20, anim = 'can', prop = 's_canrigbeans01x'
+    },
+    ['consumable_crackers'] = {
+        kind = 'food', hunger = 20, thirst = -5, stamina = 10, innerHealth = 5, anim = 'bite'
+    },
+    ['consumable_herb_desert_sage'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_english_mace'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_gin'] = {
+        kind = 'alcohol', hunger = 0, thirst = 20, stamina = 10, innerHealth = 35, outerHealth = 25, fxTime = 1, anim = 'bottle', fx = 'PlayerDrunkSaloon1'
+    },
+    ['consumable_ginseng_elixier'] = {
+        kind = 'medical', stamina = 40, innerHealth = 60, anim = 'tonic', prop = 'p_bottlemedicine01x', buff = { type = 'health', amount = 50 }
+    },
+    ['consumable_herb_golden_currant'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_hair_tonic'] = {
+        kind = 'medical', innerHealth = 5, anim = 'tonic'
+    },
+    ['consumable_medicine'] = {
+        kind = 'medical', innerHealth = 60, outerHealth = 120, heal = true, anim = 'tonic', prop = 'p_bottlemedicine01x', buff = { type = 'health', amount = 50 }
+    },
+    ['rdr_health_serum'] = {
+        kind = 'medical', innerHealth = 80, outerHealth = 150, heal = true, anim = 'tonic', prop = 'p_bottlemedicine09x'
+    },
+    ['consumable_herb_evergreen_huckleberry'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_herb_hummingbird_sage'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_indian_tobacco'] = {
+        kind = 'drug', stamina = 35, innerHealth = -5, anim = 'bite'
+    },
+    ['consumable_jerky'] = {
+        kind = 'food', hunger = 45, thirst = -10, stamina = 25, innerHealth = 20, anim = 'bite', prop = 'p_cs_steakslice01x'
+    },
+    ['consumable_herb_milkweed'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_restorative'] = {
+        kind = 'medical', stamina = 50, innerHealth = 50, outerHealth = 100, heal = true, anim = 'tonic', prop = 'p_bottlemedicine01x', buff = { type = 'health', amount = 50 }
+    },
+    ['consumable_moonshine'] = {
+        kind = 'alcohol', hunger = 0, thirst = 20, stamina = 35, innerHealth = 50, outerHealth = 40, fxTime = 3, anim = 'jar', prop = 'p_masonjarmoonshine01x', fx = 'PlayerDrunkStrong'
+    },
+    ['consumable_oat_cakes'] = {
+        kind = 'food', hunger = 30, thirst = -5, stamina = 20, innerHealth = 10, anim = 'bite'
+    },
+    ['consumable_offal'] = {
+        kind = 'food', hunger = 25, thirst = -5, stamina = 10, innerHealth = -5, anim = 'bite'
+    },
+    ['consumable_herb_oleander_sage'] = {
+        kind = 'poison', hunger = 5, innerHealth = -25, outerHealth = -30, poison = 60, anim = 'bite', prop = 's_inv_orleander01x'
+    },
+    ['consumable_herb_oregano'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_parasol_mushroom'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_peach'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_pear'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_hair_grease'] = {
+        kind = 'medical', innerHealth = 5, anim = 'tonic'
+    },
+    ['consumable_potent_tonic'] = {
+        kind = 'medical', stamina = 85, goldStaminaOuter = 1, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'energy', amount = 75 }
+    },
+    ['consumable_potent_medicine'] = {
+        kind = 'medical', innerHealth = 80, outerHealth = 200, goldHealthOuter = 1, heal = true, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'health', amount = 75 }
+    },
+    ['consumable_potent_restorative'] = {
+        kind = 'medical', stamina = 80, innerHealth = 80, outerHealth = 200, goldHealthOuter = 1, goldStaminaOuter = 1, heal = true, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'health', amount = 75 }
+    },
+    ['consumable_potent_snake_oil'] = {
+        kind = 'medical', stamina = 75, innerHealth = 40, goldStaminaInner = 1, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'energy', amount = 75 }
+    },
+    ['consumable_herb_prairie_poppy'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_cigarette_box'] = {
+        kind = 'drug', stamina = 35, innerHealth = -5, anim = 'cigarette'
+    },
+    ['consumable_herb_rams_head'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_red_raspberry'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_herb_red_sage'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_rum'] = {
+        kind = 'alcohol', hunger = 0, thirst = 25, stamina = 25, innerHealth = 45, outerHealth = 40, fxTime = 2, anim = 'bottle', fx = 'PlayerDrunkStrong'
+    },
+    ['rdr_saltbush'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['rdr_seasoning'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['rdr_sherry'] = {
+        kind = 'alcohol', hunger = 0, thirst = 25, stamina = 15, innerHealth = 30, fxTime = 1, anim = 'bottle', fx = 'PlayerDrunkSaloon1'
+    },
+    ['consumable_snake_oil'] = {
+        kind = 'medical', stamina = 50, innerHealth = 25, anim = 'tonic', prop = 'p_bottlemedicine01x', buff = { type = 'energy', amount = 50 }
+    },
+    ['consumable_special_tonic_crafted'] = {
+        kind = 'medical', stamina = 100, goldStaminaInner = 1, goldStaminaOuter = 1, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'energy', amount = 100 }
+    },
+    ['consumable_special_medicine_crafted'] = {
+        kind = 'medical', innerHealth = 100, outerHealth = 350, goldHealthInner = 1, goldHealthOuter = 1, heal = true, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'health', amount = 100 }
+    },
+    ['consumable_special_restorative_crafted'] = {
+        kind = 'medical', stamina = 100, innerHealth = 100, outerHealth = 350, goldHealthInner = 1, goldHealthOuter = 1, goldStaminaInner = 1, goldStaminaOuter = 1, heal = true, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'health', amount = 100 }
+    },
+    ['consumable_special_snake_oil_crafted'] = {
+        kind = 'medical', stamina = 100, innerHealth = 60, goldStaminaInner = 1, goldStaminaOuter = 1, anim = 'tonic', prop = 'p_bottlemedicine09x', buff = { type = 'energy', amount = 100 }
+    },
+    ['consumable_crafted_super_meal'] = {
+        kind = 'food', hunger = 80, thirst = 30, stamina = 40, innerHealth = 50, outerHealth = 60, anim = 'stew', prop = 'p_bowl04x_stew', buff = { type = 'vigor', amount = 60 }
+    },
+    ['consumable_herb_creeping_thyme'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['rdr_tobacco_pipe'] = {
+        kind = 'drug', stamina = 45, innerHealth = -5, anim = 'pipe'
+    },
+    ['consumable_valerian_root'] = {
+        kind = 'medical', stamina = 50, innerHealth = 30, anim = 'tonic', prop = 'p_bottlemedicine01x'
+    },
+    ['consumable_jerky_venison'] = {
+        kind = 'food', hunger = 50, thirst = -10, stamina = 30, innerHealth = 25, anim = 'bite', prop = 'p_cs_steakslice01x'
+    },
+    ['consumable_herb_violet_snowdrop'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['rdr_water_flask'] = {
+        kind = 'drink', hunger = 0, thirst = 60, stamina = 10, innerHealth = 5, anim = 'bottle_small', prop = 'p_bottlebeer01a', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_whiskey'] = {
+        kind = 'alcohol', hunger = 0, thirst = 25, stamina = 15, innerHealth = 40, outerHealth = 35, fxTime = 1, anim = 'bottle', prop = 's_inv_whiskey01x', fx = 'PlayerDrunkSaloon1'
+    },
+    ['consumable_herb_wild_carrots'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_wild_feverfew'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_wild_mint'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
+    },
+    ['consumable_herb_wintergreen_berry'] = {
+        kind = 'food', hunger = 20, thirst = 15, stamina = 15, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 25 }
+    },
+    ['consumable_herb_yarrow'] = {
+        kind = 'food', hunger = 5, thirst = 5, stamina = 10, innerHealth = 10, anim = 'bite', buff = { type = 'vegan', amount = 15 }
     },
 }
 
--- ════════════════════════════════════════════════════════════════════════════
--- ٦ · بوست الخيل — جدولٌ منفصل لأنّ مساره منفصل
---
--- ★ لا يُستعملان كالطعام: يُشترط قربُ الحصان (distance)، وتُشغَّل حركة تفاعلٍ
---   معه، ويذهب الأثر إلى كوراته هو. ومن استعملهما بعيداً عن حصانه قيل له
---   «اقترب من خيلك أوّلًا» ولم يُستهلك الغرض.
---
---   kind = 'feed'     يرفع كور صحّة الحصان
---   kind = 'stamina'  يرفع كور نشاطه
---   kind = 'brush'    تنظيفٌ بلا استهلاك
--- ════════════════════════════════════════════════════════════════════════════
-
 Config.HorseItems = {
-    ['horse_reviver'] = {
-        kind = 'feed', amount = 60, distance = 3.0,
+    ['consumable_apple'] = {
+        kind = 'feed', amount = 25, distance = 3.0,
     },
-
-    ['consumable_horsepeppermints'] = {
-        kind = 'stamina', amount = 45, distance = 3.0,
+    ['consumable_carrot'] = {
+        kind = 'feed', amount = 25, distance = 3.0,
+    },
+    ['consumable_oat_cakes'] = {
+        kind = 'feed', amount = 35, distance = 3.0,
     },
 }

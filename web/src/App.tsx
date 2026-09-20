@@ -503,6 +503,7 @@ function App() {
                                            xp: null, level: null, id: '', has: false });
   const [pvp, setPvp] = useState<boolean | null>(null);
   const [ammo, setAmmo] = useState<AmmoHand[]>([]);
+  const [companion,setCompanion]=useState<null|{name:string;health:number;hunger:number;thirst:number;needsWater?:boolean;mode:string;dead:boolean;distance:number}>(null);
   const [display, setDisplay] = useState<Record<string, DisplayCfg>>(DEFAULT_DISPLAY);
   const [buffMeta, setBuffMeta] = useState<Record<string, BuffMeta>>({});
   const [thr, setThr] = useState<Thresholds>(DEFAULT_THRESHOLDS);
@@ -759,6 +760,10 @@ function App() {
       /* The language, the direction and every string the page shows -- from Lua, which
          asks the library. Once on mount (answered to w_hud:ready) and on every switch. */
       if (d.action === 'setLocale') { applyLocale(d); return; }
+      if (d.action === 'companion') {
+        setCompanion(d.pet && typeof d.pet === 'object' && !Array.isArray(d.pet) ? d.pet : null);
+        return;
+      }
       if (d.action === 'setServerInfo') {
         if (d.name != null) setServer(String(d.name));
         if (d.id != null) setPid(String(d.id));
@@ -1002,6 +1007,23 @@ function App() {
       )}
 
       <HudLayoutProvider value={layout}>
+        {/* Only the confirmed active pet is live. The editor alone provides a
+            labelled preview so players can arrange these cores without summoning. */}
+        {(companion || editing) && ([
+          { id: 'companionHealth', need: 'health', icon: <HeartIcon />, brokenIcon: <BrokenHeartIcon /> },
+          { id: 'companionHunger', need: 'hunger', icon: <MeatIcon />, brokenIcon: undefined },
+          { id: 'companionThirst', need: 'thirst', icon: <WaterIcon />, brokenIcon: undefined },
+        ] as const).map(({ id, need, icon, brokenIcon }) => {
+          if (need === 'thirst' && companion?.needsWater === false && !editing) return null;
+          const value = clamp(Number(companion ? (need === 'health' && companion.dead ? 0 : companion[need]) : 100) || 0, 0, 100);
+          if (!vis(id, { show: true, alwaysOn: true }, value)) return null;
+          const status = companion ? t(companion.dead ? 'pet.injured' : companion.mode === 'stay' ? 'pet.stay' : 'pet.follow') : t('pet.preview');
+          const title = `${companion?.name || t('widget.companion')} · ${t('pet.' + need)}: ${Math.round(value)}% · ${status}`;
+          return <HudWidget id={id} key={id} className="companion-core">
+            <Core value={value} icon={icon} brokenIcon={brokenIcon} title={title}
+              color={tint(id)} state={st(id, value)} />
+          </HudWidget>;
+        })}
         {/* ── top right: the server, the ammo, the wallet, the identity ───────── */}
         {/* ★ Instead of the name, not beside it. A logo with the server's name spelled
             out next to it says the same thing twice, and the dot that marked "online"

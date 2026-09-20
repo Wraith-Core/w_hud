@@ -805,3 +805,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   0%, 100% { filter: drop-shadow(0 0 5px rgba(var(--poison-rgb), 0.45)); }
   50%      { filter: drop-shadow(0 0 11px rgba(var(--poison-lit-rgb), 0.8)); }
 }
+
+/* The same textured Core used for player/horse needs, at a smaller base size.
+   Per-widget scale, tint, visibility and thresholds come from the HUD editor. */
+.companion-core .core { width: 6rem; height: 6rem; }

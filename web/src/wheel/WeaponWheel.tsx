@@ -794,7 +794,7 @@ export default function WeaponWheel() {
   ]
 
   return (
-    <div className={`ww-root${data.rtl ? ' rtl' : ''}`} dir={data.rtl ? 'rtl' : 'ltr'}>
+    <div className={`ww-root wst-root${data.rtl ? ' rtl' : ''}`} dir={data.rtl ? 'rtl' : 'ltr'}>
       <div className="ww-vignette" />
 
       {/* The tab header -- R cycles them as in the game (the key is in the library's prompt group) */}

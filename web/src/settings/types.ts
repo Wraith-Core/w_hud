@@ -22,10 +22,11 @@ export type WidgetId =
   | 'buffs'
   | 'health' | 'stamina' | 'hunger' | 'thirst' | 'voice'
   | 'horseHealth' | 'horseStamina'
+  | 'companionHealth' | 'companionHunger' | 'companionThirst'
   | 'compass' | 'location'
   | 'image1' | 'image2' | 'image3';
 
-export type WidgetGroup = 'status' | 'horse' | 'info' | 'nav' | 'media';
+export type WidgetGroup = 'status' | 'horse' | 'pet' | 'info' | 'nav' | 'media';
 
 /* ════════════════════════════════════════════════════════════════════════════
  * Pictures
@@ -314,7 +315,15 @@ export const WIDGETS: WidgetMeta[] = [
     origin: [0.5, 0.5], home: { x: CORE_X(6), y: CORE_Y }, xUnit: 'vh',
     tint: true, gauge: true, displayKey: 'horse' },
 
-  /* -- effects, just above the circles (bottom-left anchored: the row grows right) -- */
+  /* Smaller companion cores, above the player row with space for effect badges. */
+  { id: 'companionHealth', group: 'pet', label: 'widget.companionHealth',
+    origin: [0.5, 0.5], home: { x: CORE_X(0), y: CORE_Y - 7.2 }, xUnit: 'vh', tint: true, gauge: true },
+  { id: 'companionHunger', group: 'pet', label: 'widget.companionHunger',
+    origin: [0.5, 0.5], home: { x: CORE_X(0) + 4.5, y: CORE_Y - 7.2 }, xUnit: 'vh', tint: true, gauge: true },
+  { id: 'companionThirst', group: 'pet', label: 'widget.companionThirst',
+    origin: [0.5, 0.5], home: { x: CORE_X(0) + 9, y: CORE_Y - 7.2 }, xUnit: 'vh', tint: true, gauge: true },
+
+  /* -- effects, just above the player circles -- */
   { id: 'buffs', group: 'status', label: 'widget.buffs',
     origin: [0, 1], home: { x: 27, y: 91.5 }, xUnit: 'vh',
     tint: false, gauge: false, displayKey: 'buffs' },
@@ -358,6 +367,7 @@ export const WIDGET_BY_ID: Record<WidgetId, WidgetMeta> =
 export const GROUP_LABEL: Record<WidgetGroup, string> = {
   status: 'group.status',
   horse:  'group.horse',
+  pet:    'group.pet',
   info:   'group.info',
   nav:    'group.nav',
   media:  'group.media',
@@ -395,8 +405,8 @@ export const DEFAULT_THEME: Theme = {
 export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true };
 export const DEFAULT_WORLD: WorldCfg = { onFoot: 'server', mounted: 'server' };
 
-/** v2 added shape, world, profiles and the per-widget visibility and thresholds. */
-export const SETTINGS_VERSION = 2;
+/** v3 replaces the companion card with three independently editable cores. */
+export const SETTINGS_VERSION = 3;
 
 export function defaultWidget(meta: WidgetMeta, a = aspect()): WidgetCfg {
   return {
@@ -525,7 +535,18 @@ function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>): Record<Wi
   const saved = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
 
   for (const meta of WIDGETS) {
-    const entry = saved[meta.id];
+    let entry = saved[meta.id];
+    const petIndex = ['companionHealth', 'companionHunger', 'companionThirst'].indexOf(meta.id);
+    if (!entry && petIndex !== -1) {
+      // Keep old visibility/size preferences, placing new cores above the player's
+      // saved health position. Saved v3 positions always take precedence, profiles included.
+      const legacy = saved.companion;
+      entry = {
+        ...(legacy && typeof legacy === 'object' ? legacy : {}),
+        x: base.health.x + petIndex * 4.5 * aspect(),
+        y: base.health.y - 7.2,
+      };
+    }
     if (!entry || typeof entry !== 'object') continue;
 
     const w = entry as Record<string, unknown>;

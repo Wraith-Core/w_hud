@@ -126,7 +126,7 @@ function Slider({ label, value, min, max, step, format, onChange }: {
 
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" className={'hs-toggle' + (on ? ' is-on' : '')}
+    <button type="button" className={'hs-toggle' + (on ? ' is-on active' : '')}
       onClick={() => { play('select'); onChange(!on); }}>
       <i className="hs-toggle-track"><i className="hs-toggle-knob" /></i>
       <span>{label}</span>
@@ -146,7 +146,7 @@ function Segmented<T extends string>({ label, value, options, onChange }: {
       <div className="hs-seg">
         {options.map((o) => (
           <button key={o.value} type="button"
-            className={'hs-seg-btn' + (o.value === value ? ' is-on' : '')}
+            className={'hs-seg-btn wst-tab' + (o.value === value ? ' is-on active' : '')}
             onClick={() => { play('select'); onChange(o.value); }}>
             {o.label}
           </button>
@@ -191,7 +191,7 @@ function MediaFields({ id, cfg, t, onChange }: {
       <label className="hs-urlrow">
         <span>{t(S('imageUrl'))}</span>
         <input
-          className="hs-code"
+          className="hs-code wst-input"
           value={draft}
           spellCheck={false}
           placeholder="https://..."
@@ -210,7 +210,7 @@ function MediaFields({ id, cfg, t, onChange }: {
           <Slider label={t(S('imageH'))} value={cfg.height} min={0} max={160} step={1}
             format={(v) => (v <= 0 ? t(S('imageAuto')) : String(Math.round(v)))}
             onChange={(v) => onChange(id, { height: v })} />
-          <button type="button" className="hs-linkbtn is-warn"
+          <button type="button" className="hs-linkbtn wst-button is-warn danger"
             onClick={() => { play('select'); onChange(id, { url: '' }); }}>
             {t(S('imageClear'))}
           </button>
@@ -223,7 +223,7 @@ function MediaFields({ id, cfg, t, onChange }: {
 function Section({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
   return (
     <section className="hs-section">
-      {title && <h3 className="hs-section-title"><span>{title}</span></h3>}
+      {title && <h3 className="hs-section-title wst-section-title"><span>{title}</span></h3>}
       {children}
       {note && <p className="hs-note">{note}</p>}
     </section>
@@ -247,7 +247,7 @@ function duration(mins: number, t: TFn, never: string): string {
   if (h <= 0) return `${m} ${t(S('minute'))}`;
   return `${h} ${t(S('hour'))} ${m} ${t(S('minute'))}`;
 }
-const GROUP_ORDER: WidgetGroup[] = ['status', 'horse', 'info', 'nav', 'media'];
+const GROUP_ORDER: WidgetGroup[] = ['status', 'horse', 'pet', 'info', 'nav', 'media'];
 
 export function SettingsPanel(p: PanelProps) {
   const { t } = useI18n();
@@ -309,12 +309,15 @@ export function SettingsPanel(p: PanelProps) {
     e.preventDefault();
     const vw = window.innerWidth, vh = window.innerHeight;
     const sx = e.clientX, sy = e.clientY;
-    const ox = pos.x, oy = pos.y;
+    const root = e.currentTarget.closest('.hs-root') as HTMLElement;
+    const bounds = root.getBoundingClientRect();
+    const gap = 16 * Math.max(1, Math.min(2, vh / 1080));
+    const ox = bounds.left, oy = bounds.top;
 
     const move = (ev: PointerEvent) => {
       p.setPanelPos(
-        Math.max(0, Math.min(88, ox + ((ev.clientX - sx) / vw) * 100)),
-        Math.max(0, Math.min(82, oy + ((ev.clientY - sy) / vh) * 100)),
+        Math.max(gap, Math.min(vw - bounds.width - gap, ox + ev.clientX - sx)) / vw * 100,
+        Math.max(gap, Math.min(vh - bounds.height - gap, oy + ev.clientY - sy)) / vh * 100,
       );
     };
     const up = () => {
@@ -376,16 +379,19 @@ export function SettingsPanel(p: PanelProps) {
   };
 
   return (
-    <div className="hs-root" style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
-      <aside className="hs-panel">
-        <span className="hs-edge" aria-hidden="true" />
+    <div className="hs-root wst-root" style={{
+      left: `clamp(var(--hs-safe-gap), ${pos.x}vw, calc(100vw - var(--hs-panel-width) - var(--hs-safe-gap)))`,
+      top: `clamp(var(--hs-safe-gap), ${pos.y}vh, calc(100vh - var(--hs-panel-height) - var(--hs-safe-gap)))`,
+    }}>
+      <aside className="hs-panel wst-panel">
+        <div className="wst-frame" aria-hidden="true"><span className="wst-fr-t" /><span className="wst-fr-b" /><span className="wst-fr-l" /><span className="wst-fr-r" /><span className="wst-fr-tl" /><span className="wst-fr-tr" /><span className="wst-fr-bl" /><span className="wst-fr-br" /></div>
 
-        <header className="hs-head" onPointerDown={onGrab}>
+        <header className="hs-head wst-header" onPointerDown={onGrab}>
           <div className="hs-head-text">
-            <h1>{t(S('title'))}</h1>
-            <p>{t(S('sub'))}</p>
+            <h1 className="wst-title">{t(S('title'))}</h1>
+            <p className="wst-sub">{t(S('sub'))}</p>
           </div>
-          <button type="button" className="hs-icon hs-close" onClick={close} title={t(S('close'))}>
+          <button type="button" className="hs-icon hs-close wst-close" onClick={close} title={t(S('close'))}>
             <CloseIcon />
           </button>
         </header>
@@ -397,7 +403,7 @@ export function SettingsPanel(p: PanelProps) {
               const Icon = I[key];
               return (
                 <button key={key} type="button"
-                  className={'hs-rail-btn' + (pane === key ? ' is-on' : '')}
+                  className={'hs-rail-btn wst-tab' + (pane === key ? ' is-on active' : '')}
                   onMouseEnter={() => play('hover')}
                   onClick={() => go(key)}>
                   <i className="hs-rail-ic"><Icon /></i>
@@ -430,8 +436,8 @@ export function SettingsPanel(p: PanelProps) {
                               const c = p.settings.widgets[w.id];
                               return (
                                 <button key={w.id} type="button"
-                                  className={'hs-chip-btn'
-                                    + (p.selected === w.id ? ' is-on' : '')
+                                  className={'hs-chip-btn wst-card'
+                                    + (p.selected === w.id ? ' is-on active' : '')
                                     + (c.show ? '' : ' is-off')}
                                   onMouseEnter={() => play('hover')}
                                   onClick={() => { play('select'); p.select(w.id); }}>
@@ -458,7 +464,7 @@ export function SettingsPanel(p: PanelProps) {
 
                     <div className="hs-posrow">
                       <span>{t(S('position'))} <b>{cfg.x.toFixed(1)}</b> · <b>{cfg.y.toFixed(1)}</b></span>
-                      <button type="button" className="hs-linkbtn"
+                      <button type="button" className="hs-linkbtn wst-button"
                         onClick={() => { play('select'); p.resetWidget(meta.id); }}>
                         <ResetIcon />{t(S('resetOne'))}
                       </button>
@@ -548,7 +554,7 @@ export function SettingsPanel(p: PanelProps) {
                 <Section title={t(S('palettes'))}>
                   <div className="hs-presets">
                     {THEME_PRESETS.map((preset) => (
-                      <button key={preset.id} type="button" className="hs-preset"
+                      <button key={preset.id} type="button" className="hs-preset wst-card"
                         onMouseEnter={() => play('hover')}
                         onClick={() => { play('select'); p.setTheme(preset.theme); }}>
                         <span className="hs-preset-strip">
@@ -632,11 +638,11 @@ export function SettingsPanel(p: PanelProps) {
 
                 <Section title={t(S('restore'))}>
                   <div className="hs-btnrow">
-                    <button type="button" className="hs-btn"
+                    <button type="button" className="hs-btn wst-button"
                       onClick={() => { play('select'); p.resetPositions(); }}>
                       <ResetIcon />{t(S('resetPos'))}
                     </button>
-                    <button type="button" className="hs-btn is-warn"
+                    <button type="button" className="hs-btn wst-button is-warn danger"
                       onClick={() => { play('select'); p.resetAll(); }}>
                       <ResetIcon />{t(S('resetAll'))}
                     </button>
@@ -652,21 +658,21 @@ export function SettingsPanel(p: PanelProps) {
                     {Array.from({ length: PROFILE_SLOTS }, (_, i) => {
                       const slot = p.settings.profiles[i];
                       return (
-                        <li className={'hs-slot' + (slot ? '' : ' is-empty')} key={i}>
+                        <li className={'hs-slot wst-row' + (slot ? '' : ' is-empty')} key={i}>
                           <span className="hs-slot-name">
                             <b>{i + 1}</b>{slot ? slot.name : t(S('slotEmpty'))}
                           </span>
                           <span className="hs-slot-acts">
                             {slot && (
-                              <button type="button" className="hs-linkbtn"
+                              <button type="button" className="hs-linkbtn wst-button"
                                 onClick={() => { play('select'); p.applyProfile(i); }}>{t(S('slotApply'))}</button>
                             )}
-                            <button type="button" className="hs-linkbtn"
+                            <button type="button" className="hs-linkbtn wst-button"
                               onClick={() => { play('select'); p.saveProfile(i, `${t('profile.layout')} ${i + 1}`); }}>
                               {t(S('slotSave'))}
                             </button>
                             {slot && (
-                              <button type="button" className="hs-linkbtn is-warn"
+                              <button type="button" className="hs-linkbtn wst-button is-warn danger"
                                 onClick={() => { play('select'); p.clearProfile(i); }}>{t(S('slotClear'))}</button>
                             )}
                           </span>
@@ -678,9 +684,9 @@ export function SettingsPanel(p: PanelProps) {
 
                 <Section title={t(S('shareOut'))}>
                   <div className="hs-coderow">
-                    <input ref={shareRef} className="hs-code" readOnly value={shareCode}
+                    <input ref={shareRef} className="hs-code wst-input" readOnly value={shareCode}
                       onFocus={(e) => e.currentTarget.select()} spellCheck={false} />
-                    <button type="button" className="hs-btn hs-btn-tight" onClick={copyShare}>
+                    <button type="button" className="hs-btn wst-button hs-btn-tight" onClick={copyShare}>
                       {codeNote === 'copied' ? t(S('shareCopied')) : t(S('shareCopy'))}
                     </button>
                   </div>
@@ -688,9 +694,9 @@ export function SettingsPanel(p: PanelProps) {
 
                 <Section title={t(S('shareIn'))}>
                   <div className="hs-coderow">
-                    <input className="hs-code" value={code} spellCheck={false}
+                    <input className="hs-code wst-input" value={code} spellCheck={false}
                       onChange={(e) => { setCode(e.target.value); setCodeNote(''); }} />
-                    <button type="button" className="hs-btn hs-btn-tight" disabled={code.trim() === ''}
+                    <button type="button" className="hs-btn wst-button hs-btn-tight" disabled={code.trim() === ''}
                       onClick={applyCode}>{t(S('shareApply'))}</button>
                   </div>
                   {codeNote === 'bad' && <p className="hs-note is-bad">{t(S('shareBad'))}</p>}
@@ -700,13 +706,13 @@ export function SettingsPanel(p: PanelProps) {
             )}
             {pane === 'admin' && p.isAdmin && (
               <>
-                <p className="hs-note is-warnbox">{t(S('adminOnly'))}</p>
+                <p className="hs-note is-warn dangerbox">{t(S('adminOnly'))}</p>
 
                 <Section title={t(S('srvIdentity'))}>
                   <label className="hs-urlrow">
                     <span>{t(S('srvName'))}</span>
                     <input
-                      className="hs-code hs-code-text"
+                      className="hs-code wst-input hs-code-text"
                       value={srvDraft.name}
                       maxLength={48}
                       spellCheck={false}
@@ -718,7 +724,7 @@ export function SettingsPanel(p: PanelProps) {
                   <label className="hs-urlrow">
                     <span>{t(S('srvLogo'))}</span>
                     <input
-                      className="hs-code"
+                      className="hs-code wst-input"
                       value={logoDraft}
                       spellCheck={false}
                       placeholder="https://..."
@@ -731,7 +737,7 @@ export function SettingsPanel(p: PanelProps) {
                     {logoBad ? t(S('imageBad')) : t(S('srvLogoNote'))}
                   </p>
                   {srvDraft.logo.url !== '' && (
-                    <button type="button" className="hs-linkbtn is-warn"
+                    <button type="button" className="hs-linkbtn wst-button is-warn danger"
                       onClick={() => { play('select'); editIdentity({ logo: { ...srvDraft.logo, url: '' } }); }}>
                       {t(S('imageClear'))}
                     </button>
@@ -759,7 +765,7 @@ export function SettingsPanel(p: PanelProps) {
 
                   <div className="hs-posrow">
                     <span>{t(S('position'))} <b>{srvDraft.identity.x.toFixed(1)}</b> · <b>{srvDraft.identity.y.toFixed(1)}</b></span>
-                    <button type="button" className="hs-linkbtn"
+                    <button type="button" className="hs-linkbtn wst-button"
                       onClick={() => { play('select'); editIdentity({ identity: { x: 98.2, y: 2, scale: 1, opacity: 1 } }); }}>
                       <ResetIcon />{t(S('restore'))}
                     </button>
@@ -832,7 +838,7 @@ export function SettingsPanel(p: PanelProps) {
 
                 <Section>
                   <button type="button"
-                    className={'hs-btn is-primary' + (p.srvState === 'saved' ? ' is-done' : '')}
+                    className={'hs-btn wst-button is-primary primary' + (p.srvState === 'saved' ? ' is-done' : '')}
                     disabled={p.srvState === 'saving'}
                     onClick={() => { play('select'); p.publishServer(); }}>
                     {p.srvState === 'saved' ? t(S('srvSaved'))
@@ -848,12 +854,12 @@ export function SettingsPanel(p: PanelProps) {
 
         <footer className="hs-foot">
           <button type="button"
-            className={'hs-btn is-primary' + (p.saving === 'saved' ? ' is-done' : '')}
+            className={'hs-btn wst-button is-primary primary' + (p.saving === 'saved' ? ' is-done' : '')}
             disabled={p.saving === 'saving'}
             onClick={() => { play('select'); p.onSave(); }}>
             {saveLabel}
           </button>
-          <button type="button" className="hs-btn" onClick={close}>{t(S('close'))}</button>
+          <button type="button" className="hs-btn wst-button" onClick={close}>{t(S('close'))}</button>
         </footer>
       </aside>
     </div>

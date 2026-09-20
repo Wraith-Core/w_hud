@@ -1,16 +1,14 @@
--- ════════════════════════════════════════════════════════════════════════════
--- w_hud -- client-side consumption (animation · props · cores · screen effect)
---
---   The server has already settled the needs and removed the item; here we give the
---   act its picture: a fitting animation, a prop in hand, the health/stamina cores,
---   and a screen effect where one exists.
---
---   Ported in substance from vorp_metabolism/client/useItemsActions.lua, with the
---   smoking animation from the old script, plus a model-validity guard so a wrong
---   prop name cannot break the whole animation.
--- ════════════════════════════════════════════════════════════════════════════
-
-local busy  = false -- repeat guard (the old script called it antyspam)
+-- Only the server's completed transaction applies effects.
+local busy, active = false, nil
+local props, dictionaries = {}, {}
+local function actionWait(ms)
+    local stop = GetGameTimer() + ms
+    repeat
+        if not active or active.coroutine ~= coroutine.running() or active.cancelled or IsEntityDead(cache.ped) or IsPedRagdoll(cache.ped)
+            or IsControlJustPressed(0, Config.Use.CancelControl) then error('consumption cancelled') end
+        Wait(math.min(100, math.max(0, stop - GetGameTimer())))
+    until GetGameTimer() >= stop
+end
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Helpers -- the library streams the assets and owns the props
@@ -21,7 +19,13 @@ local busy  = false -- repeat guard (the old script called it antyspam)
 ---@return boolean
 local function loadAnimDict(dict)
     if not dict or dict == '' then return false end
+    local operation = active
     local ok = pcall(w.requestAnimDict, dict, 3000)
+    if active ~= operation then
+        if ok then RemoveAnimDict(dict) end
+        return false
+    end
+    if ok then dictionaries[dict] = true end
     return ok
 end
 
@@ -34,9 +38,12 @@ local function makeProp(name)
     if not name or name == '' then return nil end
     if not IsModelValid(joaat(name)) then return nil end
 
+    local operation = active
     local ok, prop = pcall(w.entity.create, name, GetEntityCoords(cache.ped), 0.0, true)
     if not ok or not prop or prop == 0 then return nil end
+    if active ~= operation then w.entity.delete(prop); return nil end
 
+    props[prop] = true
     return prop
 end
 
@@ -45,6 +52,7 @@ local function dropProp(prop)
 
     DetachEntity(prop, true, true)
     w.entity.delete(prop)
+    props[prop] = nil
 end
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -132,7 +140,7 @@ local HELD = {
 }
 
 local function playHeld(spec, propName)
-    if not loadAnimDict(spec.dict) then return end
+    if not loadAnimDict(spec.dict) then return false end
 
     local prop = makeProp(propName or spec.prop)
     if not prop and propName then prop = makeProp(spec.prop) end -- a bad model name falls back to the style's own
@@ -146,19 +154,22 @@ local function playHeld(spec, propName)
 
     if spec.intro then
         TaskPlayAnim(cache.ped, spec.dict, spec.intro, 1.0, 8.0, spec.introMs, 31, 0.0, false, false, false)
-        Wait(spec.introMs)
+        actionWait(spec.introMs)
     end
 
     TaskPlayAnim(cache.ped, spec.dict, spec.clip, 1.0, 8.0, spec.ms, 31, 0.0, false, false, false)
-    Wait(spec.ms)
+    actionWait(100)
+    if not IsEntityPlayingAnim(cache.ped, spec.dict, spec.clip, 3) then return false end
+    actionWait(spec.ms - 100)
 
     dropProp(prop)
     ClearPedSecondaryTask(cache.ped)
     RemoveAnimDict(spec.dict)
+    return true
 end
 
 for style, spec in pairs(HELD) do
-    Anims[style] = function(propName) playHeld(spec, propName) end
+    Anims[style] = function(propName) return playHeld(spec, propName) end
 end
 
 --- A hot drink: the game's own coffee interaction, which fills and tips the mug itself.
@@ -168,11 +179,15 @@ function Anims.mug(propName)
     if not prop then return playHeld(HELD.glass, nil) end
 
     Citizen.InvokeNative(0x669655FFB29EF1A9, prop, 0, 'CTRL_cupFill', 1.0)
-    TaskItemInteraction_2(cache.ped, joaat('CONSUMABLE_COFFEE'), prop,
+    Citizen.InvokeNative(0x72F52AA2D2B172CC, cache.ped, joaat('CONSUMABLE_COFFEE'), prop,
         joaat('P_MUGCOFFEE01X_PH_R_HAND'), joaat('DRINK_COFFEE_HOLD'), 1, 0, -1082130432)
 
-    Wait(8000)
+    actionWait(700)
+    if not Citizen.InvokeNative(0xEC7E480FF8BD0BED, cache.ped) then return false end
+    Citizen.InvokeNative(0xB35370D5353995CB, cache.ped, joaat('DRINK_COFFEE_DRINK'), 1.0)
+    actionWait(7300)
     dropProp(prop)
+    return true
 end
 
 --- A bowl or plate with a spoon: the game's own stew interaction. Stews, soups and
@@ -186,27 +201,29 @@ function Anims.stew(propName)
 
     Citizen.InvokeNative(0x669655FFB29EF1A9, bowl, 0, 'Stew_Fill', 1.0)
     Citizen.InvokeNative(0xCAAF2BCCFEF37F77, bowl, 20)
-    TaskItemInteraction_2(cache.ped, 599184882, bowl, joaat('p_bowl04x_stew_PH_L_HAND'), -583731576, 1, 0, -1.0)
+    Citizen.InvokeNative(0x72F52AA2D2B172CC, cache.ped, 599184882, bowl, joaat('p_bowl04x_stew_PH_L_HAND'), -583731576, 1, 0, -1.0)
 
     if spoon then
         Citizen.InvokeNative(0xCAAF2BCCFEF37F77, spoon, 82)
-        TaskItemInteraction_2(cache.ped, 599184882, spoon, joaat('p_spoon01x_PH_R_HAND'), -583731576, 1, 0, -1.0)
+        Citizen.InvokeNative(0x72F52AA2D2B172CC, cache.ped, 599184882, spoon, joaat('p_spoon01x_PH_R_HAND'), -583731576, 1, 0, -1.0)
     end
 
-    Citizen.InvokeNative(0xB35370D5353995CB, cache.ped, -583731576, 1.0)
-
-    Wait(9000)
+    actionWait(700)
+    if not Citizen.InvokeNative(0xEC7E480FF8BD0BED, cache.ped) then return false end
+    Citizen.InvokeNative(0xB35370D5353995CB, cache.ped, joaat('EAT_STEW_BOWL_EAT_FINISH_DISCARD'), 1.0)
+    actionWait(8300)
     dropProp(bowl); dropProp(spoon)
+    return true
 end
 
 --- Smoking -- the wander loop from the old script, which reads well standing still.
 --- Three styles, three props: what is between the fingers is the whole difference.
 local function smoke(propName, fallback)
     local dict, clip = 'amb_wander@code_human_smoking_wander@cigar@male_a@base', 'base'
-    if not loadAnimDict(dict) then return end
+    if not loadAnimDict(dict) then return false end
 
     SetCurrentPedWeapon(cache.ped, joaat('weapon_unarmed'), true)
-    Wait(200)
+    actionWait(200)
 
     local prop = makeProp(propName or fallback)
     if not prop and propName then prop = makeProp(fallback) end
@@ -219,15 +236,18 @@ local function smoke(propName, fallback)
             true, true, false, true, 1, true, false, false)
     end
 
-    Wait(9000)
+    actionWait(100)
+    if not IsEntityPlayingAnim(cache.ped, dict, clip, 3) then return false end
+    actionWait(8900)
     dropProp(prop)
     ClearPedTasks(cache.ped)
     RemoveAnimDict(dict)
+    return true
 end
 
-function Anims.cigarette(propName) smoke(propName, 'p_cigarette01x') end
-function Anims.cigar(propName) smoke(propName, 'p_cigar01x') end
-function Anims.pipe(propName) smoke(propName, 'p_pipe01x') end
+function Anims.cigarette(propName) return smoke(propName, 'p_cigarette01x') end
+function Anims.cigar(propName) return smoke(propName, 'p_cigar01x') end
+function Anims.pipe(propName) return smoke(propName, 'p_pipe01x') end
 
 -- The old names, for entries written against them
 Anims.eat    = Anims.bite
@@ -249,19 +269,7 @@ local function addCore(index, delta)
     Citizen.InvokeNative(0xC6258F41D86676E0, cache.ped, index, v) -- SetAttributeCoreValue
 end
 
--- ════════════════════════════════════════════════════════════════════════════
--- The gilded state, as our HUD sees it
---
--- ★ Why we track it ourselves: the engine offers no native that reads the overpower
---   state back. EnableAttributeOverpower writes and never answers. So the only way our
---   own cores can show the gilding is to remember what we applied.
---
--- ⚠️ And the duration is ours, not the item's number. Those numbers are magnitudes on
---    an engine scale, not seconds -- one item carries 30/10 and another 1000/500, and
---    reading either as a duration gives a gilding lasting either a blink or a quarter
---    of an hour. So the flag says *whether* it is gilded and Config.Gold.Duration says
---    for how long our HUD shows it.
--- ════════════════════════════════════════════════════════════════════════════
+-- Ring and core overpower are separate engine attributes.
 
 WHudGold = { health = { ring = 0, icon = 0 }, stamina = { ring = 0, icon = 0 } }
 
@@ -273,7 +281,9 @@ local function gild(index, outer, inner)
     outer, inner = tonumber(outer) or 0, tonumber(inner) or 0
     if outer <= 0 and inner <= 0 then return end
 
-    EnableAttributeOverpower(cache.ped, index, math.max(outer, inner) + 0.0, true)
+    local seconds = (((Config.Gold or {}).Duration) or 30000) / 1000.0
+    if outer > 0 then Citizen.InvokeNative(0xF6A7C08DF2E28B28, cache.ped, index, seconds, true) end
+    if inner > 0 then Citizen.InvokeNative(0x4AF5A4C7B9157D14, cache.ped, index, seconds, true) end
 
     local slot = (index == CORE_HEALTH) and WHudGold.health or WHudGold.stamina
     local until_ = GetGameTimer() + (((Config.Gold or {}).Duration) or 30000)
@@ -438,24 +448,15 @@ local function applyCores(entry)
     if entry.outerHealth and entry.outerHealth ~= 0 then
         local h = GetEntityHealth(cache.ped) + entry.outerHealth
         if h < 1 then h = 1 end
-        SetEntityHealth(cache.ped, h, 0)
+        SetEntityHealth(cache.ped, math.min(GetEntityMaxHealth(cache.ped), h), 0)
     end
 
-    -- ════════════════════════════════════════════════════════════════════════
-    -- Gilding (overpower)
-    --
-    -- ⚠️ The engine native has no inner/outer split. It used to be called twice per
-    --    core -- once with goldHealthOuter and once with goldHealthInner, both on the
-    --    same attribute index -- so the second simply overwrote the first and one of
-    --    the two numbers was always discarded silently. Now it is called once per core
-    --    with the larger of the two.
-    --
-    -- ★ The inner/outer distinction is real all the same, but it lives in **our** HUD
-    --   rather than in the engine: outer gilds the ring, inner gilds the icon too.
-    --   See goldState below and the .gold-* rules in hud.css.
-    -- ════════════════════════════════════════════════════════════════════════
     gild(CORE_HEALTH,  entry.goldHealthOuter,  entry.goldHealthInner)
     gild(CORE_STAMINA, entry.goldStaminaOuter, entry.goldStaminaInner)
+    if entry.focus and Config.Focus.Enabled then
+        addCore(2, entry.focus)
+        Citizen.InvokeNative(0x51345AE20F22C261, PlayerId(), entry.focus + 0.0, 0, 0, 1)
+    end
 end
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -551,135 +552,162 @@ RegisterCommand('hudfx', function(_, args)
 end, false)
 
 -- ════════════════════════════════════════════════════════════════════════════
--- Event: consume an item
--- ════════════════════════════════════════════════════════════════════════════
-RegisterNetEvent('w_hud:client:consume', function(item)
-    local entry = Config.Consumables and Config.Consumables[item]
-    if not entry then return end
 
-    PlaySoundFrontend('Core_Fill_Up', 'Consumption_Sounds', true, 0)
+local function cleanupAction()
+    WHudAnimalClient.cleanup()
+    for prop in pairs(props) do pcall(dropProp, prop) end
+    props = {}
+    for dict in pairs(dictionaries) do RemoveAnimDict(dict) end
+    dictionaries = {}
+    if active and active.stage == 'select' then pcall(w.closeInputDialog) end
+    if active and active.stage ~= 'select' then ClearPedTasks(cache.ped) end
+end
+local function release()
+    if active then active.cancelled = true end
+    cleanupAction()
+    active, busy = nil, false
+    LocalPlayer.state:set('hudConsuming', false, false)
+end
 
-    -- The notice is shown here, in the player's own language, with the item's name from
-    -- our dictionary (item.<name>) or from the inventory.
-    WHudLocale.notify('needs.consumed', '#34b895', 'mp_anim_eat', 4000, { WHudLocale.itemLabel(item) })
+-- Ask the engine to run the actual inventory item's interaction and create its prop.
+-- A missing native interaction falls back to an authored category animation.
+local function playNative(item)
+    local asset = Config.ItemPresentation[item]
+    if not asset or not asset.nativeHash or not asset.interaction then return nil end
+    local state = joaat(asset.interaction)
+    if not Citizen.InvokeNative(0x2D19BC4DF626CBE7, cache.ped, asset.nativeHash, state, 0) then return nil end
+    Citizen.InvokeNative(0xAE72E7DF013AAA61, cache.ped, asset.nativeHash, state, 1, 0, 0.0)
+    local start = GetGameTimer()
+    while GetGameTimer() - start < 1500 do
+        if Citizen.InvokeNative(0xEC7E480FF8BD0BED, cache.ped) then break end
+        actionWait(50)
+    end
+    if not Citizen.InvokeNative(0xEC7E480FF8BD0BED, cache.ped) then return nil end
+    start = GetGameTimer()
+    while Citizen.InvokeNative(0xEC7E480FF8BD0BED, cache.ped) do
+        if GetGameTimer() - start > 14000 then return false end
+        actionWait(50)
+    end
+    return GetGameTimer() - start >= 700
+end
 
-    applyCores(entry)
-    screenFx(entry.fx, entry.fxTime)
+local function playScenario(name)
+    local hash = joaat(name)
+    Citizen.InvokeNative(0x524B54361229154F, cache.ped, hash, -1, true, 0, 0.0, false)
+    local deadline = GetGameTimer() + 1500
+    while GetGameTimer() < deadline and not Citizen.InvokeNative(0x34D6AC1157C8226C, cache.ped, hash) do actionWait(50) end
+    if not Citizen.InvokeNative(0x34D6AC1157C8226C, cache.ped, hash) then
+        ClearPedTasks(cache.ped)
+        return false
+    end
+    actionWait(6500)
+    return Citizen.InvokeNative(0x34D6AC1157C8226C, cache.ped, hash) == true
+end
 
-    -- ★ الترياق قبل السمّ: لو حمل غرضٌ الاثنين لكان إبطالاً ثمّ تسميماً، وهو
-    --   الترتيب المعقول. ولا غرض عندنا يحملهما — لكنّ الترتيب يجب أن يكون
-    --   محسوماً لا متروكاً لمن يُضيف غرضاً بعدنا.
-    if entry.curesPoison then WHudPoison.cure() end
-    if entry.poison then WHudPoison.apply(entry.poison) end
+Anims.unpack = function(_, item)
+    local hash = Config.ItemPresentation[item].nativeHash
+    local state = joaat('RECTANGLE@L11_W6-7_H2-5_InspectZ_HOLD')
+    if not Citizen.InvokeNative(0x2D19BC4DF626CBE7, cache.ped, hash, state, 0) then return false end
+    Citizen.InvokeNative(0xAE72E7DF013AAA61, cache.ped, hash, state, 1, 0, 0.0)
+    actionWait(700)
+    if not Citizen.InvokeNative(0xEC7E480FF8BD0BED, cache.ped) then return false end
+    actionWait(2300)
+    return true
+end
 
-    -- Medical healing: picked up by medical resources if any are present
-    if entry.heal then TriggerEvent('w_hud:client:healed', item) end
-
-    local play = entry.anim and Anims[entry.anim]
-    if not play or busy then return end
-
-    busy = true
-
-    CreateThread(function()
-        pcall(play, entry.prop)
-        busy = false
+RegisterNetEvent('w_hud:client:prepareUse', function(item, token, forcedAnimal)
+    if source ~= 65535 then return end
+    if busy or LocalPlayer.state.stableCaring or IsEntityDead(cache.ped) or not Config.Consumables[item] then
+        return TriggerServerEvent('w_hud:server:selectUse', token, false)
+    end
+    busy, active = true, { item = item, token = token, stage = 'select' }
+    LocalPlayer.state:set('hudConsuming', true, false)
+    -- Let the inventory bridge close its own NUI before the target chooser takes focus.
+    Wait(100)
+    if not active or active.token ~= token then return end
+    local ok, result = pcall(function()
+        if forcedAnimal then return {'animal:' .. tostring(forcedAnimal)} end
+        local options = WHudAnimalClient.choices(item)
+        if #options == 1 then return { 'player' } end
+        return w.inputDialog(WHudLocale.itemLabel(item), {
+            { type = 'select', label = locale('needs.chooseTarget'), required = true, default = 'player', options = options },
+        })
     end)
+    if not active or active.token ~= token then return end
+    local selected = ok and result and result[1]
+    local target, netId
+    if selected == 'player' then target = 'player'
+    elseif type(selected) == 'string' then target, netId = selected:match('^(%a+):(%d+)$') end
+    active.stage = 'waiting'
+    TriggerServerEvent('w_hud:server:selectUse', token, target or false, tonumber(netId))
 end)
 
---- Is the client busy with an animation right now? (used by client/needs.lua)
-function IsConsumeBusy() return busy end
-function SetConsumeBusy(v) busy = v and true or false end
-
--- ════════════════════════════════════════════════════════════════════════════
--- Horse care -- ported from rb94_horses in the old script
--- ════════════════════════════════════════════════════════════════════════════
-local function lastMount()
-    local horse = Citizen.InvokeNative(0x4C8B59171957BCF7, cache.ped) -- GetLastMount
-    if not horse or horse == 0 or not DoesEntityExist(horse) then return nil end
-    return horse
-end
-
-local function horseInReach(entry)
-    local horse = lastMount()
-    if not horse then return nil end
-
-    local max = (entry and entry.distance) or (Config.HorseCare and Config.HorseCare.MaxDistance) or 3.0
-    if #(GetEntityCoords(cache.ped) - GetEntityCoords(horse)) > max then return nil end
-
-    return horse
-end
-
-local function horseInteract(horse, hash, duration)
-    Citizen.InvokeNative(0xCD181A959CFDD7F4, cache.ped, horse, hash, 0, 0) -- TaskHorseInteraction
-    Wait(duration)
-end
-
-local function brushHorse(horse)
-    horseInteract(horse, GetHashKey('INTERACTION_BRUSH'), (Config.HorseCare and Config.HorseCare.BrushTime) or 8000)
-
-    Citizen.InvokeNative(0xE3144B932DFDFF65, horse, 0.0, -1, 1, 1)
-    ClearPedEnvDirt(horse)
-    ClearPedDamageDecalByZone(horse, 10, 'ALL')
-    ClearPedBloodDamage(horse)
-    Citizen.InvokeNative(0xD8544F6260F5F01E, horse, 10)
-end
-
-local function feedHorse(horse, coreIndex, amount)
-    horseInteract(horse, -224471938, (Config.HorseCare and Config.HorseCare.FeedTime) or 5000)
-
-    PlaySoundFrontend('Core_Fill_Up', 'Consumption_Sounds', true, 0)
-
-    local v = GetAttributeCoreValue(horse, coreIndex) + amount
-    if v > 100 then v = 100 end
-
-    Citizen.InvokeNative(0xC6258F41D86676E0, horse, coreIndex, v)
-end
-
---- Run the care action then call `done` -- shared by the pure and the dual item
-local function doHorseCare(horse, entry, done)
-    busy = true
-
-    CreateThread(function()
-        if entry.kind == 'brush' then
-            brushHorse(horse)
-        elseif entry.kind == 'stamina' then
-            feedHorse(horse, CORE_STAMINA, entry.amount or 20)
-        else -- feed / reviver
-            feedHorse(horse, CORE_HEALTH, entry.amount or 20)
+RegisterNetEvent('w_hud:client:playUse', function(item, token, target, netId)
+    if source ~= 65535 or not active or active.token ~= token or active.stage ~= 'waiting' then return end
+    active.stage, active.target, active.netId = 'animate', target, netId
+    active.coroutine = coroutine.running()
+    local operation = active
+    local ok, done = xpcall(function()
+        if target ~= 'player' then
+            if not netId or not NetworkDoesEntityExistWithNetworkId(netId) then return false end
+            local animal = NetToPed(netId)
+            if not DoesEntityExist(animal) or IsEntityDead(animal) or IsPedOnMount(cache.ped) then return false end
+            if target == 'animal' or Config.HorseItems[item].kind == 'water' then
+                return WHudAnimalClient.play(animal, item, actionWait, makeProp)
+            end
+            if #(GetEntityCoords(cache.ped) - GetEntityCoords(animal)) > 3.5 then return false end
+            local asset = Config.ItemPresentation[item]
+            Citizen.InvokeNative(0xCD181A959CFDD7F4, cache.ped, animal, joaat('Interaction_Food'),
+                asset and joaat(asset.model) or 0, true)
+            actionWait(300)
+            if not Citizen.InvokeNative(0x7FC84E85D98F063D, cache.ped) then return false end
+            actionWait((Config.HorseCare.FeedTime or 5000) - 300)
+            return DoesEntityExist(animal) and not IsEntityDead(animal) and
+                #(GetEntityCoords(cache.ped) - GetEntityCoords(animal)) <= 3.5
         end
-
-        busy = false
-        if done then done() end
-    end)
-end
-
--- A horse-only item: the server has not removed the piece yet, so we confirm only on success
-RegisterNetEvent('w_hud:client:horseCare', function(item)
-    local entry = Config.HorseItems and Config.HorseItems[item]
-    if not entry or busy then return end
-
-    local horse = horseInReach(entry)
-
-    if not horse then
-        WHudLocale.notify(lastMount() and 'needs.horseFar' or 'needs.horseNone', '#ff6b6b', 'cross', 4000)
-        return
-    end
-
-    doHorseCare(horse, entry, function()
-        TriggerServerEvent('w_hud:server:horseCareDone', item)
-    end)
+        local entry = Config.Consumables[item]
+        if entry.scenario and playScenario(entry.scenario) then return true end
+        local native = not entry.pack and playNative(item)
+        if native ~= nil and not entry.pack then return native end
+        local play = Anims[entry.anim]
+        if not play then return false end
+        w.print.debug(('consumable %s uses authored %s animation'):format(item, entry.anim))
+        return play(entry.prop, item) == true
+    end, debug.traceback)
+    if active ~= operation then return end
+    cleanupAction()
+    active.stage = 'commit'
+    if not ok then w.print.debug(tostring(done)) end
+    TriggerServerEvent('w_hud:server:completeUse', token, ok and done == true)
 end)
 
--- A dual item: the piece is already gone -- we pick the branch and tell the server which one
-RegisterNetEvent('w_hud:client:dualUse', function(item)
-    local entry = Config.HorseItems and Config.HorseItems[item]
-    local horse = entry and not busy and horseInReach(entry) or nil
-
-    if horse then
-        doHorseCare(horse, entry, function()
-            TriggerServerEvent('w_hud:server:dualResult', item, 'horse')
-        end)
-    else
-        TriggerServerEvent('w_hud:server:dualResult', item, 'player')
+RegisterNetEvent('w_hud:client:useFinished', function(token, item, target)
+    if source ~= 65535 or not active or active.token ~= token then return end
+    local netId = active.netId
+    release()
+    if not item or IsEntityDead(cache.ped) then return end
+    local entry = Config.Consumables[item]
+    if not entry then return end
+    if target == 'animal' then
+        WHudAnimalClient.apply(netId, item)
+    elseif target == 'player' and not entry.pack then
+        applyCores(entry)
+        screenFx(entry.fx, entry.fxTime)
+        if entry.curesPoison then WHudPoison.cure() end
+        if entry.poison then WHudPoison.apply(entry.poison) end
+        if entry.heal then TriggerEvent('w_hud:client:healed', item) end
     end
+    PlaySoundFrontend('Core_Fill_Up', 'Consumption_Sounds', true, 0)
+    local notice = entry.pack and 'needs.packOpened' or target == 'horse' and 'needs.horseFed'
+        or target == 'animal' and 'needs.animalFed' or 'needs.consumed'
+    WHudLocale.notify(notice, '#34b895', 'mp_anim_eat', 4000, { WHudLocale.itemLabel(item) })
 end)
+
+function IsConsumeBusy() return busy end
+function SetConsumeBusy(value) if not active then busy = value == true end end
+AddEventHandler('onResourceStop', function(resource)
+    if resource == GetCurrentResourceName() then release() end
+end)
+AddEventHandler('playerSpawned', release)
+RegisterNetEvent('vorp:SelectedCharacter', release)
+RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', release)

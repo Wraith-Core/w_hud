@@ -15,7 +15,7 @@
  *   saturation and value.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { hexToHsv, hsvToHex, normHex, readableInk } from './color';
 
@@ -115,16 +115,17 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
     onChange(hex);
   };
 
-  /* The popover's own size in pixels -- both are rem, and 1rem is 0.64vh here. */
+  /* Measure the actual editor-scale popup, independently from the HUD's tiny rem. */
   const place = () => {
     const el = btn.current;
     if (!el) return;
 
     const r = el.getBoundingClientRect();
-    const rem = window.innerHeight * 0.0064;
-    const w = 26 * rem;
-    const h = 25 * rem;
-    const gap = 0.6 * rem;
+    const unit = Math.max(1, Math.min(2, window.innerHeight / 1080));
+    const bounds = pop.current?.getBoundingClientRect();
+    const w = bounds?.width ?? 288 * unit;
+    const h = bounds?.height ?? 300 * unit;
+    const gap = 16 * unit;
 
     /* Below the swatch when there is room for it, above when there is not, and never
        past either side -- so a swatch near the bottom of the panel still opens fully. */
@@ -132,9 +133,23 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
 
     setAt({
       left: Math.max(gap, Math.min(window.innerWidth - w - gap, r.right - w)),
-      top: Math.max(gap, top),
+      top: Math.max(gap, Math.min(window.innerHeight - h - gap, top)),
     });
   };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const observer = new ResizeObserver(place);
+    if (pop.current) observer.observe(pop.current);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
 
   const toggle = () => {
     if (!open) place();
@@ -165,10 +180,11 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
       {open && createPortal((
         <div
           ref={pop}
-          className="hs-picker"
+          className="hs-picker wst-root wst-panel"
           style={{ left: `${at.left}px`, top: `${at.top}px` }}
           dir={document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'}
         >
+          <span className="wst-frame" aria-hidden="true"><span className="wst-fr-t" /><span className="wst-fr-b" /><span className="wst-fr-l" /><span className="wst-fr-r" /><span className="wst-fr-tl" /><span className="wst-fr-tr" /><span className="wst-fr-bl" /><span className="wst-fr-br" /></span>
           <div
             className="hs-sv"
             style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hsvToHex({ h: hue, s: 1, v: 1 })})` }}

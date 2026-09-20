@@ -72,3 +72,6 @@ try {
 } catch (e: any) {
   diag('w_hud REACT ERROR: ' + (e?.message || e), false);
 }
+
+
+import './store-adapter.css';

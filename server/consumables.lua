@@ -1,269 +1,187 @@
--- ════════════════════════════════════════════════════════════════════════════
--- w_hud -- registering consumables and horse care with the active inventory
---
--- ! Through w_lib's inventory bridge and never exports.w_inventory directly.
---
---   This file used to call w_inventory by name in six places, gated on
---   GetResourceState('w_inventory') == 'started'. On a server running
---   vorp_inventory that gate is simply never open: nothing was registered,
---   nothing was removed, nothing was handed back - every food and drink in the
---   satchel did nothing when used, with no line in the console to say why.
---
---   w_lib already carries an adapter per inventory (w_inventory, vorp_inventory,
---   rsg, qbr) and normalises the use-callback to (source, { metadata, slot, item })
---   for all of them. So the calls below go there, and the bag underneath is
---   whichever one the server actually runs.
---
---   The whole table lives in shared/consumables.lua -- this file only executes it.
---   The effect on needs is applied here (the server is the authority), and whatever
---   touches the ped itself (cores · animation · screen effect) runs on the client in
---   client/consumables.lua.
---
--- ⚠️ This file loads before server/metabolism.lua (alphabetical order), so every call
---    to WNeeds sits **inside** a function invoked at runtime, not at load time.
--- ════════════════════════════════════════════════════════════════════════════
-
-
--- ════════════════════════════════════════════════════════════════════════════
--- The inventory, through w_lib
--- ════════════════════════════════════════════════════════════════════════════
+-- HUD owns food/drink use. Animation completes before a single validated charge.
+local pending, sequence = {}, 0
 local Inv = {}
-
---- The active inventory's name, or nil while w_lib has not settled on one.
----@return string|nil
 function Inv.name()
     local ok, name = pcall(function() return exports.w_lib:InvName() end)
     return ok and name or nil
 end
-
----@return boolean
-function Inv.ready()
-    return Inv.name() ~= nil
-end
-
----@param src integer
----@param item string
----@param count integer
----@return boolean
-function Inv.add(src, item, count)
-    local ok, done = pcall(function() return exports.w_lib:InvAddItem(src, item, count or 1) end)
-    return ok and done == true
-end
-
---- ★ Boolean only: the bridge does not pass the inventory's failure reason through.
----   Where a reason matters, /useprobe and the debug convar below say what they can.
----@param src integer
----@param item string
----@param count integer
----@param slot? integer|string
----@return boolean
-function Inv.remove(src, item, count, slot)
-    local ok, done = pcall(function() return exports.w_lib:InvRemoveItem(src, item, count or 1, nil, slot) end)
-    return ok and done == true
-end
-
---- The bridge closes the satchel after use and hands the callback (source, data)
---- where data.slot is the piece that was used - the same shape every branch below
---- already expects.
----@param item string
----@param callback fun(source: integer, data: table)
----@return boolean
+function Inv.ready() return Inv.name() ~= nil end
 function Inv.registerUsable(item, callback)
-    local ok, done = pcall(function() return exports.w_lib:InvRegisterUsableItem(item, true, callback) end)
-    return ok and done == true
+    return exports.w_lib:InvRegisterUsableItem(item, true, callback) == true
 end
-
---- A notice to the player; `key` is a dictionary key the client translates (WNeeds.notify).
-local function notify(src, key, color, icon)
-    if not key then return end
-    WNeeds.notify(src, key, color, icon, 4000)
+local function count(src, item)
+    return exports.w_lib:InvGetItemCount(src, item) or 0
 end
-
--- ════════════════════════════════════════════════════════════════════════════
--- Consuming an item (food/drink/medicine/tobacco)
--- ════════════════════════════════════════════════════════════════════════════
-
---- The item's effect after the piece has been removed -- separated from the removal
---- because dual items (sugar/mint) are removed first, then it is decided: does the
---- player eat it, or feed it to the horse?
-local function applyEffects(src, item)
-    local entry = Config.Consumables[item]
-    if not entry then return end
-
-    -- Needs: one broadcast for all the changes
-    WNeeds.addMany(src, {
-        hunger = entry.hunger or 0,
-        thirst = entry.thirst or 0,
-    })
-
-    -- The buff
-    if entry.buff and Config.Systems.buffs then
-        WNeeds.giveBuff(src, entry.buff.type, entry.buff.amount or 50)
-    end
-
-    -- What is handed back to the player (an empty bottle, say)
-    if entry.giveBack and entry.giveBack.item and entry.giveBack.item ~= '' then
-        Inv.add(src, entry.giveBack.item, entry.giveBack.amount or 1)
-    end
-
-    -- The client: animation + cores + screen effect + the "consumed" notice in the
-    -- player's language (it reads the details from shared/consumables.lua)
-    TriggerClientEvent('w_hud:client:consume', src, item)
-
-    WNeeds.save(src)
-
-    -- A console trace while diagnosing:  setr w_lib:printlevel:w_hud debug
-    local n = WNeeds.state(src) or {}
-    w.print.debug(("player %s consumed '%s' -> hunger=%s thirst=%s")
-        :format(tostring(src), item, tostring(n.hunger), tostring(n.thirst)))
+local function notify(src, reason)
+    WNeeds.notify(src, reason or 'needs.useFailed', '#ff6b6b', 'cross', 4000)
 end
-
---- Remove, then apply. ★ Nothing is granted unless the piece really was removed -- a guard against duplication.
-local function consume(src, item, data)
-    if not Config.Consumables[item] then return false end
-
-    -- ★ A failed removal is printed, never swallowed: without the line, the whole
-    --   thing looks like "I ate and nothing happened" with no evidence at all.
-    local removed = Inv.remove(src, item, 1, data and data.slot)
-
-    if not removed then
-        w.print.error(("could not remove '%s' from player %s's %s (slot=%s) - nothing applied")
-            :format(item, tostring(src), tostring(Inv.name() or 'inventory'), tostring(data and data.slot)))
-        return false
-    end
-
-    applyEffects(src, item)
-    return true
-end
-
--- ════════════════════════════════════════════════════════════════════════════
--- Horse care
---
---   The server starts the request, the client performs it and confirms, then the item
---   is removed.
---   ★ We do not remove before confirmation, so the carrot is not lost if the player is
---     far from their horse. And we do not accept a confirmation we did not start:
---     one pending request per player, with a deadline.
--- ════════════════════════════════════════════════════════════════════════════
-local pending = {} -- [src] = { item = …, slot = …, expires = … }
-
-local function requestHorseCare(src, item, data)
-    local entry = Config.HorseItems[item]
-    if not entry then return false end
-
-    pending[src] = {
-        item = item,
-        slot = data and data.slot,
-        expires = os.time() + 30,
-    }
-
-    TriggerClientEvent('w_hud:client:horseCare', src, item)
-    return true
-end
-
-RegisterNetEvent('w_hud:server:horseCareDone', function(item)
-    local src = source
-    local p = pending[src]
-
-    -- A confirmation we did not start, or for a different item, or past the deadline => rejected
-    if not p or p.item ~= item or os.time() > p.expires then return end
+local function finish(src, p, effects, reason)
+    if pending[src] ~= p then return end
     pending[src] = nil
-
-    local entry = Config.HorseItems[item]
-    if not entry then return end
-
-    if entry.consume ~= false then
-        Inv.remove(src, item, 1, p.slot)
+    TriggerClientEvent('w_hud:client:useFinished', src, p.token, effects and p.item or false, p.target)
+    if reason then notify(src, reason) end
+end
+local function alive(src)
+    local ped = GetPlayerPed(src)
+    return ped and ped ~= 0 and DoesEntityExist(ped) and GetEntityHealth(ped) > 0
+end
+local function sameSlot(src, p)
+    if Inv.name() ~= 'w_inventory' then return count(src, p.item) > 0 end
+    local slot = exports.w_inventory:GetSlot(src, p.slot)
+    return slot and slot.name == p.item and slot.count > 0 and
+        (not p.metadata or json.encode(slot.metadata or {}) == p.metadata)
+end
+local function horseTarget(src, netId)
+    if GetResourceState('w_stables') ~= 'started' then return nil end
+    local ok, horse = pcall(function() return exports.w_stables:ConsumableTarget(src, netId) end)
+    return ok and horse or nil
+end
+local function validateTarget(src, p)
+    if p.target == 'player' then return Config.Consumables[p.item] ~= nil end
+    if p.target == 'horse' then
+        return Config.HorseItems[p.item] and horseTarget(src, p.netId) ~= nil
     end
-
-    local key = (entry.kind == 'brush' and 'needs.horseBrushed')
-        or (entry.kind == 'stamina' and 'needs.horseStamina')
-        or 'needs.horseFed'
-
-    notify(src, key, '#c9a227', 'awards_set_p_003')
-end)
-
--- -- dual items (sugar · horse mint) -----------------------------------------
---   Near their horse => they feed it. Far => they eat it themselves. Never both.
---   The piece is removed first either way, and the client reports which branch it took.
---   ★ There is nothing to cheat here: the piece is gone before the answer, so the worst
---     a forger can do is pick the branch they wanted -- which they are free to do anyway
---     by walking away from the horse.
-local dual = {} -- [src] = { item = …, expires = … }
-
-local function requestDual(src, item, data)
-    local removed = Inv.remove(src, item, 1, data and data.slot)
-    if not removed then return false end
-
-    dual[src] = { item = item, expires = os.time() + 30 }
-    TriggerClientEvent('w_hud:client:dualUse', src, item)
+    return p.target == 'animal' and WHudAnimalUse.validate(src, p.netId, p.item) ~= nil
+end
+local function beginUse(src, item, data)
+    if pending[src] then notify(src, 'needs.useBusy'); return false end
+    if not alive(src) then return false end
+    local entry = Config.Consumables[item]
+    if not entry then return false end
+    if entry.blocked then notify(src, entry.blocked); return false end
+    if entry.focus and not entry.focusOptional and not Config.Focus.Enabled then notify(src, 'needs.focusUnavailable'); return false end
+    if count(src, item) < 1 then return false end
+    if entry.pack and exports.w_lib:InvCanCarry(src, entry.pack.item, entry.pack.count) ~= true then
+        notify(src, 'needs.packNoSpace'); return false
+    end
+    if entry.requirement and count(src, entry.requirement.item) < entry.requirement.count then
+        notify(src, 'needs.tobaccoRequired'); return false
+    end
+    sequence = sequence + 1
+    local p = { item = item, slot = data and data.slot, token = sequence,
+        forcedAnimal = data and data.targetNetId,
+        character = exports.w_lib:FwGetCharacterIdentifier(src),
+        expires = GetGameTimer() + Config.Use.Timeout, stage = 'select' }
+    if Inv.name() == 'w_inventory' then
+        local slot = p.slot and exports.w_inventory:GetSlot(src, p.slot)
+        if not slot or slot.name ~= item then return false end
+        p.metadata = json.encode(slot.metadata or {})
+    end
+    pending[src] = p
+    TriggerClientEvent('w_hud:client:prepareUse', src, item, p.token, p.forcedAnimal)
     return true
 end
-
-RegisterNetEvent('w_hud:server:dualResult', function(item, target)
-    local src = source
-    local d = dual[src]
-
-    if not d or d.item ~= item or os.time() > d.expires then return end
-    dual[src] = nil
-
-    if target == 'horse' then
-        local entry = Config.HorseItems[item]
-        notify(src, (entry and entry.kind == 'stamina') and 'needs.horseStamina' or 'needs.horseFed',
-            '#c9a227', 'awards_set_p_003')
-    else
-        applyEffects(src, item)
-    end
-end)
-
-AddEventHandler('playerDropped', function()
-    pending[source] = nil
-    dual[source] = nil
-end)
-
--- ════════════════════════════════════════════════════════════════════════════
--- Registration -- a single pass over the union of the two tables
--- ════════════════════════════════════════════════════════════════════════════
-local function handleUse(src, item, data)
-    local horse = Config.Systems.horseCare and Config.HorseItems[item] or nil
-    local food  = Config.Systems.consumables and Config.Consumables[item] or nil
-
-    -- A horse-only item => always goes to the horse
-    if horse and not (food and horse.playerFallback) then
-        return requestHorseCare(src, item, data)
-    end
-
-    -- A dual item (sugar/mint): to the horse if it is near, otherwise the player eats it
-    if horse and food then
-        return requestDual(src, item, data)
-    end
-
-    if food then return consume(src, item, data) end
-
-    notify(src, 'needs.cantUse', '#ff6b6b', 'cross')
-    return false
-end
-
--- ════════════════════════════════════════════════════════════════════════════
--- ★ A guard that surfaces errors instead of letting them be swallowed.
---
---   w_inventory calls our handler like this:  pcall(server.UseItem, source, name, data)
---   so any error in the code here is swallowed by that pcall without a single line in
---   the console, and what the player sees is: they eat and nothing goes up -- with no
---   trace to follow.
---   xpcall + traceback makes the fault visible at the moment it happens.
--- ════════════════════════════════════════════════════════════════════════════
 local function guarded(src, item, data)
-    local ok, result = xpcall(handleUse, debug.traceback, src, item, data)
-
+    local ok, result = xpcall(beginUse, debug.traceback, src, item, data)
     if not ok then
-        w.print.error(("ERROR while using '%s' (player %s):\n%s")
-            :format(tostring(item), tostring(src), tostring(result)))
+        if pending[src] then finish(src, pending[src], false, 'needs.useFailed') end
+        w.print.error(tostring(result))
         return false
     end
-
     return result
 end
+local function current(src, token, stage)
+    local p = pending[src]
+    if not p or p.token ~= token or p.stage ~= stage then return nil end
+    if GetGameTimer() > p.expires or not alive(src) or
+        p.character ~= exports.w_lib:FwGetCharacterIdentifier(src) then
+        finish(src, p, false, 'needs.useCancelled'); return nil
+    end
+    return p
+end
+local function onUseEvent(name, callback)
+    RegisterNetEvent(name, function(...)
+        local src = source
+        local ok, reason = xpcall(callback, debug.traceback, src, ...)
+        if not ok then
+            local p = pending[src]
+            if p then finish(src, p, false, 'needs.useFailed') end
+            w.print.error(('consumable event %s failed for %s: %s'):format(name, src, reason))
+        end
+    end)
+end
+
+exports('GetAnimalFoods', function(src, netId)
+    local food = {}
+    for item in pairs(Config.AnimalFood or {}) do
+        if Config.Consumables[item] and count(src,item)>0 and WHudAnimalUse.validate(src,netId,item) then
+            food[#food+1] = {item=item,count=count(src,item),water=Config.AnimalFood[item]=='water'}
+        end
+    end
+    table.sort(food,function(a,b)return a.item<b.item end)
+    return food
+end)
+exports('FeedAnimal', function(src,netId,item)
+    if type(item)~='string' or not WHudAnimalUse.validate(src,netId,item) then return false end
+    local slot = Inv.name()=='w_inventory' and exports.w_inventory:GetSlotIdWithItem(src,item) or nil
+    return guarded(src,item,{slot=slot,targetNetId=netId})
+end)
+onUseEvent('w_hud:server:selectUse', function(src, token, target, netId)
+    local p = current(src, token, 'select')
+    if not p then return end
+    if target ~= 'player' and target ~= 'horse' and target ~= 'animal' then
+        return finish(src, p, false)
+    end
+    if p.forcedAnimal and (target~='animal' or tonumber(netId)~=p.forcedAnimal) then
+        return finish(src,p,false,'needs.targetUnavailable')
+    end
+    p.target, p.netId = target, tonumber(netId)
+    if not validateTarget(src, p) or not sameSlot(src, p) then
+        return finish(src, p, false, 'needs.targetUnavailable')
+    end
+    p.stage, p.started = 'animate', GetGameTimer()
+    p.expires = p.started + Config.Use.Timeout
+    TriggerClientEvent('w_hud:client:playUse', src, p.item, token, target, p.netId)
+end)
+onUseEvent('w_hud:server:completeUse', function(src, token, success)
+    local p = current(src, token, 'animate')
+    if not p then return end
+    if success ~= true then return finish(src, p, false, 'needs.useCancelled') end
+    if GetGameTimer() - p.started < 700 or not sameSlot(src, p) or not validateTarget(src, p) then
+        return finish(src, p, false, 'needs.targetUnavailable')
+    end
+    -- Close the replay window before exports that might yield.
+    p.stage = 'commit'
+    local entry = Config.Consumables[p.item]
+    if entry.pack and exports.w_lib:InvCanCarry(src, entry.pack.item, entry.pack.count) ~= true then
+        return finish(src, p, false, 'needs.packNoSpace')
+    end
+    if p.forcedAnimal and (p.target~='animal' or p.netId~=p.forcedAnimal) then return finish(src,p,false) end
+    local charge = entry.requirement or (entry.consume ~= false and { item = p.item, count = 1 })
+    local removed = not charge or exports.w_lib:InvRemoveItem(src, charge.item, charge.count,
+        nil, charge.item == p.item and p.slot or nil) == true
+    if not removed then return finish(src, p, false, 'needs.useFailed') end
+    local applied = true
+    if entry.pack then
+        applied = exports.w_lib:InvAddItem(src, entry.pack.item, entry.pack.count) == true
+    elseif p.target == 'horse' then
+        applied = exports.w_stables:ApplyConsumable(src, p.netId, Config.HorseItems[p.item].effect) == true
+    elseif p.target == 'animal' then
+        applied = WHudAnimalUse.apply(src, p.netId, p.item) == true
+    else
+        WNeeds.addMany(src, { hunger = entry.hunger or 0, thirst = entry.thirst or 0 })
+        if entry.buff and Config.Systems.buffs then
+            WNeeds.giveBuff(src, entry.buff.type, entry.buff.amount or 50)
+        end
+        WNeeds.save(src)
+    end
+    if not applied and charge then
+        -- A target can disappear during an inventory adapter call. Compensate once.
+        local restored = exports.w_lib:InvAddItem(src, charge.item, charge.count,
+            charge.item == p.item and p.metadata and json.decode(p.metadata) or nil)
+        if restored ~= true then w.print.error(('consumable refund failed: player %s item %s'):format(src, charge.item)) end
+    end
+    finish(src, p, applied, not applied and 'needs.targetUnavailable' or nil)
+end)
+AddEventHandler('playerDropped', function() pending[source] = nil end)
+CreateThread(function()
+    while true do
+        Wait(1000)
+        for src, p in pairs(pending) do
+            if p.stage ~= 'commit' and GetGameTimer() > p.expires then finish(src, p, false, 'needs.useCancelled') end
+        end
+    end
+end)
 
 local function registerAll(why)
     -- The bridge, not a resource name: w_lib says which bag is up, and a bag that has

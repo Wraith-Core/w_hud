@@ -12,8 +12,17 @@ const stripCrossorigin = () => ({
   },
 });
 
+// Keep the shared store visuals after Vite's generated application stylesheet.
+const storeThemeLast = () => ({
+  name: 'store-theme-last', enforce: 'post' as const,
+  transformIndexHtml: { order: 'post' as const, handler(html: string) {
+    const tag = html.match(/<link[^>]*data-wraith-store-theme[^>]*>/)?.[0];
+    return tag ? html.replace(tag, '').replace('</head>', `${tag}\n</head>`) : html;
+  } },
+});
+
 export default defineConfig({
-  plugins: [react(), stripCrossorigin()],
+  plugins: [react(), stripCrossorigin(), storeThemeLast()],
   base: './',
   build: {
     outDir: 'build',

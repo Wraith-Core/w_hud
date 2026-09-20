@@ -8,13 +8,10 @@ shared_scripts {
     '@w_lib/init.lua',      -- our unified library: w (== lib) / cache / w.callback / w.framework / exports.w_lib
     'shared/config.lua',
     'shared/needs.lua',       -- after config.lua: buffs, voice, horse care, thresholds, display
-    'shared/consumables.lua', -- after needs.lua: the table of every food, drink and medicine
-    -- after consumables.lua, and the order is the whole point: it fills only what the
-    -- curated table left empty, so the tuned entries there keep winning. See its header.
-    'shared/consumables_ported.lua',
-    -- after the ported table: the rows the satchel sold that nothing could use (2026-09-18);
-    -- same rule, fills only what the two tables above left empty
-    'shared/consumables_orphans.lua',
+    'shared/consumables.lua', -- after needs.lua: the curated table of catalog food, drink, medicine, and horse care
+    'shared/use_profiles.lua',
+    'shared/use_rules.lua',
+    'shared/animal_profiles.lua',
     'shared/satchels.lua',    -- after config.lua: satchel tiers and their carry bonus
     'shared/wheel.lua',       -- after config.lua: the weapon wheel (its strings come from the dictionary)
 }
