@@ -10,4 +10,4 @@ CREATE TABLE IF NOT EXISTS `w_hud_settings` (
     `data`    TEXT NOT NULL,        -- JSON: theme + widgets + grid + scale
     `updated` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`cid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

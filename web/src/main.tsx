@@ -13,26 +13,13 @@ function diag(msg: string, ok: boolean) {
   (d as HTMLElement).style.borderColor = ok ? '#7CFC00' : '#ff4d4d';
 }
 
-// -- injecting the RDR + Arabic fonts -- wrapped in try/catch so a failure cannot stop React mounting --
+// -- the faces are the Wraith theme's (w_lib/nui/theme/fonts.css, pulled in by the store-theme.css link in
+//    index.html): RDR Lino, Hapna Slab and RDR Catalogue for Latin, Lalezar / Amiri / Tajawal for Arabic --
+//    the same files as the loading screen and the pause menu. Only the textures are set here.
 try {
   const BASE = import.meta.env.BASE_URL || './';
   let ABS_BASE = BASE;
   try { ABS_BASE = new URL(BASE, document.baseURI).href; } catch { ABS_BASE = BASE; }
-  const AR = 'U+0600-06FF,U+0750-077F,U+0870-089F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+2010-2011,U+0660-0669';
-  const LAT = 'U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212';
-  const s = document.createElement('style');
-  s.textContent = `
-    @font-face { font-family: "RDR Lino"; src: url("${ABS_BASE}fonts/RDRLino-Regular.woff2") format("woff2"); font-display: swap; }
-    @font-face { font-family: "Hapna Slab"; src: url("${ABS_BASE}fonts/HapnaSlabSerif-DemiBold.woff2") format("woff2"); font-display: swap; }
-    @font-face { font-family: "RDR Catalogue"; src: url("${ABS_BASE}fonts/RDRCatalogueBold-Bold.woff2") format("woff2"); font-display: swap; }
-    @font-face { font-family: "Noto Sans Arabic"; src: url("${ABS_BASE}fonts/NotoSansArabic.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
-    @font-face { font-family: "Tajawal"; font-weight: 400; src: url("${ABS_BASE}fonts/tajawal-arabic-400-normal.woff2") format("woff2"); unicode-range: ${AR}; font-display: swap; }
-    @font-face { font-family: "Tajawal"; font-weight: 500; src: url("${ABS_BASE}fonts/tajawal-arabic-500-normal.woff2") format("woff2"); unicode-range: ${AR}; font-display: swap; }
-    @font-face { font-family: "Tajawal"; font-weight: 700; src: url("${ABS_BASE}fonts/tajawal-arabic-700-normal.woff2") format("woff2"); unicode-range: ${AR}; font-display: swap; }
-    @font-face { font-family: "Tajawal"; font-weight: 400; src: url("${ABS_BASE}fonts/tajawal-latin-400-normal.woff2") format("woff2"); unicode-range: ${LAT}; font-display: swap; }
-    @font-face { font-family: "Tajawal"; font-weight: 700; src: url("${ABS_BASE}fonts/tajawal-latin-700-normal.woff2") format("woff2"); unicode-range: ${LAT}; font-display: swap; }
-  `;
-  document.head.appendChild(s);
 
   // the original RDR textures as CSS variables (absolute path -- works inside CEF)
   const root = document.documentElement.style;

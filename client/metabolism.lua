@@ -41,10 +41,15 @@ end
 
 -- Top-right info: server name (sv_projectName) + player id + location (optional)
 local function sendServerInfo()
+    -- ★ The id on the plate is the one players read out so others can reach them: the citizen
+    --   id. A server id shown here was typed into a citizen-id field (a bank transfer, /givecash)
+    --   where the same digits name somebody else. nil before a character is in play, and on VORP
+    --   (vorp:updateUi brings its own id): the plate stays empty until the framework speaks.
+    local ok, citizenId = pcall(function() return w.citizen.myId() end)
     SendNUIMessage({
         action = 'setServerInfo',
         name = GetConvar('w_hud_name', GetConvar('sv_projectName', 'REDM RP')),
-        id = GetPlayerServerId(PlayerId()),
+        id = ok and citizenId or nil,
     })
     local loc = GetConvar('w_hud_location', '')
     if loc ~= '' then SendNUIMessage({ action = 'setLocation', location = loc }) end

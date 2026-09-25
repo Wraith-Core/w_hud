@@ -74,8 +74,9 @@ CreateThread(function()
     while true do
         Wait(50)
         if LocalPlayer.state.isLoggedIn and incinematic == false and inBathing == false and inClothing == false and showUI and not hideStement then
-            local stamina = tonumber(string.format("%.2f",
-                Citizen.InvokeNative(0x0FF421E467373FCF, cache.playerId, Citizen.ResultAsFloat())))
+            -- ★ The bar as a true percentage -- the raw reading tops out at 11.2 on a fresh
+            --   character and read as permanently red (WHudStamina in client/func.lua).
+            local stamina = tonumber(string.format("%.2f", WHudStamina.barPercent()))
             local now = GetGameTimer()
             if (now - lastStaminaSyncTimer > 1000 and math.abs(stamina - lastSyncedStamina) >= 1.0) or math.abs(stamina - lastSyncedStamina) >= 5.0 then
                 lastSyncedStamina = stamina
@@ -159,7 +160,8 @@ CreateThread(function()
                 dirty = tonumber(string.format("%.2f", formattedDirty)),
                 health = w.player.healthPercent(),
                 healthCore = healthCore,
-                stamina = stamina,
+                -- the ring is the bar, the icon the core (WHudStamina.hudValue)
+                stamina = WHudStamina.hudValue(stamina, staminaCore),
                 staminaCore = staminaCore,
                 thirst = thirst,
                 hunger = hunger,

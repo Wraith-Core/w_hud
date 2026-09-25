@@ -14,12 +14,14 @@
 .hs-rail-btn.wst-tab::before { width:auto;height:auto;transform:none; }
 .hs-root .hs-btn,.hs-root .hs-linkbtn { border:0;border-radius:0; }
 .hs-root .hs-chip-btn { min-width:0; }
-.hs-root .hs-chip-btn.is-sel::before { background:#ededed!important; }
-.hs-root .hs-chip-btn.is-sel,.hs-root .hs-chip-btn.is-sel span { color:#080808!important; }
-.hs-section-title { font-family:var(--wst-f-display);color:#fff; }
-.hs-foot { background:rgba(0,0,0,.35); }
+.hs-root .hs-chip-btn.is-sel::before { background:var(--w-paper)!important; }
+.hs-root .hs-chip-btn.is-sel,.hs-root .hs-chip-btn.is-sel span { color:var(--w-ink)!important; }
+/* a section's name is the kicker (the label role), not a title */
+.hs-section-title { font-family:var(--w-f-label);color:var(--w-paper-dim); }
+.hs-foot { background:rgba(11,10,8,.35); }
 .hs-root .hs-close { flex:none; }
-.hs-root[dir=rtl],html[dir=rtl] .hs-root { font-family:var(--wst-f-ar); }
+/* the label role everywhere in the panel; the theme's tokens switch it to Tajawal under dir=rtl */
+.hs-root { font-family:var(--w-f-label); }
 
 /* Settings use their own readable scale. The game's tiny HUD rem still sizes
    the actual cores; it must not turn editor gaps into 2px beside 15px text. */
@@ -45,7 +47,7 @@
 .hs-root :is(button,input,select,textarea,.hs-body,.hs-note,.hs-field-text,.hs-slider-label,.hs-slider-val,.hs-empty,.hs-preset-name,.hs-slot-name,.hs-seg-label,.hs-fieldrow>span,.hs-facts li,.hs-field-text b,.hs-code-text) { font-size:var(--hs-text);line-height:1.5; }
 .hs-root :is(.hs-chip-cap,.hs-posrow,.hs-field-text em,.hs-urlrow>span) { font-size:calc(13 * var(--hs-unit));line-height:1.5; }
 .hs-root .hs-section { padding:0; }
-.hs-root .hs-section+.hs-section { margin-top:calc(24 * var(--hs-unit));padding-top:calc(20 * var(--hs-unit));border-top:1px solid rgba(255,255,255,.14); }
+.hs-root .hs-section+.hs-section { margin-top:calc(24 * var(--hs-unit));padding-top:calc(20 * var(--hs-unit));border-top:1px solid var(--w-rule); }
 .hs-root .hs-section-title { font-size:calc(16 * var(--hs-unit));gap:calc(12 * var(--hs-unit));margin-bottom:calc(16 * var(--hs-unit));line-height:1.5; }
 .hs-root .hs-chips { gap:calc(18 * var(--hs-unit)); }
 .hs-root .hs-chip-group { gap:calc(8 * var(--hs-unit)); }
@@ -57,12 +59,12 @@
 .hs-root :is(.hs-linkbtn,.hs-btn) svg { width:calc(18 * var(--hs-unit));height:calc(18 * var(--hs-unit));flex:none; }
 .hs-root .hs-slider { padding:calc(14 * var(--hs-unit)) 0; }
 .hs-root .hs-slider-top { gap:calc(12 * var(--hs-unit));margin-bottom:calc(12 * var(--hs-unit)); }
-.hs-root :is(.hs-slider-val,.hs-posrow b,.hs-swatch,.hs-facts b),.hs-picker .hs-hex { font-family:var(--wst-f-ar);font-size:var(--hs-text);font-weight:700;letter-spacing:0;font-variant-numeric:tabular-nums; }
+.hs-root :is(.hs-slider-val,.hs-posrow b,.hs-swatch,.hs-facts b),.hs-picker .hs-hex { font-family:var(--w-f-label);font-size:var(--hs-text);font-weight:var(--w-wt-label,400);letter-spacing:0;font-variant-numeric:tabular-nums lining-nums; }
 .hs-root .hs-slider-val { min-width:calc(48 * var(--hs-unit));direction:ltr;text-align:end;flex:none; }
 .hs-root .hs-slider input[type=range] { height:calc(8 * var(--hs-unit));margin:0;display:block;border-width:1px; }
 .hs-root .hs-slider input[type=range]::-webkit-slider-thumb { width:calc(14 * var(--hs-unit));height:calc(22 * var(--hs-unit));border-width:1px; }
 .hs-root .hs-toggle { padding:calc(8 * var(--hs-unit)) 0;gap:calc(10 * var(--hs-unit)); }
-.hs-root .hs-toggle-track { width:calc(34 * var(--hs-unit));height:calc(20 * var(--hs-unit));border-radius:calc(10 * var(--hs-unit));border-width:1px; }
+.hs-root .hs-toggle-track { width:calc(34 * var(--hs-unit));height:calc(20 * var(--hs-unit));border-radius:0;border-width:1px; } /* the store's square switch, not a pill */
 .hs-root .hs-toggle-knob { width:calc(14 * var(--hs-unit));height:calc(14 * var(--hs-unit));top:calc(2 * var(--hs-unit));inset-inline-start:calc(2 * var(--hs-unit)); }
 .hs-root .hs-toggle.is-on .hs-toggle-knob { transform:translateX(calc(14 * var(--hs-unit))); }
 html[dir=rtl] .hs-root .hs-toggle.is-on .hs-toggle-knob { transform:translateX(calc(-14 * var(--hs-unit))); }
@@ -93,7 +95,7 @@ html[dir=rtl] .hs-root .hs-toggle.is-on .hs-toggle-knob { transform:translateX(c
 .hs-picker .hs-chip { height:calc(26 * var(--hs-unit)); }
 .hs-picker .hs-hexrow { gap:calc(10 * var(--hs-unit)); }
 .hs-picker :is(.hs-hex,.hs-mini) { padding:calc(8 * var(--hs-unit));font-size:var(--hs-text);min-width:0; }
-.hs-picker .hs-mini { font-family:var(--wst-f-body);max-width:55%;white-space:normal; }
+.hs-picker .hs-mini { font-family:var(--w-f-label);max-width:55%;white-space:normal; }
 @media(max-width:700px) {
  .hs-root .hs-rail { width:calc(116 * var(--hs-unit));padding:10px 6px; }
  .hs-root .hs-body { padding:14px; }

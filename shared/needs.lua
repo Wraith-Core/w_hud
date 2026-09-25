@@ -29,8 +29,11 @@ Config.Systems = {
 --   Each buff is 0-100, decays over time, and its effect is applied every tick.
 --   Granted from the `buff` field in shared/consumables.lua, or by the events below.
 --
---   From another script (client):  TriggerEvent('w_hud:client:giveBuff', 'health', 50)
 --   From the server:               exports.w_hud:GiveBuff(src, 'health', 50)
+--   From another script (client):  TriggerEvent('w_hud:client:giveBuff', 'health', 50)
+--     ⚠️ honoured only up to what a server script allowed first
+--     (exports.w_hud:AllowBuff(src, 'health', 50)): a client alone cannot grant itself a buff
+--     (server/metabolism.lua, "What a CLIENT may do").
 --
 -- ★ The `calm` buff went out with the stress system: its only effect was lowering
 --   stress, so once that was gone it became a buff with no effect.

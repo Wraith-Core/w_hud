@@ -451,6 +451,16 @@ local function applyCores(entry)
         SetEntityHealth(cache.ped, math.min(GetEntityMaxHealth(cache.ped), h), 0)
     end
 
+    -- The stamina ring is the ped's stamina, not the core above: without this a tonic filled
+    -- the icon and left the bar you sprint on where it was. outerStamina = percent of the bar.
+    -- ! Of the bar's own ceiling (WHudStamina, client/func.lua), not _GET_PED_MAX_STAMINA: that
+    --   one adds the core's fixed 22.4 to the bar (33.6 on a fresh character whose bar is 11.2),
+    --   so a 25% coffee poured in three quarters of the bar and any tonic of 34% or more filled it.
+    if entry.outerStamina and entry.outerStamina ~= 0 then
+        local _, _, ceiling = WHudStamina.barPercent()
+        Citizen.InvokeNative(0xC3D4B754C0E86B9E, cache.ped, ceiling * entry.outerStamina / 100.0) -- _CHANGE_PED_STAMINA (a delta)
+    end
+
     gild(CORE_HEALTH,  entry.goldHealthOuter,  entry.goldHealthInner)
     gild(CORE_STAMINA, entry.goldStaminaOuter, entry.goldStaminaInner)
     if entry.focus and Config.Focus.Enabled then
@@ -601,7 +611,9 @@ local function playScenario(name)
         return false
     end
     actionWait(6500)
-    return Citizen.InvokeNative(0x34D6AC1157C8226C, cache.ped, hash) == true
+    -- a BOOL native answers 1, never true: `== true` read every finished scenario as a failure,
+    -- and the item's fallback animation played again on top of it
+    return Citizen.InvokeNative(0x34D6AC1157C8226C, cache.ped, hash) and true or false
 end
 
 Anims.unpack = function(_, item)

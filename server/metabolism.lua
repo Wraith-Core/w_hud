@@ -22,6 +22,12 @@ local DEFAULTS = { hunger = 100, thirst = 100, cleanliness = 100 }
 --- [src] = { hunger=…, thirst=…, …, buffs = { health = 40, … } }
 local State = {}
 
+--- [src] = the citizen id State[src] was loaded for.
+--- ★ Kept beside State and not inside it: State is sent to the client whole (the state bag,
+---   the needs callback), and the id has no business travelling with it. A deletion
+---   (server/purge.lua) finds the entry of a deleted character through this table.
+local Owner = {}
+
 --- An internal interface used by the other server files in this resource
 --- (server/consumables.lua loads before this file, so the call must happen at runtime,
 --- not at load time)
@@ -37,7 +43,7 @@ CreateThread(function()
             `hunger` INT DEFAULT 100,
             `thirst` INT DEFAULT 100,
             PRIMARY KEY (`cid`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
     ]])
 
     -- Migrating older tables: we add only the missing columns.
@@ -139,7 +145,7 @@ local function load(src)
         s[key] = (row and row[key]) or (seed and seed[key]) or DEFAULTS[key]
     end
 
-    State[src] = s
+    State[src], Owner[src] = s, cid
 
     if not row then
         MySQL.insert(
@@ -245,10 +251,124 @@ local function giveBuff(src, kind, amount)
 end
 WNeeds.giveBuff = giveBuff
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- What a CLIENT may do to its own needs and buffs
+--
+-- ⚠️ w_hud:server:setNeed, w_hud:server:giveBuff, w_hud:server:vorpCompat and
+--   w_hud:server:respawn are net events: any client can fire them, with any value. They
+--   used to be honoured as sent, so one line in a cheat menu -- setNeed('hunger', 100) --
+--   replaced eating altogether. Food is charged and applied on the SERVER
+--   (server/consumables.lua); these events went around it.
+--
+--   Now a client may still LOWER its own needs or buffs (a script that makes you vomit, a
+--   salty snack: nothing is gained by faking that), but it may RAISE them only by what a
+--   server-side script allowed a moment before:
+--     exports.w_hud:AllowNeedRaise(src, 'hunger' | 'thirst', amount, seconds?)
+--     exports.w_hud:AllowBuff(src, kind, amount, seconds?)
+--   A server script should rather call exports.w_hud:AddNeed / SetNeed / GiveBuff itself.
+--   The refill after a revive is honoured only when this server saw the player go down
+--   (hospital:server:SetDeathStatus on RSG / w_ambulancejob, vorp:ImDead on VORP), and never
+--   while w_ambulancejob runs: it refills on the server with the revive (w_hud:server:respawn).
+--
+--   `setr w_hud:clientNeeds open` brings the old trust back, for a server that runs a
+--   client-only script it cannot change and accepts the risk.
+-- ════════════════════════════════════════════════════════════════════════════
+local Credit = {} -- src -> { needs = { [need] = { amount, until_ } }, buffs = { [kind] = { ... } } }
+local Downed = {} -- src -> GetGameTimer() when the server last heard the player went down
+local warnedAt = {}
+
+local function clientsTrusted()
+    return GetConvar('w_hud:clientNeeds', 'guarded') == 'open'
+end
+
+local function grant(src, bucket, key, amount, seconds)
+    src, amount = tonumber(src), tonumber(amount)
+    if not src or not amount or amount ~= amount or amount <= 0 or type(key) ~= 'string' then return false end
+    local now = GetGameTimer()
+    Credit[src] = Credit[src] or {}
+    local b = Credit[src][bucket] or {}
+    Credit[src][bucket] = b
+    local cur = b[key]
+    local left = (cur and cur.until_ > now) and cur.amount or 0
+    b[key] = { amount = left + amount, until_ = now + math.floor((tonumber(seconds) or 30) * 1000) }
+    return true
+end
+
+--- How much of `amount` a grant covers (and uses it up)
+local function spend(src, bucket, key, amount)
+    local b = Credit[src] and Credit[src][bucket]
+    local cur = b and b[key]
+    if not cur then return 0 end
+    if cur.until_ <= GetGameTimer() then b[key] = nil; return 0 end
+    local used = math.min(cur.amount, amount)
+    cur.amount = cur.amount - used
+    if cur.amount <= 0 then b[key] = nil end
+    return used
+end
+
+local function refused(src, what)
+    local now = GetGameTimer()
+    if (warnedAt[src] or 0) > now then return end
+    warnedAt[src] = now + 60000
+    w.print.warn(('%s (%s) asked from the client to raise %s without a server grant - refused')
+        :format(GetPlayerName(src) or '?', tostring(src), what))
+end
+
+--- A client's own request for a need's new value: lower freely, raise only by a grant.
+---@return boolean changed
+local function clientSetNeed(src, key, value, via)
+    if key ~= 'hunger' and key ~= 'thirst' then return false end
+    value = tonumber(value)
+    if not value or value ~= value then return false end
+    local s = ensure(src)
+    if not s then return false end
+    value = clamp(value)
+    local now = s[key] or 0
+    if value <= now or clientsTrusted() then
+        setNeed(src, key, value)
+        return true
+    end
+    local allowed = spend(src, 'needs', key, value - now)
+    if allowed > 0 then setNeed(src, key, now + allowed) end
+    if allowed < value - now then
+        refused(src, ('%s (%s)'):format(key, via))
+        broadcast(src) -- the client already showed its own number: put the real one back
+    end
+    return allowed > 0
+end
+
 RegisterNetEvent('w_hud:server:giveBuff', function(kind, amount)
     local src = source
     if not exports.w_lib:FwGetUser(src) then return end
-    giveBuff(src, kind, amount)
+    amount = tonumber(amount)
+    if not amount or amount ~= amount or type(kind) ~= 'string' then return end
+    if amount <= 0 or clientsTrusted() then
+        giveBuff(src, kind, amount)
+        return
+    end
+    local allowed = spend(src, 'buffs', kind, amount)
+    if allowed > 0 then giveBuff(src, kind, allowed) end
+    if allowed < amount then refused(src, 'buff ' .. kind) end
+end)
+
+-- The deaths this server hears about (the refill after a revive checks them)
+RegisterNetEvent('hospital:server:SetDeathStatus', function(isDead)
+    if isDead == true then Downed[source] = GetGameTimer() end
+end)
+RegisterNetEvent('hospital:server:SetLaststandStatus', function(down)
+    if down == true then Downed[source] = GetGameTimer() end
+end)
+RegisterNetEvent('vorp:ImDead', function(isDead)
+    if isDead == true then Downed[source] = GetGameTimer() end
+end)
+
+exports('AllowNeedRaise', function(src, need, amount, seconds)
+    if need ~= 'hunger' and need ~= 'thirst' then return false end
+    return grant(src, 'needs', need, amount, seconds)
+end)
+exports('AllowBuff', function(src, kind, amount, seconds)
+    if type(kind) ~= 'string' or not (Config.Buffs and Config.Buffs[kind]) then return false end
+    return grant(src, 'buffs', kind, amount, seconds)
 end)
 
 -- -- the buff loop -----------------------------------------------------------
@@ -289,15 +409,32 @@ end)
 -- ════════════════════════════════════════════════════════════════════════════
 RegisterNetEvent('w_hud:server:load', function() load(source) end)
 
+-- The RSG-style client events (client/event.lua hud:client:UpdateHunger / UpdateThirst) and
+-- w_inventory's RSG bridge (an item's `status`) send the new absolute value from the client:
+-- lowered freely, raised only by a server grant (see "What a CLIENT may do" above).
 RegisterNetEvent('w_hud:server:setNeed', function(key, value)
-    if key == 'hunger' or key == 'thirst' then
-        setNeed(source, key, value)
-    end
+    clientSetNeed(source, key, value, 'setNeed')
 end)
 
 AddEventHandler('playerDropped', function()
-    local src = source; save(src); State[src] = nil
+    local src = source; save(src); State[src], Owner[src] = nil, nil
+    Credit[src], Downed[src], warnedAt[src] = nil, nil, nil
 end)
+
+-- A deleted character leaves memory with its rows (server/purge.lua). Normally its player was
+-- kicked and the entry is already gone; a deletion from the character selection leaves the
+-- player connected, and the dead character's needs would keep decaying and broadcasting.
+WHudPurge = WHudPurge or {}
+WHudPurge.needs = function(cid)
+    local n = 0
+    for src, owner in pairs(Owner) do
+        if owner == cid then
+            State[src], Owner[src] = nil, nil
+            n = n + 1
+        end
+    end
+    return n
+end
 
 -- Periodic save
 CreateThread(function()
@@ -406,16 +543,38 @@ RegisterNetEvent('w_hud:server:vorpCompat', function(mode, need, value)
     if need ~= 'hunger' and need ~= 'thirst' then return end
 
     if mode == 'set' then
-        setNeed(src, need, value)
+        clientSetNeed(src, need, value, 'vorp set')
     else
-        addNeed(src, need, value)
+        local d = tonumber(value)
+        if not d or d ~= d then return end
+        if d <= 0 then
+            addNeed(src, need, d)
+        else
+            clientSetNeed(src, need, (State[src][need] or 0) + d, 'vorp add')
+        end
     end
 end)
 
--- Reset after a revive
+-- Reset after a revive: only when this server heard the player go down (a client cannot
+-- refill itself by claiming a revive), or with the old trust (w_hud:clientNeeds open).
 RegisterNetEvent('w_hud:server:respawn', function()
     local src = source
     if not State[src] then return end
+    -- ⚠️ With w_ambulancejob running the request is dropped, quietly. That resource refills hunger
+    --   and thirst itself, on the server, with every revive and heal it grants (its refillNeeds ->
+    --   SetNeed), so the refill has already come. And the "went down" this gate reads is only the
+    --   client's own word (hospital:server:SetDeathStatus / vorp:ImDead are net events): a cheat
+    --   menu sent "dead", then this, then "alive" and had both needs full whenever it liked.
+    if not clientsTrusted() and GetResourceState('w_ambulancejob') == 'started' then
+        Downed[src] = nil
+        return
+    end
+    local downedAt = Downed[src]
+    if not clientsTrusted() and not (downedAt and GetGameTimer() - downedAt < 30 * 60000) then
+        refused(src, 'a refill after a revive (never seen down)')
+        return
+    end
+    Downed[src] = nil
     reset(src)
 end)
 

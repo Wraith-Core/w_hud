@@ -133,9 +133,79 @@ FliesSpawn = function(clean)
     end
 end
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- Stamina as the HUD draws it
+--
+-- ═══ Why the stamina core was red forever ═══
+--
+--   _GET_PLAYER_STAMINA (0x0FF421E467373FCF) is not a percentage. It answers the bar in
+--   engine units, and the bar's ceiling is 11.2 per STAMINA_TANK_1 level: 11.2 on a fresh
+--   character, 112.0 only at tank 10. The RSG HUD this code grew from sent it raw because
+--   rsg-essentials (client/maxcores.lua) raised every player to tank 10 on join. That file
+--   did not survive the move to the w_* resources, so here a FULL bar read 11.2 -- under
+--   the red line (Config.Thresholds.dangerLow = 20) -- and no heal, revive, meal or admin
+--   "infinite stamina" could ever lift it. The same raw number went into the state bag, so
+--   w_admin's player list showed ~11% stamina after every heal as well.
+--
+--   So the bar is divided by its own ceiling. _GET_PED_MAX_STAMINA answers the core's fixed
+--   reserve (22.4) plus that ceiling; the highest reading seen this session backs it up in
+--   case a build answers something else. The smaller of the two wins, and a reading above
+--   both raises the ceiling, so a full bar always reads 100 and never more.
+-- ════════════════════════════════════════════════════════════════════════════
+WHudStamina = { peak = 0.0 }
+
+local STAMINA_CORE_RESERVE = 22.4 -- the part of _GET_PED_MAX_STAMINA that is not the bar
+local STAMINA_TANK_STEP    = 11.2 -- the bar per STAMINA_TANK_1 level; a fresh character has one
+
+--- The stamina bar (the ring) as a true 0-100 percentage.
+---@return number percent, number raw, number ceiling, number pedMax
+function WHudStamina.barPercent()
+    local raw = tonumber(Citizen.InvokeNative(0x0FF421E467373FCF, cache.playerId, Citizen.ResultAsFloat())) or 0.0
+    if raw ~= raw or raw < 0.0 then raw = 0.0 end -- NaN or garbage while the ped is swapped
+    if raw > WHudStamina.peak then WHudStamina.peak = raw end
+
+    local pedMax = tonumber(Citizen.InvokeNative(0xCB42AFE2B613EE55, cache.ped, Citizen.ResultAsFloat())) or 0.0
+    if pedMax ~= pedMax then pedMax = 0.0 end
+
+    local ceiling = math.max(WHudStamina.peak, STAMINA_TANK_STEP)
+    local fromEngine = pedMax - STAMINA_CORE_RESERVE
+    if fromEngine >= STAMINA_TANK_STEP and fromEngine < ceiling then ceiling = fromEngine end
+    if raw > ceiling then ceiling = raw end
+
+    return math.min(100.0, raw / ceiling * 100.0), raw, ceiling, pedMax
+end
+
+--- The one 0-100 value the React core is drawn from (web/src/App.tsx, Core): its upper half
+--- is the ring and its lower half the icon. In RDR the stamina ring is the bar and the icon
+--- is the core, and the bar is spent first -- so while the bar holds anything the value sits
+--- in the upper half, and only an empty bar hands the icon to the core. That keeps the colour
+--- on the core, as RDR does: a sprint that empties the ring stays white, and only a core that
+--- is itself running low (poison, an engine drain nobody fed) turns yellow and then red.
+---@param bar? number the bar percentage, when the caller already read it
+---@param core? number the stamina core 0-100, when the caller already read it
+---@return number
+function WHudStamina.hudValue(bar, core)
+    bar = tonumber(bar) or WHudStamina.barPercent()
+
+    -- under one percent the ring draws nothing anyway, and the state bag rounds it to zero
+    if bar >= 1.0 then return 50.0 + bar / 2.0 end
+
+    core = tonumber(core) or tonumber(GetAttributeCoreValue(cache.ped, 1)) or 0
+    if core < 0 then core = 0 elseif core > 100 then core = 100 end
+    return core / 2.0
+end
+
+-- /staminadiag -- what the engine answers and what the HUD makes of it, in one line.
+RegisterCommand('staminadiag', function()
+    local bar, raw, ceiling, pedMax = WHudStamina.barPercent()
+    -- floored: %d throws on a float with no integer representation
+    local core = math.floor(tonumber(GetAttributeCoreValue(cache.ped, 1)) or 0)
+    print(('^3[w_hud]^7 stamina: raw %.2f / ceiling %.2f (ped max %.2f, peak %.2f) = bar %.0f%% · core %d · hud %.0f^0')
+        :format(raw, ceiling, pedMax, WHudStamina.peak, bar, core, WHudStamina.hudValue(bar, core)))
+end, false)
+
 function showui(bool, bool2)
-    local stamina = tonumber(string.format("%.2f",
-        Citizen.InvokeNative(0x0FF421E467373FCF, cache.playerId, Citizen.ResultAsFloat())))
+    local stamina = tonumber(string.format("%.2f", WHudStamina.hudValue()))
     local MenuActive = IsPauseMenuActive()
     local Cinematic = Citizen.InvokeNative(0xBF7C780731AADBF8, true)
     local MAP = Citizen.InvokeNative(0x25B7A0206BDFAC76, GetHashKey("MAP"))

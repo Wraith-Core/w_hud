@@ -36,16 +36,473 @@
   },
   "feed": {
     "adminOnly": "This command is for admins",
-    "console": "From console: /feed <amount> <player id>",
+    "console": "From console: /feed <amount> <citizen id>",
     "noPlayer": "No such player",
     "result": "Food · Water",
+    "resultOffline": "Food · Water (offline: saved for the next login)",
     "help": "Refill hunger and thirst (admin)",
     "argAmountHelp": "Points to add (empty = fill)",
-    "argPlayerHelp": "Another player (empty = yourself)"
+    "argPlayerHelp": "Another player's citizen ID, # before a server ID (empty = yourself)"
   },
   "settings": {
     "locked": "HUD editing is switched off on this server",
-    "menuHelp": "Open the HUD control panel"
+    "menuHelp": "Open the HUD control panel",
+    "title": "HUD, food and drink",
+    "description": "Controls how fast hunger and thirst drop, what every food and drink does, buffs, poison, horse food and satchels. w_hud's own panel (F7) stays as it is.",
+    "units": {
+      "points": "points",
+      "s": "s",
+      "ms": "ms",
+      "percent": "%",
+      "rem": "units",
+      "m": "m",
+      "kg": "kg",
+      "min": "min"
+    },
+    "links": {
+      "hudmenu": {
+        "label": "Open w_hud's own panel",
+        "help": "Closes the admin panel and opens w_hud's own panel (F7) for you. It has the same server settings plus each player's HUD look."
+      }
+    },
+    "needs": {
+      "label": "Hunger and thirst speed",
+      "help": "Sets how much and how often hunger and thirst drop for every player. A change reaches everyone from the next cycle, no restart.",
+      "hungerRate": {
+        "label": "Hunger drop per cycle",
+        "help": "Takes this many points off the hunger bar (out of 100) every cycle. Higher = players get hungry faster; 0 = never hungry.",
+        "example": "1 every 90 s = full to empty in about 2.5 hours"
+      },
+      "thirstRate": {
+        "label": "Thirst drop per cycle",
+        "help": "Takes this many points off the thirst bar every cycle. Same idea as hunger; keep it a little higher since drinking is easier than eating.",
+        "example": "1.4 every 90 s = parched in about 1 h 47 min"
+      },
+      "interval": {
+        "label": "Cycle length",
+        "help": "Sets how many seconds pass between two drops. Smaller = a faster, smoother drain. The floor is 5 s so the server is not overloaded.",
+        "example": "90 = once every minute and a half"
+      }
+    },
+    "damage": {
+      "label": "Starvation damage",
+      "help": "Decides what happens when a player is very hungry or thirsty: their health drops little by little, and they can die if you allow it.",
+      "enabled": {
+        "label": "Hunger and thirst hurt health",
+        "help": "Makes a player's health drop once hunger or thirst falls under the limit. Off: hunger is only a number on screen."
+      },
+      "hungerAt": {
+        "label": "Damage starts when hunger is under",
+        "help": "Health starts dropping once hunger is under this number (out of 100). Higher = damage starts earlier.",
+        "example": "15 = when less than 15 hunger is left"
+      },
+      "thirstAt": {
+        "label": "Damage starts when thirst is under",
+        "help": "Health starts dropping once thirst is under this number (out of 100). Higher = damage starts earlier.",
+        "example": "15 = when less than 15 thirst is left"
+      },
+      "amount": {
+        "label": "Health lost per hit",
+        "help": "Takes this percent of the health bar on every starvation hit.",
+        "example": "2 = two percent of health per hit"
+      },
+      "interval": {
+        "label": "Seconds between hits",
+        "help": "Sets the time between two starvation hits. Smaller = starvation kills faster.",
+        "example": "2% every 20 s = about 17 minutes from the first hit to death"
+      },
+      "canKill": {
+        "label": "Starvation can kill",
+        "help": "On: a starving or parched player can die. Off: their health stops just before death."
+      }
+    },
+    "features": {
+      "label": "HUD elements shown",
+      "help": "Turns parts of the HUD on or off on every player's screen at once. A player cannot bring back a part you turned off.",
+      "health": {
+        "label": "Health circle",
+        "help": "Shows the health circle on every player's HUD. Off: it disappears from their screens at once; health itself is not affected."
+      },
+      "stamina": {
+        "label": "Stamina circle",
+        "help": "Shows the stamina circle on every player's HUD. Off: only the circle goes; stamina works as usual."
+      },
+      "hunger": {
+        "label": "Hunger circle",
+        "help": "Shows the hunger circle to everyone. Hiding it does not stop hunger: players still get hungry, they just cannot see how much is left."
+      },
+      "thirst": {
+        "label": "Thirst circle",
+        "help": "Shows the thirst circle to everyone. Hiding it does not stop thirst: players still get thirsty, they just cannot see how much is left."
+      },
+      "voice": {
+        "label": "Voice level",
+        "help": "Shows the player's voice level (whisper, normal, loud, shouting) on the HUD."
+      },
+      "horse": {
+        "label": "Horse health and stamina",
+        "help": "Shows the horse's health and stamina circles while riding."
+      },
+      "buffs": {
+        "label": "Buff icons",
+        "help": "Shows the buffs running on the player and how much of each is left."
+      },
+      "ammo": {
+        "label": "Ammo",
+        "help": "Shows how many rounds the weapon in hand has."
+      },
+      "money": {
+        "label": "Money",
+        "help": "Shows cash and gold on the HUD."
+      },
+      "identity": {
+        "label": "Server name or logo",
+        "help": "Shows the server's name or logo in the screen corner for everyone."
+      },
+      "compass": {
+        "label": "Compass",
+        "help": "Shows the compass and heading at the top of the screen."
+      },
+      "location": {
+        "label": "Location name",
+        "help": "Shows the name of the area or town the player is in."
+      },
+      "playerImages": {
+        "label": "Player pictures",
+        "help": "Lets players put a picture in their HUD elements. Off: their pictures disappear."
+      },
+      "playerPanel": {
+        "label": "Players edit their HUD",
+        "help": "Lets players open the HUD panel (F7) and move or recolour their HUD. Off: everyone keeps the default look."
+      }
+    },
+    "identity": {
+      "label": "Server name and logo on the HUD",
+      "help": "Changes the name or logo every player sees in the screen corner. Its exact place is easiest to drag in w_hud's own panel.",
+      "name": {
+        "label": "Server name",
+        "help": "Writes this name in the HUD corner for everyone. Empty = the server's name from its config. At most 48 characters."
+      },
+      "logoUrl": {
+        "label": "Logo link",
+        "help": "Shows a picture instead of the name for every player. The link must start with https or nui; empty brings the name back.",
+        "example": "nui://w_hud/logo.png"
+      },
+      "logoWidth": {
+        "label": "Logo width",
+        "help": "Makes the logo wider or narrower. The unit grows with the screen, so it looks the same size for everyone.",
+        "example": "30 = the default size"
+      },
+      "logoHeight": {
+        "label": "Logo height",
+        "help": "Sets the logo height. 0 = follow the picture's own proportions, usually the best choice."
+      },
+      "x": {
+        "label": "Position from the left",
+        "help": "Moves the name or logo sideways: 0 is the far left, 100 the far right. Dragging it in the w_hud panel is easier."
+      },
+      "y": {
+        "label": "Position from the top",
+        "help": "Moves the name or logo up or down: 0 is the top of the screen, 100 the bottom."
+      },
+      "scale": {
+        "label": "Size",
+        "help": "Scales the whole name or logo.",
+        "example": "1 = normal size, 2 = double"
+      },
+      "opacity": {
+        "label": "Opacity",
+        "help": "Makes the name or logo a little see-through.",
+        "example": "1 = fully visible, 0.5 = half transparent"
+      }
+    },
+    "food": {
+      "label": "Food and drink",
+      "help": "Sets what every food, drink and medicine does to a player. A change applies from the next bite, for everyone, without a restart.",
+      "families": {
+        "fruit": "Fruit and vegetables",
+        "herbs": "Herbs",
+        "meat": "Cooked meat",
+        "meat_herbed": "Herbed meat",
+        "canned": "Canned food",
+        "bread": "Bread and snacks",
+        "drinks": "Drinks",
+        "alcohol": "Alcohol",
+        "tobacco": "Tobacco and stimulants",
+        "medicine": "Medicine",
+        "poison": "Poisons",
+        "locked": "Locked"
+      },
+      "locked": {
+        "pack": "A pack: it gives 20 cigarettes and is not eaten",
+        "ingredient": "A cooking ingredient: used in recipes, not eaten",
+        "unused": "Not usable on this server yet"
+      },
+      "hunger": {
+        "label": "Hunger",
+        "help": "Raises the player's hunger bar by this much when eaten (out of 100). A negative number makes them hungrier.",
+        "example": "30 takes a player from 20 to 50"
+      },
+      "thirst": {
+        "label": "Thirst",
+        "help": "Quenches thirst by this much (out of 100). A negative number makes them thirsty, like salty or dry food.",
+        "example": "Jerky -10: a little thirsty"
+      },
+      "stamina": {
+        "label": "Stamina core",
+        "help": "Fills the small circle inside the stamina icon. It makes the running bar come back faster after sprinting.",
+        "example": "15 fills 15 of 100 in the circle"
+      },
+      "innerHealth": {
+        "label": "Health core",
+        "help": "Fills the small circle inside the health icon, the one that heals over time. A negative number harms it, like smoking.",
+        "example": "10 fills 10 of 100"
+      },
+      "outerHealth": {
+        "label": "Instant health",
+        "help": "Gives this much health right away. Full health is about 600; a negative number hurts.",
+        "example": "120 = a fifth of full health"
+      },
+      "outerStamina": {
+        "label": "Running bar",
+        "help": "Refills this percent of the running bar itself (the ring that drains while you sprint). Normal food is 0; coffee and tonics have it.",
+        "example": "100 = fills it completely"
+      },
+      "goldHealth": {
+        "label": "Gold health",
+        "help": "Turns health gold so it does not drop for the gilding time (see Gilding). Ring = the bar, core = the icon, both = everything.",
+        "options": {
+          "none": "None",
+          "ring": "Ring",
+          "core": "Core",
+          "both": "Both"
+        }
+      },
+      "goldStamina": {
+        "label": "Gold stamina",
+        "help": "Same as gold health, for stamina: the player runs without tiring for the gilding time.",
+        "options": {
+          "none": "None",
+          "ring": "Ring",
+          "core": "Core",
+          "both": "Both"
+        }
+      },
+      "buffType": {
+        "label": "Buff",
+        "help": "Gives an effect that lasts after eating and helps every pulse: recovery = health, healthy food = hunger and thirst, energy = stamina, vigor = health core, cowboy = horse stamina.",
+        "options": {
+          "none": "None",
+          "health": "Recovery",
+          "vegan": "Healthy food",
+          "energy": "Energy",
+          "vigor": "Vigor",
+          "cowboy": "Cowboy"
+        }
+      },
+      "buffAmount": {
+        "label": "Buff strength",
+        "help": "Sets how long the buff lasts: the bigger, the longer. Cannot be set while the buff is None.",
+        "example": "25 with healthy food = about 50 seconds"
+      },
+      "fx": {
+        "label": "Drunk effect",
+        "help": "Makes the screen sway and blur as if the player were drunk. None = no effect.",
+        "options": {
+          "none": "None",
+          "PlayerDrunkSaloon1": "Light",
+          "PlayerDrunkStrong": "Strong"
+        }
+      },
+      "fxTime": {
+        "label": "Drunk time",
+        "help": "How many minutes the drunk effect stays on screen. Does nothing while the effect is None.",
+        "example": "1 = one minute",
+        "unit": "min"
+      },
+      "poison": {
+        "label": "Poisons",
+        "help": "Poisons the player for this many seconds: the heart turns green and health drops bit by bit. 0 = no poison.",
+        "example": "60 = poisoned for a whole minute",
+        "unit": "s"
+      },
+      "curesPoison": {
+        "label": "Cures poison",
+        "help": "Removes poison at once when a poisoned player uses it, like the antidote."
+      },
+      "heal": {
+        "label": "Heals wounds",
+        "help": "Stops bleeding and heals wounds (the medic script), like the strong medicines."
+      }
+    },
+    "buffs": {
+      "label": "Buffs",
+      "help": "A buff is an effect that stays after eating or medicine, gives a bonus every pulse (2 s), then ends. Here: each kind's strength and how fast it fades.",
+      "tick": {
+        "label": "Pulse length",
+        "help": "Sets how many ms pass between two pulses of every buff. Leave it unless you know why; a small number costs players performance.",
+        "example": "2000 = every two seconds"
+      },
+      "health": {
+        "amount": {
+          "label": "Recovery: health per pulse",
+          "help": "Gives this much health every pulse while the recovery buff runs. It comes from medicine; full health is about 600.",
+          "example": "10 per pulse = 300 health a minute"
+        },
+        "drain": {
+          "label": "Recovery: fade speed",
+          "help": "Takes this much off the recovery buff every pulse. Higher = it ends sooner.",
+          "example": "Strength 50 at 2 = 25 pulses = 50 s"
+        }
+      },
+      "vegan": {
+        "amount": {
+          "label": "Healthy food: hunger and thirst per pulse",
+          "help": "Adds this much hunger and thirst every pulse while it runs. It comes from vegetables, fruit, herbs and water.",
+          "example": "2 per pulse = 60 hunger and 60 thirst a minute"
+        },
+        "drain": {
+          "label": "Healthy food: fade speed",
+          "help": "Takes this much off the healthy-food buff every pulse. Higher = it ends sooner."
+        }
+      },
+      "energy": {
+        "amount": {
+          "label": "Energy: stamina per pulse",
+          "help": "Fills the stamina core by this much every pulse. It comes from coffee, tonics and snake oil."
+        },
+        "drain": {
+          "label": "Energy: fade speed",
+          "help": "Takes this much off the energy buff every pulse. Higher = it ends sooner."
+        }
+      },
+      "vigor": {
+        "amount": {
+          "label": "Vigor: health core per pulse",
+          "help": "Fills the health core by this much every pulse. It comes from cooked meat."
+        },
+        "drain": {
+          "label": "Vigor: fade speed",
+          "help": "Takes this much off the vigor buff every pulse. Higher = it ends sooner."
+        }
+      },
+      "cowboy": {
+        "amount": {
+          "label": "Cowboy: horse stamina",
+          "help": "Refills the stamina of the last horse ridden every pulse. No food gives it today unless you set it on an item in the food table."
+        },
+        "drain": {
+          "label": "Cowboy: fade speed",
+          "help": "Takes this much off the cowboy buff every pulse. Higher = it ends sooner."
+        }
+      }
+    },
+    "poison": {
+      "label": "Poison",
+      "help": "Poison is temporary: the heart turns green and health drops every hit until time runs out, an antidote is taken or the player dies. Each item's time is in the food table.",
+      "enabled": {
+        "label": "Poison is on",
+        "help": "Off: poisonous food poisons nobody. The antidote still works as usual."
+      },
+      "damage": {
+        "label": "Health lost per hit",
+        "help": "Takes this much health every poison hit. Full health is about 600.",
+        "example": "12 = about 2%"
+      },
+      "minHealth": {
+        "label": "Lowest health from poison",
+        "help": "Poison stops at this health and does not kill. 0 = poison can kill.",
+        "example": "60 = a tenth of full health"
+      },
+      "staminaDrain": {
+        "label": "Stamina lost per hit",
+        "help": "Takes this much off the stamina core every hit, so a poisoned player cannot run much."
+      },
+      "tick": {
+        "label": "Time between two hits",
+        "help": "Sets how many ms pass between two poison hits. Smaller = stronger poison.",
+        "example": "2000 = a hit every two seconds"
+      },
+      "fx": {
+        "label": "Screen effect",
+        "help": "Sets what the poisoned player sees on screen while poisoned.",
+        "options": {
+          "PlayerPoisoned": "Poisoned (green)",
+          "PlayerHealthLow": "Low health",
+          "none": "None"
+        }
+      }
+    },
+    "gold": {
+      "label": "Gilding",
+      "help": "Some medicines and foods turn health or stamina gold so it does not drop. This is how long the gold lasts.",
+      "duration": {
+        "label": "Gilding time",
+        "help": "How many seconds health or stamina stays gold after eating or medicine. Applies to every item with gilding.",
+        "example": "30 = half a minute"
+      }
+    },
+    "horse": {
+      "label": "Horse food",
+      "help": "When you give this food to your horse within 3 m, the horse eats it; with no horse near, the player eats it. A change applies from the next feed.",
+      "hunger": {
+        "label": "Horse hunger",
+        "help": "Fills the horse's hunger by this much (out of 100).",
+        "example": "25 = a quarter of full"
+      },
+      "stamina": {
+        "label": "Horse stamina",
+        "help": "Refills the horse's stamina by this much (out of 100), so it runs longer."
+      },
+      "health": {
+        "label": "Horse health",
+        "help": "Restores the horse's health by this much (out of 100)."
+      }
+    },
+    "animals": {
+      "label": "Feeding animals",
+      "help": "Sets how players feed pets and wild animals: how close they must be, and how long between two feeds.",
+      "distance": {
+        "label": "Farthest feeding distance",
+        "help": "The player must be closer than this to the animal to feed it.",
+        "example": "3 = about three steps"
+      },
+      "cooldown": {
+        "label": "Wait between feeds",
+        "help": "How many seconds must pass before the same animal can be fed again. 0 = no wait.",
+        "example": "30 = half a minute"
+      },
+      "duration": {
+        "label": "Feeding time",
+        "help": "How many seconds the animal takes to eat. Walking away meanwhile cancels it."
+      }
+    },
+    "satchels": {
+      "label": "Satchels",
+      "help": "Each satchel adds carry weight on top of the base 30 kg. A bigger satchel replaces a smaller one; they do not stack.",
+      "confirm": "This changes the carry weight of every player who already owns this satchel, not only future buyers.",
+      "bonus": {
+        "label": "Extra carry weight",
+        "help": "How many kilograms this satchel adds to the base 30 kg.",
+        "example": "25 = 55 kg in total"
+      }
+    },
+    "systems": {
+      "label": "Systems",
+      "help": "Turns whole w_hud systems on or off. Some need a restart of w_hud to apply.",
+      "buffs": {
+        "label": "Buffs",
+        "help": "Off: no buff runs; food still fills but leaves no lasting effect. Applies at once."
+      },
+      "consumables": {
+        "label": "Using food and drink",
+        "help": "Off: food and drink cannot be used from the bag. Applies after a restart of w_hud."
+      },
+      "horseCare": {
+        "label": "Horse feeding",
+        "help": "Off: food cannot be given to horses. Applies after a restart of w_hud."
+      }
+    }
   },
   "keybind": {
     "hudMenu": "Open the HUD control panel",

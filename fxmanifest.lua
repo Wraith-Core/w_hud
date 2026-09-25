@@ -14,7 +14,12 @@ shared_scripts {
     'shared/animal_profiles.lua',
     'shared/satchels.lua',    -- after config.lua: satchel tiers and their carry bonus
     'shared/wheel.lua',       -- after config.lua: the weapon wheel (its strings come from the dictionary)
+    'shared/settings_schema.lua', -- LAST: the live settings (w_admin) land on the final Config
 }
+
+-- The admin console (w_admin) finds the live settings by this line; w_lib's w.settings module
+-- registers WSettingsSchema / WSettingsValues / WSettingsApply (shared/settings_schema.lua).
+w_settings 'yes'
 
 -- Modules loaded at start: the dictionary (locales/{ar,en}.json, the language the library
 -- decides) and the callback wire both sides use immediately.

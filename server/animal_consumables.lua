@@ -5,7 +5,10 @@ function WHudAnimalUse.validate(src, netId, item)
     local entity = NetworkGetEntityFromNetworkId(netId)
     local me = GetPlayerPed(src)
     if not entity or entity == 0 or not DoesEntityExist(entity) or GetEntityType(entity) ~= 1 then return nil end
-    if not me or me == 0 or GetEntityHealth(entity) <= 0 then return nil end
+    -- ! No server health read of the animal: this build answers 0 for a live ped a client created
+    --   (w_stables' watchdogs note the same), which refused every animal. A dead one cannot run
+    --   the eating scenario the client waits on, and the client never offers a dead or fleeing one.
+    if not me or me == 0 then return nil end
     if GetEntityRoutingBucket(entity) ~= GetPlayerRoutingBucket(src) then return nil end
     if #(GetEntityCoords(me) - GetEntityCoords(entity)) > Config.AnimalCare.Distance + 0.5 then return nil end
     local profile = WHudAnimalProfile(GetEntityModel(entity), item)

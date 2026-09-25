@@ -21,9 +21,19 @@ local function finish(src, p, effects, reason)
     TriggerClientEvent('w_hud:client:useFinished', src, p.token, effects and p.item or false, p.target)
     if reason then notify(src, reason) end
 end
+-- ! Not GetEntityHealth: this RedM build answers 0 for a live player's ped on the server
+--   (w_pets logged "hp=0" for a player buying a pet), so this gate refused every use before
+--   it began, with no notice -- food and drink simply did nothing. The downed state the server
+--   does keep is the core's: metadata.isdead / inlaststand on the RSG family (w_ambulancejob
+--   keeps them), the character's isdead on VORP. The client refuses a dead ped by itself.
+local function downed(flag) return flag == true or flag == 1 end
 local function alive(src)
     local ped = GetPlayerPed(src)
-    return ped and ped ~= 0 and DoesEntityExist(ped) and GetEntityHealth(ped) > 0
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
+    local ok, char = pcall(function() return exports.w_lib:FwGetCharacter(src) end)
+    if not ok or type(char) ~= 'table' then return true end
+    local flags = type(char.metadata) == 'table' and char.metadata or char
+    return not downed(flags.isdead) and not downed(flags.inlaststand)
 end
 local function sameSlot(src, p)
     if Inv.name() ~= 'w_inventory' then return count(src, p.item) > 0 end

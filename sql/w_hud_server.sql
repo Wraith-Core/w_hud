@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `w_hud_server` (
     `data`    TEXT NOT NULL,              -- JSON: name + logo + needs + damage + features
     `updated` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- لمنح شخصٍ صلاحيّة تعديلها من داخل اللعبة، أضف في server.cfg:
 --     add_ace group.admin w_hud.admin allow

@@ -172,7 +172,7 @@ CreateThread(function()
             `data`    TEXT NOT NULL,
             `updated` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
     ]])
 
     local row = MySQL.single.await('SELECT data FROM w_hud_server WHERE id = 1')
@@ -201,6 +201,28 @@ local function store(cfg)
     ]], { json.encode(cfg) })
     return ok and result ~= nil
 end
+
+--- The one save path every writer shares (the panel's event, the export, and the admin
+--- console's live settings through shared/settings_schema.lua): clamp, store, publish,
+--- broadcast to everyone. Who is asking is the caller's check, made before this.
+---@param cfg table
+---@return boolean ok, table|string result  the stored cfg | 'db_error'
+local function save(cfg)
+    local saved = sanitise(cfg)
+    if not store(saved) then return false, 'db_error' end
+    WHudSrv = saved
+    TriggerClientEvent('w_hud:client:serverCfg', -1, WHudSrv)
+    return true, WHudSrv
+end
+
+--- For shared/settings_schema.lua (the 'own' groups of the live settings: needs, damage,
+--- features, identity). sanitise(nil) is the real set of defaults.
+WHudAdmin = {
+    sanitise = sanitise,
+    defaults = function() return sanitise(nil) end,
+    isAdmin = function(src) return isAdmin(src) end,
+    save = save,
+}
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Reading and writing from the panel
@@ -232,14 +254,10 @@ RegisterNetEvent('w_hud:server:saveServerCfg', function(payload)
     local ok, data = pcall(json.decode, payload)
     if not ok or type(data) ~= 'table' then return end
 
-    local cfg = sanitise(data)
-    if not store(cfg) then return end
-    WHudSrv = cfg
-
-    -- ★ To everyone, not only to whoever saved. These settings are the server's: a
-    --   feature switched off has to disappear from every screen at once, and a player
-    --   who has to reconnect to see it is a player reporting a bug.
-    TriggerClientEvent('w_hud:client:serverCfg', -1, WHudSrv)
+    -- ★ save() sends it to everyone, not only to whoever saved. These settings are the
+    --   server's: a feature switched off has to disappear from every screen at once, and a
+    --   player who has to reconnect to see it is a player reporting a bug.
+    if not save(data) then return end
 
     w.print.info(('server settings saved by %s'):format(GetPlayerName(src) or src))
 end)
@@ -276,10 +294,8 @@ exports('SaveServerHudCfg', function(cfg, adminSrc)
     end
     if type(cfg) ~= 'table' then return false, 'invalid_cfg' end
 
-    local saved = sanitise(cfg)
-    if not store(saved) then return false, 'db_error' end
-    WHudSrv = saved
-    TriggerClientEvent('w_hud:client:serverCfg', -1, WHudSrv)
+    local saved, result = save(cfg)
+    if not saved then return false, result end
 
     w.print.info(('server settings saved by %s (export)'):format(GetPlayerName(src) or src))
     return true, WHudSrv

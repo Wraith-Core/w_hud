@@ -389,18 +389,26 @@ export function homeX(meta: WidgetMeta, a = aspect()): number {
 
 /* ════════════════════════════════════════════════════════════════════════════
  * Defaults
- * ★ The stock palette verbatim -- white on black, the three RDR states. A player who
- *   resets must land exactly on the HUD they were shipped, not on something near it.
+ * ★ The stock palette verbatim -- the Wraith theme's paper on the game (w_lib/nui/theme: the
+ *   loading screen and the pause menu), the theme's one red for danger, and the HUD's two
+ *   other states. A player who resets must land exactly on the HUD they were shipped, not on
+ *   something near it; hud.css carries the same values for the first frame.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 export const DEFAULT_THEME: Theme = {
-  accent: '#FFFFFF',
-  text:   '#F5F5F5',
-  dim:    '#BFBFBF',
+  accent: '#EDE6D6',   /* paper */
+  text:   '#EDE6D6',   /* paper */
+  dim:    '#B9AF9C',   /* paper-dim */
   warn:   '#E8C547',
-  danger: '#E52D2D',
+  danger: '#CB0101',   /* the theme's red */
   poison: '#5AB054',
 };
+
+/* ★ The stock palette before the theme (pure white on neutral grey). A save that still holds
+   exactly this never chose it: the whole default travels back with any layout the player saved.
+   It is read as today's stock, so a player who never touched the colours follows the theme; any
+   palette they did choose, even one field of it, is kept as it is. */
+const OLD_STOCK: Theme = { accent: '#FFFFFF', text: '#F5F5F5', dim: '#BFBFBF', warn: '#E8C547', danger: '#E52D2D', poison: '#5AB054' };
 
 export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true };
 export const DEFAULT_WORLD: WorldCfg = { onFoot: 'server', mounted: 'server' };
@@ -517,6 +525,7 @@ function readTheme(raw: unknown, base: Theme): Theme {
     const value = src[field.key];
     if (value != null) base[field.key] = normHex(value, base[field.key]);
   }
+  if (THEME_FIELDS.every((f) => String(base[f.key]).toUpperCase() === OLD_STOCK[f.key])) Object.assign(base, DEFAULT_THEME);
   return base;
 }
 

@@ -1,6 +1,7 @@
 -- ============================================================================
 -- Money refresh -- cash and gold through the w_lib bridge (every framework),
--- bank and dirty money straight from the database (VORP only has them there).
+-- bank and dirty money straight from the database on VORP (only VORP keeps them there);
+-- on the RSG family the bank is PlayerData.money.bank and there is no dirty money.
 --
 -- The bank is a sum, not a row: a character may hold an account in Valentine and
 -- another in Rhodes, and showing one of them is showing the wrong number.
@@ -21,6 +22,18 @@ local bankCache = {} -- [src] = { bank = number, dirty = number, at = ms }
 ---@param src integer
 ---@return number bank, number dirty
 local function readFromDb(src)
+    -- ! VORP only, and asked first. bank_users and characters.blackmoney are VORP's own tables:
+    --   on the RSG family (Wraith Core / RSG / QBR) the bank is a field on PlayerData.money and
+    --   dirty money does not exist, so this query could only ever fail there -- once per player
+    --   every BANK_TTL, which is what was filling the console. The library's bridge already
+    --   answers with the core's own player object, so the bank comes from the same place the
+    --   cash and gold above it do.
+    if not w.framework:is('vorp') then
+        local player = exports.w_lib:FwGetUser(src)
+        local money = type(player) == 'table' and type(player.PlayerData) == 'table' and player.PlayerData.money
+        return tonumber(type(money) == 'table' and money.bank) or 0.0, 0.0
+    end
+
     local charId = exports.w_lib:FwGetCharacterIdentifier(src)
     if not charId then return 0.0, 0.0 end
 
@@ -87,7 +100,11 @@ end)
 --
 --   /feed            -> fills your own needs
 --   /feed 50         -> adds 50 to your hunger and thirst (capped at 100)
---   /feed 100 12     -> sets the needs of player 12
+--   /feed 100 12     -> adds 100 to the needs of citizen 12 ('#12' = whoever is on server id 12)
+--
+-- ★ The target is a citizen id, never a bare server id: server ids change on every
+--   connection and, now that citizen ids are plain digits, the two collide. A citizen
+--   who is not in the game is fed the offline way: his w_hud_needs row, read at his next login.
 --
 -- ⚠️ The command lives on the **server**, not the client: the values are stored in
 -- w_hud_needs and broadcast from there, so a client-side command would not survive
@@ -110,13 +127,58 @@ local function feedReply(src, key, description)
     WNeeds.notify(src, key, '#34b895', 'awards_set_g_013', 4000, nil, description)
 end
 
+local FEED_SCALE = 100 -- the needs scale (server/metabolism.lua: Scale)
+
+local function clampNeed(v)
+    v = tonumber(v) or FEED_SCALE
+    if v < 0 then return 0 elseif v > FEED_SCALE then return FEED_SCALE end
+    return math.floor(v + 0.5)
+end
+
+--- Feed a character who is not in the game: his w_hud_needs row, which his next login reads
+--- (server/metabolism.lua load). With no row yet, the starting point is what that login would
+--- have seeded from: the core's metadata (RSG keeps hunger/thirst there), else a full bar.
+---@param cid string the citizen id (w_hud_needs.cid)
+---@param amount number|nil nil = fill
+---@return number|nil hunger, number|nil thirst (nil when the database refused)
+local function feedOffline(cid, amount)
+    local ok, row = pcall(MySQL.single.await, 'SELECT hunger, thirst FROM w_hud_needs WHERE cid = ?', { cid })
+    if not ok then return nil end
+
+    if not row then
+        row = {}
+        local okRows, rows = pcall(function() return exports.w_lib:FwCharacterRows('citizenid', cid) end)
+        local md = okRows and type(rows) == 'table' and rows[1] and rows[1].metadata
+        if type(md) == 'string' then
+            local okJson, decoded = pcall(json.decode, md)
+            md = okJson and decoded or nil
+        end
+        if type(md) == 'table' then row.hunger, row.thirst = tonumber(md.hunger), tonumber(md.thirst) end
+    end
+
+    local hunger = amount and clampNeed((tonumber(row.hunger) or FEED_SCALE) + amount) or FEED_SCALE
+    local thirst = amount and clampNeed((tonumber(row.thirst) or FEED_SCALE) + amount) or FEED_SCALE
+
+    local okWrite = pcall(MySQL.update.await, [[
+        INSERT INTO w_hud_needs (cid, hunger, thirst)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE hunger = VALUES(hunger), thirst = VALUES(thirst)
+    ]], { cid, hunger, thirst })
+    if not okWrite then return nil end
+
+    return hunger, thirst
+end
+
 -- ★ Through the library: the chat suggestion carries the help text in the server language,
 --   the parameters are parsed and validated before the handler runs.
+--   The target has no `type`: 'playerId' answers only a player in the game and 'string'
+--   refuses digits, while /feed takes any citizen id ('12', the old 'OMG95204', '#<server
+--   id>') and also reaches one who is offline.
 w.addCommand('feed', {
     help = locale('feed.help'),
     params = {
         { name = 'amount', type = 'number', help = locale('feed.argAmountHelp'), optional = true },
-        { name = 'target', type = 'playerId', help = locale('feed.argPlayerHelp'), optional = true },
+        { name = 'target', help = locale('feed.argPlayerHelp'), optional = true },
     },
 }, function(source, args)
     local src = source
@@ -129,8 +191,29 @@ w.addCommand('feed', {
         end
     end
 
-    -- Second argument: another player. Its absence means yourself -- and the console has no 'self'.
-    local target = tonumber(args.target) or src
+    -- No value = fill to the brim. With a value = add, capped at 100 inside addNeed.
+    local amount = tonumber(args.amount)
+
+    -- Second argument: another player's citizen id. Its absence means yourself -- and the
+    -- console has no 'self'.
+    local target, who, reason = src, nil, nil
+
+    if args.target then
+        who, reason = w.citizen.resolve(args.target, { self = src ~= 0 and src or nil })
+
+        if not who then
+            return feedReply(src, 'feed.noPlayer', w.citizen.reasonText(reason, src ~= 0 and src or nil))
+        end
+
+        if not who.online then
+            local hunger, thirst = feedOffline(who.citizenid, amount)
+            if not hunger then return feedReply(src, 'feed.noPlayer', w.citizen.label(who)) end
+
+            return feedReply(src, 'feed.resultOffline', ('%s: %s · %s'):format(w.citizen.label(who), hunger, thirst))
+        end
+
+        target = who.source
+    end
 
     if target == 0 then
         return feedReply(src, 'feed.console')
@@ -139,9 +222,6 @@ w.addCommand('feed', {
     if not exports.w_lib:FwGetUser(target) then
         return feedReply(src, 'feed.noPlayer')
     end
-
-    -- No value = fill to the brim. With a value = add, capped at 100 inside addNeed.
-    local amount = tonumber(args.amount)
 
     if amount then
         exports.w_hud:AddNeed(target, 'hunger', amount)
@@ -157,7 +237,8 @@ w.addCommand('feed', {
     local needs = exports.w_hud:GetNeeds(target) or {}
     local done = ('%s · %s'):format(tostring(needs.hunger), tostring(needs.thirst))
 
-    feedReply(src, 'feed.result', done)
+    -- the admin sees whom he fed by name and citizen id, never by server id
+    feedReply(src, 'feed.result', (who and target ~= src) and ('%s: %s'):format(w.citizen.label(who), done) or done)
     if target ~= src then feedReply(target, 'feed.result', done) end
 end)
 

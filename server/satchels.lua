@@ -20,7 +20,7 @@
 --    SetMaxWeight on a missing inventory silently does nothing. We wait for it to exist.
 -- ════════════════════════════════════════════════════════════════════════════
 
-local Bonus = {}   -- src -> { bonus = number, rank = number }
+local Bonus = {}   -- src -> { bonus = number, rank = number, cid = the character it was read for }
 
 --- The base capacity, from the same convar the inventory reads.
 ---@return number
@@ -46,7 +46,7 @@ CreateThread(function()
             `bonus` INT NOT NULL DEFAULT 0,
             `rank`  INT NOT NULL DEFAULT 0,
             PRIMARY KEY (`cid`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ]])
 end)
 
@@ -80,7 +80,7 @@ local function load(src)
     local row = MySQL.single.await(
         'SELECT bonus, `rank` FROM w_hud_satchels WHERE cid = ?', { cid })
 
-    Bonus[src] = { bonus = (row and row.bonus) or 0, rank = (row and row.rank) or 0 }
+    Bonus[src] = { bonus = (row and row.bonus) or 0, rank = (row and row.rank) or 0, cid = cid }
 
     if Bonus[src].bonus <= 0 then return end
 
@@ -103,6 +103,17 @@ end
 
 RegisterNetEvent('w_hud:server:load', function() load(source) end)
 AddEventHandler('playerDropped', function() Bonus[source] = nil end)
+
+-- A deleted character's upgrade leaves memory with its row (server/purge.lua): a player still
+-- connected at the character selection keeps the entry until the next login otherwise.
+WHudPurge = WHudPurge or {}
+WHudPurge.satchels = function(cid)
+    local n = 0
+    for src, b in pairs(Bonus) do
+        if b.cid == cid then Bonus[src] = nil; n = n + 1 end
+    end
+    return n
+end
 
 -- A live restart of w_hud: the login event is not replayed, so we walk the connected.
 AddEventHandler('onResourceStart', function(resource)
@@ -227,7 +238,12 @@ end)
 exports('GetSatchelBonus', function(src) return (Bonus[src] or {}).bonus or 0 end)
 exports('GetCarryWeight', function(src) return baseWeight() + ((Bonus[src] or {}).bonus or 0) end)
 
---- /satchel <player id> <tier|reset>  -- grant or clear an upgrade without an item.
+--- /satchel <citizen id> <tier|reset>  -- grant or clear an upgrade without an item.
+---
+--- ★ The player is named by his citizen id ('#5' = whoever is on server id 5): a server id
+---   changes on every connection and collides with the digits of a citizen id. The row is
+---   keyed by that id, so a citizen who is not in the game gets it too: his next login
+---   reads it (load). Only the live capacity (apply) waits for him to be online.
 RegisterCommand('satchel', function(source, args)
     local src = source
 
@@ -236,11 +252,10 @@ RegisterCommand('satchel', function(source, args)
         if not (ok and admin) then return end
     end
 
-    local target = tonumber(args[1])
-    local tier   = tostring(args[2] or '')
+    local tier = tostring(args[2] or '')
 
-    if not target then
-        print('[w_hud] usage: /satchel <player id> <' ..
+    if not args[1] then
+        print('[w_hud] usage: /satchel <citizen id | #server id> <' ..
             table.concat((function()
                 local t = {}
                 for k in pairs(Config.Satchels or {}) do t[#t + 1] = k end
@@ -250,14 +265,17 @@ RegisterCommand('satchel', function(source, args)
         return
     end
 
-    local cid = cidOf(target)
-    if not cid then return w.print.warn('no character loaded for that id') end
+    local who, reason = w.citizen.resolve(args[1], { self = src ~= 0 and src or nil })
+    if not who then return w.print.warn(('satchel: %s (%s)'):format(w.citizen.reasonText(reason), tostring(args[1]))) end
+
+    local cid, target = who.citizenid, who.online and who.source or nil
+    local label = w.citizen.label(who) .. (target and '' or ' [offline]')
 
     if tier == 'reset' then
-        Bonus[target] = { bonus = 0, rank = 0 }
+        if target then Bonus[target] = { bonus = 0, rank = 0, cid = cid } end
         MySQL.update('DELETE FROM w_hud_satchels WHERE cid = ?', { cid })
-        apply(target)
-        return w.print.info(('satchel reset for %d'):format(target))
+        if target then apply(target) end
+        return w.print.info(('satchel reset for %s'):format(label))
     end
 
     local entry = (Config.Satchels or {})[tier]
@@ -265,7 +283,7 @@ RegisterCommand('satchel', function(source, args)
 
     -- ⚠️ The admin path bypasses the rank check deliberately: an admin fixing a mistake
     --    needs to be able to move a player *down* a tier, not only up.
-    Bonus[target] = { bonus = entry.bonus or 0, rank = entry.rank or 0 }
+    if target then Bonus[target] = { bonus = entry.bonus or 0, rank = entry.rank or 0, cid = cid } end
 
     MySQL.update([[
         INSERT INTO w_hud_satchels (cid, bonus, `rank`)
@@ -273,8 +291,38 @@ RegisterCommand('satchel', function(source, args)
         ON DUPLICATE KEY UPDATE bonus = VALUES(bonus), `rank` = VALUES(`rank`)
     ]], { cid, entry.bonus or 0, entry.rank or 0 })
 
-    apply(target)
+    if target then apply(target) end
 
-    w.print.info(('%d -> %s (%d kg total)')
-        :format(target, tier, math.floor((baseWeight() + (entry.bonus or 0)) / 1000)))
+    w.print.info(('%s -> %s (%d kg total)')
+        :format(label, tier, math.floor((baseWeight() + (entry.bonus or 0)) / 1000)))
 end, true)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- For the live settings (shared/settings_schema.lua, group 'satchels')
+--
+-- ★ A tier whose bonus an admin changed reaches everyone who already owns it: the stored
+--   bonus of every character of that rank is rewritten, and the ones online get their new
+--   capacity now. The admin console asks for a confirmation before it sends the change.
+-- ════════════════════════════════════════════════════════════════════════════
+WHudSatchels = WHudSatchels or {}
+
+---@param rank number the tier (Config.Satchels[item].rank)
+---@param bonus number grams
+---@return integer online players whose capacity changed now
+function WHudSatchels.setRankBonus(rank, bonus)
+    rank, bonus = tonumber(rank), math.floor(tonumber(bonus) or 0)
+    if not rank then return 0 end
+
+    local ok, err = pcall(MySQL.update.await, 'UPDATE w_hud_satchels SET bonus = ? WHERE `rank` = ?', { bonus, rank })
+    if not ok then w.print.error(('satchels: could not rewrite tier %s: %s'):format(rank, tostring(err))) end
+
+    local n = 0
+    for src, b in pairs(Bonus) do
+        if b.rank == rank then
+            b.bonus = bonus
+            apply(src)
+            n = n + 1
+        end
+    end
+    return n
+end
