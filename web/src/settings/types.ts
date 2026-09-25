@@ -137,11 +137,11 @@ export interface Theme {
   text: string;
   /** Secondary text, ticks, minor cardinals. */
   dim: string;
-  /** The warning state (yellow by default). */
+  /** The warning state (paper-dim by default). */
   warn: string;
-  /** The danger state (red by default). */
+  /** The danger state -- the theme's red, the one mark the HUD may paint red. */
   danger: string;
-  /** Poisoning -- the green heart and its fumes. */
+  /** Poisoning -- the heart's ring while its fumes rise (paper-faint by default). */
   poison: string;
 }
 
@@ -389,26 +389,31 @@ export function homeX(meta: WidgetMeta, a = aspect()): number {
 
 /* ════════════════════════════════════════════════════════════════════════════
  * Defaults
- * ★ The stock palette verbatim -- the Wraith theme's paper on the game (w_lib/nui/theme: the
- *   loading screen and the pause menu), the theme's one red for danger, and the HUD's two
- *   other states. A player who resets must land exactly on the HUD they were shipped, not on
- *   something near it; hud.css carries the same values for the first frame.
+ * ★ The stock palette verbatim -- Red Dead's white and black: the Wraith theme's paper on the
+ *   game (w_lib/nui/theme: the loading screen and the pause menu), its one red for danger, and
+ *   the two other states as paper a step and two steps down. A player who resets must land
+ *   exactly on the HUD they were shipped, not on something near it; hud.css carries the same
+ *   values for the first frame.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 export const DEFAULT_THEME: Theme = {
   accent: '#EDE6D6',   /* paper */
   text:   '#EDE6D6',   /* paper */
   dim:    '#B9AF9C',   /* paper-dim */
-  warn:   '#E8C547',
-  danger: '#CB0101',   /* the theme's red */
-  poison: '#5AB054',
+  warn:   '#B9AF9C',   /* paper-dim: the core dims as it runs down */
+  danger: '#CB0101',   /* the theme's red: the mark */
+  poison: '#7D7466',   /* paper-faint, with the fumes */
 };
 
-/* ★ The stock palette before the theme (pure white on neutral grey). A save that still holds
-   exactly this never chose it: the whole default travels back with any layout the player saved.
-   It is read as today's stock, so a player who never touched the colours follows the theme; any
-   palette they did choose, even one field of it, is kept as it is. */
-const OLD_STOCK: Theme = { accent: '#FFFFFF', text: '#F5F5F5', dim: '#BFBFBF', warn: '#E8C547', danger: '#E52D2D', poison: '#5AB054' };
+/* ★ The stock palettes of earlier builds: pure white on neutral grey, and then the theme's
+   paper with a yellow warning and a green poison. A save that still holds exactly one of these
+   never chose it: the whole default travels back with any layout the player saved. It is read
+   as today's stock, so a player who never touched the colours follows the theme; any palette
+   they did choose, even one field of it, is kept as it is (and drawn clamped, see palette.ts). */
+const OLD_STOCKS: Theme[] = [
+  { accent: '#FFFFFF', text: '#F5F5F5', dim: '#BFBFBF', warn: '#E8C547', danger: '#E52D2D', poison: '#5AB054' },
+  { accent: '#EDE6D6', text: '#EDE6D6', dim: '#B9AF9C', warn: '#E8C547', danger: '#CB0101', poison: '#5AB054' },
+];
 
 export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true };
 export const DEFAULT_WORLD: WorldCfg = { onFoot: 'server', mounted: 'server' };
@@ -463,6 +468,9 @@ export function defaultSettings(): HudSettings {
  * ★ A palette is a set that agrees with itself. Offering the player six pickers and
  *   nothing else guarantees most of them end up with a HUD that fights itself, so the
  *   ready-made sets come first and the pickers are there for whoever wants them.
+ *
+ * ★ White and black only, like Red Dead: the sets differ in how bright the paper is, never
+ *   in hue, and every one keeps the red for danger alone.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /** `label` is a dictionary key (ui.preset.<id>). */
@@ -470,16 +478,10 @@ export interface ThemePreset { id: string; label: string; theme: Theme }
 
 export const THEME_PRESETS: ThemePreset[] = [
   { id: 'stock', label: 'preset.stock', theme: { ...DEFAULT_THEME } },
-  { id: 'gold', label: 'preset.gold',
-    theme: { accent: '#E7CE8A', text: '#F3E9D2', dim: '#B39D6E', warn: '#E8C547', danger: '#CB0101', poison: '#5AB054' } },
-  { id: 'blood', label: 'preset.blood',
-    theme: { accent: '#CB0101', text: '#F2DADA', dim: '#A87070', warn: '#E8C547', danger: '#FF3B3B', poison: '#5AB054' } },
-  { id: 'sage', label: 'preset.sage',
-    theme: { accent: '#8FA97B', text: '#E9EFE2', dim: '#93A388', warn: '#E8C547', danger: '#E52D2D', poison: '#6FCF67' } },
-  { id: 'frost', label: 'preset.frost',
-    theme: { accent: '#8EC8E8', text: '#E6F2F8', dim: '#8FA6B3', warn: '#E8C547', danger: '#E52D2D', poison: '#5AB054' } },
-  { id: 'amethyst', label: 'preset.amethyst',
-    theme: { accent: '#B48CD9', text: '#EEE6F6', dim: '#A08BB5', warn: '#E8C547', danger: '#E52D2D', poison: '#5AB054' } },
+  { id: 'bright', label: 'preset.bright',
+    theme: { accent: '#F6F1E6', text: '#F6F1E6', dim: '#EDE6D6', warn: '#B9AF9C', danger: '#CB0101', poison: '#7D7466' } },
+  { id: 'ash', label: 'preset.ash',
+    theme: { accent: '#B9AF9C', text: '#EDE6D6', dim: '#7D7466', warn: '#7D7466', danger: '#CB0101', poison: '#7D7466' } },
 ];
 
 /** `label` and `hint` are dictionary keys (ui.theme.<key>, ui.theme.<key>Hint). */
@@ -525,7 +527,7 @@ function readTheme(raw: unknown, base: Theme): Theme {
     const value = src[field.key];
     if (value != null) base[field.key] = normHex(value, base[field.key]);
   }
-  if (THEME_FIELDS.every((f) => String(base[f.key]).toUpperCase() === OLD_STOCK[f.key])) Object.assign(base, DEFAULT_THEME);
+  if (OLD_STOCKS.some((old) => THEME_FIELDS.every((f) => String(base[f.key]).toUpperCase() === old[f.key]))) Object.assign(base, DEFAULT_THEME);
   return base;
 }
 
@@ -570,7 +572,7 @@ function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>): Record<Wi
     cfg.opacity = num(w.opacity, 1, 0.15, 1);
     cfg.show = bool(w.show, true);
     cfg.locked = bool(w.locked, false);
-    cfg.color = w.color == null ? null : normHex(w.color, '#FFFFFF');
+    cfg.color = w.color == null ? null : normHex(w.color, '#EDE6D6');
     cfg.visibility = pick(w.visibility, VISIBILITY, 'auto');
     cfg.showBelow = num(w.showBelow, 50, 1, 100);
     cfg.warn = w.warn == null ? null : num(w.warn, 40, 1, 100);

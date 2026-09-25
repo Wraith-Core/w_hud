@@ -6,6 +6,7 @@ import { applyLocale, useI18n } from './i18n';
 import { EditGrid, HudLayoutProvider, HudWidget, useNudge } from './settings/layout';
 import { SettingsPanel } from './settings/SettingsPanel';
 import { applyShape, applyTheme } from './settings/theme';
+import { toTone } from './settings/palette';
 import {
   FEATURE_WIDGETS, WIDGETS, cloneProfile, cloneSettings, decodeShare, defaultServer,
   defaultSettings, defaultWidget, homeX, isMotionFile, mergeServerCfg, mergeSettings,
@@ -233,8 +234,10 @@ const Bar = ({ value, low }: { value: number; low?: boolean }) => (
   <div className="bar"><div className={`bar-fill${low ? ' low' : ''}`} style={{ width: `${clamp(value, 0, 100)}%` }} /></div>
 );
 
-/* -- buff badges -- */
-interface BuffMeta { label: string; color: string }
+/* -- buff badges --
+   ★ Told apart by their word, not by a hue: the HUD is white and black, so the colour
+     Config.Buffs still sends is not drawn -- paper edge, paper glyph, paper fill (hud.css). */
+interface BuffMeta { label: string; color?: string }
 
 function BuffRow({ buffs, meta }: { buffs: Record<string, number>; meta: Record<string, BuffMeta> }) {
   const entries = Object.entries(buffs || {}).filter(([, v]) => (Number(v) || 0) > 0);
@@ -243,15 +246,15 @@ function BuffRow({ buffs, meta }: { buffs: Record<string, number>; meta: Record<
   return (
     <div className="buff-row">
       {entries.map(([kind, value]) => {
-        const m = meta[kind] || { label: kind, color: '#EDE6D6' };
+        const m = meta[kind] || { label: kind };
         return (
-          <div className="buff-chip" key={kind} title={m.label} style={{ borderColor: m.color }}>
-            <span className="buff-ic" style={{ color: m.color }}><BuffIcon /></span>
+          <div className="buff-chip" key={kind} title={m.label}>
+            <span className="buff-ic"><BuffIcon /></span>
             <span className="buff-body">
               <span className="buff-label">{m.label}</span>
               <span className="buff-bar">
                 <span className="buff-fill"
-                  style={{ width: `${clamp(Number(value) || 0, 0, 100)}%`, background: m.color }} />
+                  style={{ width: `${clamp(Number(value) || 0, 0, 100)}%` }} />
               </span>
             </span>
           </div>
@@ -276,7 +279,7 @@ function Core({ value, icon, brokenIcon, color, state, title, split = true, gold
   value: number; icon: React.ReactNode; brokenIcon?: React.ReactNode;
   color?: string; state?: CoreState; title?: string; split?: boolean;
   goldRing?: boolean; goldIcon?: boolean;
-  /** مسموم: القلب يخضرّ ويتصاعد منه دخانٌ عفن */
+  /** مسموم: حلقة القلب تخفت ويتصاعد منه دخانٌ عفن */
   poisoned?: boolean; poisonRatio?: number;
 }) {
   const R = 44, C = 2 * Math.PI * R;
@@ -323,9 +326,9 @@ function Core({ value, icon, brokenIcon, color, state, title, split = true, gold
     /* ★ Two degrees of gilding, not one: the item that gilds the ring alone is a half
        gilding, and the one that gilds the icon with it is a full one. Which is exactly
        what the goldHealthOuter / goldHealthInner pair says. */
-    /* ★ التسمُّم يعلو على لون الحالة (أصفر/أحمر) لا يُزاحمه: هو أندر وأهمّ،
-       ومن يرى قلبه أخضرَ يجب أن يفهم السبب من نظرةٍ واحدة. الترتيب في hud.css
-       يضمن ذلك بـ!important على اللون وحده. */
+    /* ★ التسمُّم يعلو على لون التحذير، والأحمر وحده يعلو عليه: الهود أبيض وأسود،
+       فالسمّ يُقرأ بدخانه ونبضه لا بلونه، والأحمر علامة الخطر فلا يُخفيه شيء.
+       الترتيب في hud.css يضمن ذلك. */
     <div className={'core'
         + (state && state !== 'ok' ? ' ' + state : '')
         + (goldRing ? ' gold-ring' : '')
@@ -455,7 +458,7 @@ const DEFAULT_DISPLAY: Record<string, DisplayCfg> = {
   thirst: { show: true, alwaysOn: false, showBelow: 50 },
   stamina: { show: true, alwaysOn: false, showBelow: 50 },
 
-  horse: { show: true, alwaysOn: true, color: '#d8cbb0' },
+  horse: { show: true, alwaysOn: true },
   buffs: { show: true, alwaysOn: false },
 };
 
@@ -855,7 +858,7 @@ function App() {
              keep the last state forever -- a core gilded for the rest of the session. */
           gilded: d.gilded,
           /* ★ إسنادٌ كذلك لا ‎??‎: لحظةَ ينتهي السمّ يُرسل Lua قيمةً غائبة،
-             و‎??‎ كانت تُبقي القلب أخضرَ إلى آخر الجلسة. */
+             و‎??‎ كانت تُبقي القلب مسموماً إلى آخر الجلسة. */
           poisoned: d.poisoned,
           horsehealthCore: d.horsehealthCore ?? p.horsehealthCore,
           horsestaminaCore: d.horsestaminaCore ?? p.horsestaminaCore,
@@ -914,9 +917,13 @@ function App() {
   };
 
   /* The player's colour wins over the server's, and the server's over none. A colour the
-     player never chose is `null` -- not white -- so Config.Display keeps its say until then. */
-  const tint = (id: WidgetId, fallback?: string): string | undefined =>
-    settings.widgets[id].color ?? fallback;
+     player never chose is `null` -- not white -- so Config.Display keeps its say until then.
+     ★ Either is drawn as the nearest ink/paper tone (settings/palette.ts): the HUD is white and
+       black, and a colour saved by an older build stays in the save, only its paint changes. */
+  const tint = (id: WidgetId, fallback?: string): string | undefined => {
+    const c = settings.widgets[id].color ?? fallback;
+    return c ? toTone(c) : undefined;
+  };
 
   // Top-right info -- from VORP if available, otherwise from hudtick
   const gold = econ.has ? econ.gold : hud.gold;
@@ -991,8 +998,8 @@ function App() {
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
           <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#827F76" />
-            <stop offset="50%" stopColor="#CCC6B8" />
+            <stop offset="0%" stopColor="#7D7466" />
+            <stop offset="50%" stopColor="#B9AF9C" />
             <stop offset="100%" stopColor="#EDE6D6" />
           </linearGradient>
         </defs>

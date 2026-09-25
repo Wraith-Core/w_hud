@@ -1,7 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * w_hud · settings/ColorField.tsx
- * A colour picker with no dependency -- a swatch that opens a saturation square,
- * a hue rail, a hex field and a shelf of ready colours.
+ * A colour picker with no dependency -- a swatch that opens a shelf of the theme's tones.
  *
  * ★ Why not <input type="color">?
  *
@@ -9,22 +8,22 @@
  *   outside the game, behind it in fullscreen. The player clicks the swatch and nothing
  *   appears to happen. So the picker is drawn here, in the page, in the HUD's own idiom.
  *
- * ⚠️ Hue is kept in a ref alongside the hex, not derived from it on every render: a grey
- *   has no hue (s = 0), so dragging the saturation square down to grey and back up again
- *   would throw the hue away and come back red. The rail owns the hue; the square owns
- *   saturation and value.
+ * ★ Why a shelf and no colour wheel?
+ *
+ *   The HUD is white and black, like Red Dead's own: the only colours it may draw are the
+ *   theme's ink and paper tones and, for danger alone, its one red (palette.ts). A hue rail
+ *   would offer colours the HUD then refuses to paint. So the choice is the tones themselves,
+ *   lightest first, and the red only on the field that means danger.
+ *
+ * ⚠️ `value` may still be a colour saved by an older build (a blue accent, a green circle).
+ *   It is shown as the tone it is drawn in -- the save itself is not changed until the
+ *   player picks something.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { hexToHsv, hsvToHex, normHex, readableInk } from './color';
-
-/* A shelf of colours that read well over a dark, moving background -- nothing muddy,
-   nothing so dark it disappears against the game. */
-const SHELF = [
-  '#FFFFFF', '#E7CE8A', '#C8A44D', '#E8C547', '#F2994A', '#E05555',
-  '#CB0101', '#B48CD9', '#8EC8E8', '#5AB054', '#8FA97B', '#8C8C8C',
-];
+import { readableInk } from './color';
+import { RED, TONES, toTone } from './palette';
 
 interface Props {
   value: string;
@@ -32,27 +31,24 @@ interface Props {
   /** Shown as a "follow the theme" choice when the widget has no colour of its own. */
   inherit?: { active: boolean; label: string; onPick: () => void };
   title?: string;
+  /** The danger field: the theme's red is offered too (and a reddish save is drawn red). */
+  red?: boolean;
 }
 
-export function ColorField({ value, onChange, inherit, title }: Props) {
+export function ColorField({ value, onChange, inherit, title, red = false }: Props) {
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(value);
   /* ⚠️ The popover is placed in viewport coordinates, not relative to the swatch.
      The panel scrolls its body and clips its own overflow, so a popover positioned inside
-     it is cut off by whichever edge it reaches first -- and the colour picker is exactly
-     the thing that needs to be taller than the row it hangs from. Fixed coordinates
-     measured off the swatch escape both, and the clamp keeps it on screen. */
+     it is cut off by whichever edge it reaches first -- and the picker is exactly the thing
+     that needs to be taller than the row it hangs from. Fixed coordinates measured off the
+     swatch escape both, and the clamp keeps it on screen. */
   const [at, setAt] = useState({ left: 0, top: 0 });
   const box = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
 
-  const hsv = hexToHsv(value);
-  const hueRef = useRef(hsv.h);
-  if (hsv.s > 0.02 && hsv.v > 0.02) hueRef.current = hsv.h;
-  const hue = hueRef.current;
-
-  useEffect(() => { setText(value); }, [value]);
+  const shown = toTone(value, { red });
+  const shelf: string[] = red ? [RED, ...TONES] : [...TONES];
 
   /* Clicking anywhere else puts the picker away -- including on another swatch, so two
      pickers are never open over one another. */
@@ -79,42 +75,6 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
     };
   }, [open]);
 
-  /** One handler for both surfaces: a press reads immediately, then follows the pointer. */
-  const track = (
-    e: ReactPointerEvent<HTMLDivElement>,
-    read: (fx: number, fy: number) => void,
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-
-    const send = (cx: number, cy: number) => {
-      read(
-        Math.min(1, Math.max(0, (cx - rect.left) / rect.width)),
-        Math.min(1, Math.max(0, (cy - rect.top) / rect.height)),
-      );
-    };
-
-    send(e.clientX, e.clientY);
-
-    const move = (ev: PointerEvent) => send(ev.clientX, ev.clientY);
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-
-  const commitText = () => {
-    const hex = normHex(text, value);
-    setText(hex);
-    onChange(hex);
-  };
-
   /* Measure the actual editor-scale popup, independently from the HUD's tiny rem. */
   const place = () => {
     const el = btn.current;
@@ -124,7 +84,7 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
     const unit = Math.max(1, Math.min(2, window.innerHeight / 1080));
     const bounds = pop.current?.getBoundingClientRect();
     const w = bounds?.width ?? 288 * unit;
-    const h = bounds?.height ?? 300 * unit;
+    const h = bounds?.height ?? 160 * unit;
     const gap = 16 * unit;
 
     /* Below the swatch when there is room for it, above when there is not, and never
@@ -162,11 +122,11 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
         ref={btn}
         type="button"
         className={'hs-swatch' + (open ? ' is-open' : '')}
-        style={{ background: value, color: readableInk(value) }}
+        style={{ background: shown, color: readableInk(shown) }}
         onClick={toggle}
         title={title}
       >
-        <span>{inherit?.active ? inherit.label : value}</span>
+        <span>{inherit?.active ? inherit.label : shown}</span>
       </button>
 
       {/* ★ Portalled to <body>, not left where it was written.
@@ -185,51 +145,22 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
           dir={document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'}
         >
           <span className="wst-frame" aria-hidden="true"><span className="wst-fr-t" /><span className="wst-fr-b" /><span className="wst-fr-l" /><span className="wst-fr-r" /><span className="wst-fr-tl" /><span className="wst-fr-tr" /><span className="wst-fr-bl" /><span className="wst-fr-br" /></span>
-          <div
-            className="hs-sv"
-            style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hsvToHex({ h: hue, s: 1, v: 1 })})` }}
-            onPointerDown={(e) => track(e, (fx, fy) => onChange(hsvToHex({ h: hue, s: fx, v: 1 - fy })))}
-          >
-            <i
-              className="hs-sv-dot"
-              style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, borderColor: readableInk(value) }}
-            />
-          </div>
 
-          <div
-            className="hs-hue"
-            onPointerDown={(e) => track(e, (fx) => {
-              hueRef.current = fx * 360;
-              onChange(hsvToHex({ h: fx * 360, s: Math.max(hsv.s, 0.05), v: Math.max(hsv.v, 0.15) }));
-            })}
-          >
-            <i className="hs-hue-dot" style={{ left: `${(hue / 360) * 100}%` }} />
-          </div>
-
-          <div className="hs-shelf">
-            {SHELF.map((hex) => (
+          <div className={'hs-shelf' + (red ? ' has-red' : '')}>
+            {shelf.map((hex) => (
               <button
                 key={hex}
                 type="button"
-                className={'hs-chip' + (hex === value ? ' is-on' : '')}
-                style={{ background: hex }}
-                onClick={() => onChange(hex)}
+                className={'hs-chip' + (hex === RED ? ' is-red' : '') + (hex === shown && !inherit?.active ? ' is-on' : '')}
+                style={{ background: hex, color: readableInk(hex) }}
+                onClick={() => { onChange(hex); setOpen(false); }}
                 title={hex}
               />
             ))}
           </div>
 
-          <div className="hs-hexrow">
-            <input
-              className="hs-hex"
-              value={text}
-              spellCheck={false}
-              maxLength={7}
-              onChange={(e) => setText(e.target.value)}
-              onBlur={commitText}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitText(); }}
-            />
-            {inherit && (
+          {inherit && (
+            <div className="hs-hexrow">
               <button
                 type="button"
                 className={'hs-mini' + (inherit.active ? ' is-on' : '')}
@@ -237,8 +168,8 @@ export function ColorField({ value, onChange, inherit, title }: Props) {
               >
                 {inherit.label}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       ), document.body)}
     </div>

@@ -11,8 +11,8 @@
      on the world, never #fff. These are the stock values; the player's palette (settings/theme.ts)
      writes over them, and the stock palette in settings/types.ts is this one. */
   --gold-1: #EDE6D6;   /* paper (--w-paper) */
-  --gold-2: #CCC6B8;   /* paper a shade down (theme.ts: shade(accent, -0.14)) */
-  --gold-3: #827F76;   /* paper well down (shade(accent, -0.45)) */
+  --gold-2: #B9AF9C;   /* paper-dim: one tone down (theme.ts: darker(accent, 1)) */
+  --gold-3: #7D7466;   /* paper-faint: two tones down (darker(accent, 2)) */
   --cream:  #EDE6D6;   /* text: paper */
   --dim:    #B9AF9C;   /* labels: paper-dim */
   --line:   rgba(237, 230, 214, 0.28);
@@ -22,32 +22,33 @@
   --f-num:   var(--w-f-num);      /* figures: RDR Catalogue, Western digits */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ★ أخضر التسمُّم — لونٌ واحدٌ يحمله متغيّر: القلب والحلقة والدخان تأخذه
-     منه، فتغييره سطرٌ واحدٌ لا خمسة. وهو أخضرُ عفنٍ مائلٌ إلى الصفرة لا
-     أخضرَ نضِر: الأخير يُقرأ «صحّة» وهو نقيض المقصود. */
-  --poison: #5AB054;
+  /* ★ لون التسمُّم — لونٌ واحدٌ يحمله متغيّر: حلقة القلب تأخذه، والقلب والدخان
+     درجةً أفتح منه، فتغييره سطرٌ واحدٌ لا خمسة. والهود أبيض وأسود كهود ريد ديد:
+     فهو ورقٌ خافت (paper-faint)، والسمّ يُقرأ بدخانه ونبضه لا بلونه. */
+  --poison: #7D7466;
 
   /* ── the state colours ──────────────────────────────────────────────────────
-     ★ These used to be written into the rules themselves (#E8C547 for the warning,
-       #E52D2D and #F04444 for the danger). They are variables now because the player
-       chooses them from the control panel -- and a colour written into thirty rules is
-       a colour nobody can change.
+     ★ These used to be written into the rules themselves (a yellow for the warning, two
+       reds for the danger). They are variables now because the player chooses them from
+       the control panel -- and a colour written into thirty rules is a colour nobody can
+       change. The choice is the theme's tones only (settings/palette.ts): Red Dead's HUD is
+       white and black, and its one red is the danger mark.
 
      ⚠️ Each one comes twice: once as a colour and once as bare channels. A glow needs
         the same hue at a dozen different alphas, and rgba() cannot take a hex -- so the
         channels are what every rgba() in this file is built from, and settings/theme.ts
         writes both from one chosen colour. */
-  --warn: #E8C547;
-  --warn-rgb: 232, 197, 71;
+  --warn: #B9AF9C;        /* paper-dim: the core dims as it runs down */
+  --warn-rgb: 185, 175, 156;
 
   --danger: #CB0101;      /* the theme's red: a mark, the alarm */
-  --danger-lit: #D42F2F;  /* theme.ts: shade(danger, 0.18) */
+  --danger-lit: #CB0101;  /* the same red (theme.ts): the theme has one */
   --danger-rgb: 203, 1, 1;
 
-  --poison-rgb: 90, 176, 84;
-  --poison-lit-rgb: 126, 196, 110;
-  --poison-deep-rgb: 58, 110, 52;
-  --poison-track: rgba(18, 40, 20, 0.75);
+  --poison-rgb: 125, 116, 102;       /* paper-faint */
+  --poison-lit-rgb: 185, 175, 156;   /* paper-dim: the heart and the smoke */
+  --poison-deep-rgb: 39, 35, 28;     /* ink-4: where the smoke thins out */
+  --poison-track: rgba(11, 10, 8, 0.75);
 
   /* ── the shape of the circles ────────────────────────────────────────────
      The stock weights, so the HUD draws correctly before the player's settings
@@ -169,14 +170,15 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   -webkit-mask: var(--tex-divider_line) center / 100% 100% no-repeat; mask: var(--tex-divider_line) center / 100% 100% no-repeat;
 }
 /* ★ One ink: the figures are paper and the icons say which purse is which (no gold coin, no
-   pink for the dirty money). Red is kept for the one alarm here: PvP switched on. */
+   pink for the dirty money). PvP is told by its word and its shield: full paper when it is
+   on, dim when it is off -- no hue, like the rest of the HUD. */
 .plate-row.is-cash .plate-val { font-size: 3rem; }
 .plate-row.is-cash .plate-ic { color: var(--gold-1); }
 .plate-row.is-gold .plate-val { color: var(--cream); }
 .plate-row.is-gold .plate-ic { color: var(--gold-2); }
 .plate-row.is-dirty .plate-val, .plate-row.is-dirty .plate-ic { color: var(--dim); }
-.plate-row.is-pvp .plate-ic { color: var(--gold-2); }
-.plate-row.is-pvp.is-on .plate-ic { color: var(--danger); }
+.plate-row.is-pvp .plate-ic, .plate-row.is-pvp .plate-val { color: var(--dim); }
+.plate-row.is-pvp.is-on .plate-ic, .plate-row.is-pvp.is-on .plate-val { color: var(--cream); }
 .plate-row.is-level .plate-val { color: var(--cream); }
 /* the identity plate is a short one: its rows sit side by side */
 .plate.ident { flex-direction: row; align-items: center; gap: 1.6rem; min-width: 0; padding: 1.1rem 2.3rem 1.1rem 2.6rem; }
@@ -295,10 +297,11 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
     rgba(237, 230, 214, 0.06) 0 0.8rem,
     rgba(237, 230, 214, 0) 0.8rem 1.6rem);
 }
+/* A link that failed: the red is the mark (its outline), never a fill. */
 .hud-media-ph.is-bad {
   border-color: rgba(var(--danger-rgb), 0.75);
-  background: repeating-linear-gradient(45deg,
-    rgba(var(--danger-rgb), 0.14) 0 0.8rem,
+  background: repeating-linear-gradient(-45deg,
+    rgba(237, 230, 214, 0.1) 0 0.8rem,
     rgba(237, 230, 214, 0) 0.8rem 1.6rem);
 }
 
@@ -329,7 +332,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    two weapons' reserves beside each of them. This reads the inventory's accounting: each
    weapon has its own magazine, and the reserve is items in the bag.
 
-   The large number = this weapon's magazine · the small one = the reserve · red = zero */
+   The large number = this weapon's magazine · the small one = the reserve · a red mark = zero */
 /* Inside the top-right cluster, directly above the money and the id. Not absolutely positioned:
    it flows with the panel so the rest shift below it and nothing overlaps. */
 .ammo-row {
@@ -351,8 +354,15 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
     0.12rem 0 0 rgba(0,0,0,0.55), -0.12rem 0 0 rgba(0,0,0,0.55);
 }
 
-/* Zero is red */
-.ammo-clip.empty { color: var(--danger); }
+/* Zero: the figure dims and the red mark sits under it (the theme never draws red text) */
+.ammo-clip.empty,
+.ammo-total.empty {
+  color: var(--dim);
+  text-decoration-line: underline;
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 0.24rem;
+  text-underline-offset: 0.34rem;
+}
 
 /* The reserve after the clip -- the game's own "6 | 94": smaller, a little dimmer */
 .ammo-reserve { display: inline-flex; align-items: baseline; gap: 0.35rem; margin-left: 0.35rem; }
@@ -360,7 +370,6 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   text-shadow: 0 0 0.25rem rgba(0,0,0,0.95), 0 0.2rem 0.55rem rgba(0,0,0,0.9); }
 .ammo-total { font-family: var(--f-num); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.85; letter-spacing: 0.02em;
   text-shadow: 0 0 0.25rem rgba(0,0,0,0.95), 0 0.2rem 0.55rem rgba(0,0,0,0.9), 0.1rem 0 0 rgba(0,0,0,0.55), -0.1rem 0 0 rgba(0,0,0,0.55); }
-.ammo-total.empty { color: var(--danger); }
 
 .ammo-cart { display: block; width: 2.8rem; height: 2.8rem; margin-left: 0.45rem; }
 .ammo-cart svg,
@@ -370,7 +379,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .cart-mid  { fill: none; stroke: var(--cream); stroke-width: 2.2; }
 .cart-core { fill: var(--cream); }
 
-/* Left hand: the blue dot under the card -- the same marker the stock readout uses */
+/* Left hand: a paper dot under the card -- where the stock readout puts its marker */
 .ammo-offhand {
   position: absolute; right: -0.2rem; bottom: -0.9rem;
   width: 1.15rem; height: 1.15rem; border-radius: 50%;
@@ -539,11 +548,11 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .voice-tile .stile-ic svg { width: 2.3rem; height: 2.3rem; }
 .voice-tile .wv { opacity: 0.85; transform-origin: 20% 50%; }
 
-/* ⚠️ Red is exempt from the subtraction: red minus paper gives cyan, not red. So we switch the
-   blend off while speaking and guarantee contrast with a dark stroke around the icon. */
+/* While speaking the icon is lit paper with a halo -- no hue, the ripple says it. The blend is
+   switched off so the halo reads at any fill, with a dark stroke for contrast. */
 .voice-tile.on .stile-ic svg {
-  mix-blend-mode: normal; color: var(--danger);
-  filter: drop-shadow(0 0 0.36rem rgba(var(--danger-rgb),0.95))
+  mix-blend-mode: normal; color: #F6F1E6;
+  filter: drop-shadow(0 0 0.36rem rgba(237,230,214,0.85))
           drop-shadow(0 0 0.12rem rgba(0,0,0,0.9));
 }
 .voice-tile.on .wv { animation: wvPulse 1s ease-in-out infinite; }
@@ -663,7 +672,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .core .core-ic-dim svg,
 .core .core-ic-dim .tex-ic { color: rgba(237, 230, 214, 0.22); filter: none; }
 .core.warn   .core-ic-dim svg,
-.core.warn   .core-ic-dim .tex-ic { color: rgba(var(--warn-rgb), 0.34); }
+.core.warn   .core-ic-dim .tex-ic { color: rgba(var(--warn-rgb), 0.3); }
 .core.danger .core-ic-dim svg,
 .core.danger .core-ic-dim .tex-ic {
   color: rgba(var(--danger-rgb), 0.55);
@@ -671,8 +680,8 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   animation: warnPulse 0.9s ease-in-out infinite;
 }
 
-/* ★ Three colours and no more -- and never a fourth.
-     White is the normal state · yellow is warning · red is danger.
+/* ★ Three states and no more -- and never a fourth. Red Dead's cores, white and black:
+     paper is the normal state · paper-dim is warning (the core dims) · red is danger.
    The colour says the **state**, not the **kind of need**; the kind is said by its icon.
    Which is why there is no per-need colour -- that spent red and yellow on decoration and left
    no colour to distinguish the alarm.
@@ -689,11 +698,15 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .core.danger .core-ic-lit svg,
 .core.danger .core-ic-lit .tex-ic { color: var(--danger-lit); animation: warnPulse 0.9s ease-in-out infinite; }
 
-/* Voice -- the same core, and it ripples while speaking */
+/* Voice -- the same core, and it ripples while speaking.
+   ★ Speaking turns the disc into the paper band with the waves in ink -- the menus' "active"
+     state -- rather than a hue: the red is kept for danger alone. */
 .voice-core { display: contents; }
 .voice-core .wv { opacity: 0.85; transform-origin: 20% 50%; }
-.voice-core.on .core-ic svg { color: var(--danger);
-  filter: drop-shadow(0 0 0.36rem rgba(var(--danger-rgb),0.95)); }
+.voice-core.on .core-disc::before { background-color: var(--cream); background-blend-mode: multiply; opacity: 1;
+  box-shadow: inset 0 0 0.5rem rgba(0,0,0,0.35); }
+.voice-core.on .core-ic svg { color: #0B0A08; filter: none; }
+.voice-core.on .core-ic-dim svg { color: rgba(11,10,8,0.2); }
 .voice-core.on .wv { animation: wvPulse 1s ease-in-out infinite; }
 .voice-core.on .wv-2 { animation-delay: 0.14s; }
 .voice-core.on .wv-3 { animation-delay: 0.28s; }
@@ -711,6 +724,10 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
      tell a tonic that fortified the bar from one that fortified the core itself, at a
      glance and without a number.
 
+   ★ White and black like the rest: the game's gold is lit paper here, with a halo round
+     it and the track lit under it, and a slow breath -- the fortified core glows, it does
+     not change hue.
+
    ⚠️ Gilding sits *below* the warning colours in priority. A gilded core that has since
       drained to danger must still read red: the gold says 'fortified' while the red says
       'about to die', and the second is the one you act on. Which is why the .danger and
@@ -718,29 +735,30 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    ════════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --gild:     #E8B93F;   /* RDR's overpower gold */
-  --gild-lit: #FFDA7A;   /* its highlight */
+  --gild:     #F6F1E6;   /* RDR's overpower, in paper-lit */
+  --gild-lit: #F6F1E6;
+  --gild-rgb: 246, 241, 230;
 }
 
-/* The ring: gold, with a faint glow around it so it reads as fortified rather than merely coloured */
+/* The ring: lit paper with a halo, so it reads as fortified rather than merely drawn */
 .core.gold-ring .core-ring {
   stroke: var(--gild);
-  filter: drop-shadow(0 0 0.35rem rgba(232, 185, 63, 0.75));
+  filter: drop-shadow(0 0 0.3rem rgba(var(--gild-rgb), 0.85)) drop-shadow(0 0 0.7rem rgba(var(--gild-rgb), 0.45));
 }
 
-/* And the track under it warms slightly, or the gold ring floats over a cold black */
-.core.gold-ring .core-track { stroke: rgba(74, 56, 14, 0.72); }
+/* And the track under it lights faintly: the whole circle is fortified, not just the part left */
+.core.gold-ring .core-track { stroke: rgba(237, 230, 214, 0.24); }
 
 /* The icon: only when the inner is gilded too. The lit layer takes the gold and the dim
    layer takes it faintly -- the same two-layer arrangement as every other state. */
 .core.gold-icon .core-ic-lit svg,
 .core.gold-icon .core-ic-lit .tex-ic {
   color: var(--gild-lit);
-  filter: drop-shadow(0 0 0.3rem rgba(232, 185, 63, 0.6));
+  filter: drop-shadow(0 0 0.3rem rgba(var(--gild-rgb), 0.8));
 }
 
 .core.gold-icon .core-ic-dim svg,
-.core.gold-icon .core-ic-dim .tex-ic { color: rgba(232, 185, 63, 0.3); }
+.core.gold-icon .core-ic-dim .tex-ic { color: rgba(var(--gild-rgb), 0.3); }
 
 /* ★ A slow breath, not a pulse. The danger pulse is fast and alarming; gilding is a boon,
    so it breathes calmly -- the two are never confused even out of the corner of an eye. */
@@ -753,12 +771,13 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   التسمُّم — القلب يخضرّ ويتصاعد منه دخانٌ عفن
+   التسمُّم — حلقة القلب تخفت ويتصاعد منه دخانٌ عفن
 
-   ★ لماذا الأخضر يعلو على الأصفر والأحمر:
-     ألوان الحالة الثلاثة تقول «كم بقي»، والتسمُّم يقول «ماذا جرى لك» — وهو
-     خبرٌ آخر أندر وأهمّ. فلو تزاحما لرأى اللاعب قلباً أحمر وظنّه جوعاً أو
-     جرحاً وهو مسموم. ولذلك !important على اللون وحده لا على غيره: النبض
+   ★ الهود أبيض وأسود كهود ريد ديد، فالسمّ لا لون له: حلقته ورقٌ خافت، وقلبه
+     ينبض ببطء، والدخان يتصاعد منه — وهذا ما يُقرأ من نظرة.
+     ألوان الحالة تقول «كم بقي»، والتسمُّم يقول «ماذا جرى لك»؛ فهو يعلو على
+     التحذير، أمّا الأحمر فعلامة الخطر ولا يُخفيه شيء: مسمومٌ على حافّة الموت
+     يرى حلقةً حمراء ودخاناً معاً. ولذلك :not(.danger) على اللون وحده: النبض
      والانكسار وبقيّة سلوك الحالة تبقى كما هي.
 
    ⚠️ والدخان داخل القرص لا فوق الشاشة: طلبُ «دخانٍ من القلب» يعني علامةً في
@@ -766,18 +785,18 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
      معه ويُضبط من Config.Poison.Fx.
    ════════════════════════════════════════════════════════════════════════ */
 
-.core.poisoned .core-ring { stroke: var(--poison) !important; }
+.core.poisoned:not(.danger) .core-ring { stroke: var(--poison) !important; }
 .core.poisoned .core-track { stroke: var(--poison-track); }
 
-.core.poisoned .core-ic-lit svg,
-.core.poisoned .core-ic-lit .tex-ic {
-  color: var(--poison) !important;
-  filter: drop-shadow(0 0 6px rgba(var(--poison-rgb), 0.55));
+.core.poisoned:not(.danger) .core-ic-lit svg,
+.core.poisoned:not(.danger) .core-ic-lit .tex-ic {
+  color: rgb(var(--poison-lit-rgb)) !important;
+  filter: drop-shadow(0 0 6px rgba(var(--poison-lit-rgb), 0.45));
   animation: poisonThrob 1.6s ease-in-out infinite;
 }
 
-.core.poisoned .core-ic-dim svg,
-.core.poisoned .core-ic-dim .tex-ic { color: rgba(var(--poison-rgb), 0.3) !important; }
+.core.poisoned:not(.danger) .core-ic-dim svg,
+.core.poisoned:not(.danger) .core-ic-dim .tex-ic { color: rgba(var(--poison-rgb), 0.3) !important; }
 
 /* ── الدخان ─────────────────────────────────────────────────────────────
    ثلاث خصلاتٍ من قرصٍ واحد، لكلٍّ تأخيرها ومسارها. والحاوية بلا أبعادٍ
@@ -816,8 +835,8 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 }
 
 @keyframes poisonThrob {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(var(--poison-rgb), 0.45)); }
-  50%      { filter: drop-shadow(0 0 11px rgba(var(--poison-lit-rgb), 0.8)); }
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(var(--poison-lit-rgb), 0.35)); opacity: 1; }
+  50%      { filter: drop-shadow(0 0 11px rgba(var(--poison-lit-rgb), 0.7)); opacity: 0.78; }
 }
 
 /* The same textured Core used for player/horse needs, at a smaller base size.

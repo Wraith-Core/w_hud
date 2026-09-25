@@ -419,7 +419,8 @@
   text-align: center;
 }
 
-.ww-ammo.empty { color: var(--ww-red); }
+/* empty: the figure stays paper and the badge takes the red mark round it (never red text) */
+.ww-ammo.empty { color: #EDE6D6; box-shadow: inset 0 0 0 1px var(--ww-red); }
 
 .ww-hand {
   width: 1.65em;
@@ -586,12 +587,12 @@
 
 [dir="rtl"] .ww-title { font-family: var(--w-f-ar-display); font-weight: 400; letter-spacing: 0; line-height: 1.25; }
 
-/* The thin red line under the name -- as in the reference */
+/* The thin line under the name -- paper, like the rest: the red is kept for the marks */
 .ww-rule {
   width: 46%;
   height: 1px;
   margin-top: 3px;
-  background: linear-gradient(90deg, transparent, var(--ww-red), transparent);
+  background: linear-gradient(90deg, transparent, rgba(237, 230, 214, 0.55), transparent);
   opacity: 0.85;
 }
 
@@ -668,7 +669,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ww-clip b.empty { color: var(--ww-red); }
+/* an empty clip: the figure stays paper, the red mark goes under it (never red text) */
+.ww-clip b.empty { color: #EDE6D6; text-decoration: underline; text-decoration-color: var(--ww-red); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 
 .ww-clip span {
   color: var(--ww-text-dim);

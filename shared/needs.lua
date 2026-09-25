@@ -45,31 +45,31 @@ Config.Buffs = {
         label  = 'buff.health',
         drain  = 2,   -- how much the buff decays each tick
         amount = 10,  -- how much health is added each tick (RDR scale)
-        color  = '#e05555',
+        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
     },
     cowboy = { -- horse stamina (moonshine)
         label  = 'buff.cowboy',
         drain  = 1,
         amount = 1000.0, -- how much stamina is added to the last horse ridden
-        color  = '#c9a227',
+        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
     },
     vegan = { -- hunger and thirst regeneration (stew/vegetables)
         label  = 'buff.vegan',
         drain  = 1,
         amount = 2,   -- added to hunger and thirst alike each tick
-        color  = '#5fa85f',
+        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
     },
     energy = { -- player stamina regeneration (coffee/sugar)
         label  = 'buff.energy',
         drain  = 1,
         amount = 5,   -- the inner stamina core (0-100)
-        color  = '#d98c2b',
+        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
     },
     vigor = { -- inner health-core regeneration (roasted meat)
         label  = 'buff.vigor',
         drain  = 1,
         amount = 3,
-        color  = '#b0563a',
+        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
     },
 }
 
@@ -155,16 +155,17 @@ Config.Poison = {
 
 -- 5. State colour thresholds
 --
--- ★ RDR's language is three colours and no more: white for the normal state, yellow
---   for warning, red for danger. The colour says the **state**, not the **kind of
---   need** -- the kind is said by its icon. Which is why there is no per-need colour.
+-- ★ RDR's language is white and black, and three states no more: paper for the normal
+--   state, paper-dim for warning (the core dims), the one red for danger. The tone says
+--   the **state**, not the **kind of need** -- the kind is said by its icon. Which is why
+--   there is no per-need colour.
 --
 -- ★ All of our needs now drain and never fill, so one threshold each is enough.
 --   (warnHigh/dangerHigh existed for needs that filled up -- they went with them.)
 ----------------------------------
 Config.Thresholds = {
-    warnLow   = 40, -- yellow on falling to
-    dangerLow = 20, -- red on falling to
+    warnLow   = 40, -- warning (paper-dim) on falling to
+    dangerLow = 20, -- danger (the red mark) on falling to
 }
 
 ----------------------------------
@@ -172,7 +173,8 @@ Config.Thresholds = {
 --   ★ This is the layer the player settings panel will read later.
 --
 --   show      whether it appears at all
---   color     colour of the ring and icon (empty = white, and the state overrides it)
+--   color     colour of the ring and icon (empty = the accent; drawn as the nearest ink/paper
+--             tone -- the HUD is white and black -- and the state overrides it)
 --   alwaysOn  always visible
 --   showBelow if not alwaysOn: only appears below this value
 ----------------------------------

@@ -580,6 +580,7 @@ export function SettingsPanel(p: PanelProps) {
                         <ColorField
                           value={p.settings.theme[field.key]}
                           onChange={(hex) => p.setTheme({ [field.key]: hex } as Partial<Theme>)}
+                          red={field.key === 'danger'}
                         />
                       </li>
                     ))}

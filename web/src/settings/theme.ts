@@ -17,7 +17,8 @@
  *   settings panel live outside that container and must follow the same palette.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-import { hexToRgb, rgba, shade } from './color';
+import { hexToRgb, rgba } from './color';
+import { INK, darker, lighter, toTone } from './palette';
 import type { ShapeCfg, Theme } from './types';
 
 /** "229, 45, 45" -- the form rgba() can take through a variable. */
@@ -26,18 +27,36 @@ const channels = (hex: string): string => {
   return `${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}`;
 };
 
-export function applyTheme(theme: Theme): void {
+/**
+ * The palette the HUD is drawn in: every chosen colour as the ink/paper tone nearest to it,
+ * and the danger colour as the theme's one red when it is a red at all (palette.ts).
+ *
+ * ⚠️ The saved theme is not touched -- a blue accent from an older build stays in the save
+ *   and is drawn as paper. Clamping here, at the paint, is what keeps saved data intact.
+ */
+export function drawnTheme(theme: Theme): Theme {
+  return {
+    accent: toTone(theme.accent),
+    text: toTone(theme.text),
+    dim: toTone(theme.dim),
+    warn: toTone(theme.warn),
+    danger: toTone(theme.danger, { red: true }),
+    poison: toTone(theme.poison),
+  };
+}
+
+export function applyTheme(saved: Theme): void {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement.style;
+  const theme = drawnTheme(saved);
 
   /* ── the accent ramp ──────────────────────────────────────────────────────
-     One colour at three brightnesses -- the same relationship the stock palette
-     had (#FFFFFF / #DCDCDC / #8C8C8C), so a chosen accent lands on a ramp of the
-     same shape rather than three unrelated values. */
+     One tone and the two below it on the palette (paper -> paper-dim -> paper-faint),
+     so a chosen accent lands on a ramp of the same shape and never off the palette. */
   root.setProperty('--gold-1', theme.accent);
-  root.setProperty('--gold-2', shade(theme.accent, -0.14));
-  root.setProperty('--gold-3', shade(theme.accent, -0.45));
+  root.setProperty('--gold-2', darker(theme.accent, 1));
+  root.setProperty('--gold-3', darker(theme.accent, 2));
 
   root.setProperty('--cream', theme.text);
   root.setProperty('--dim', theme.dim);
@@ -47,18 +66,18 @@ export function applyTheme(theme: Theme): void {
   root.setProperty('--warn-rgb', channels(theme.warn));
 
   root.setProperty('--danger', theme.danger);
-  /* ★ The lit face of the danger colour -- the icon burns a shade brighter than its
-     ring so the two layers stay apart at a glance. It used to be a second hard-coded
-     red (#F04444 beside #E52D2D); deriving it keeps that relationship whatever red
-     the player picks -- or whatever colour, if they pick something else entirely. */
-  root.setProperty('--danger-lit', shade(theme.danger, 0.18));
+  /* The icon's face at danger. It used to be a second, brighter red derived from this one;
+     the theme has one red, so the icon and its ring share it and the pulse keeps them apart. */
+  root.setProperty('--danger-lit', theme.danger);
   root.setProperty('--danger-rgb', channels(theme.danger));
 
+  /* Poison is told by its fumes and its throb, not by a hue: the ring takes the chosen tone,
+     the lit heart and the smoke the tone above it, the track stays ink. */
   root.setProperty('--poison', theme.poison);
   root.setProperty('--poison-rgb', channels(theme.poison));
-  root.setProperty('--poison-lit-rgb', channels(shade(theme.poison, 0.22)));
-  root.setProperty('--poison-deep-rgb', channels(shade(theme.poison, -0.4)));
-  root.setProperty('--poison-track', rgba(shade(theme.poison, -0.72), 0.75));
+  root.setProperty('--poison-lit-rgb', channels(lighter(theme.poison, 1)));
+  root.setProperty('--poison-deep-rgb', channels(darker(theme.poison, 2)));
+  root.setProperty('--poison-track', rgba(INK, 0.75));
 
 }
 

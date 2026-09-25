@@ -127,16 +127,16 @@ RegisterCommand('voice', function(_, args)
 
     if n then
         if n < 1 or n > levelCount() then
-            return WHudLocale.notify('voice.help', '#e8c547', 'warning', 4000, { levelCount() })
+            return WHudLocale.notify('voice.help', WHudLocale.DIM, 'warning', 4000, { levelCount() })
         end
         return apply(n)
     end
 
     -- the current level (its name as the title, the counter below) and how to change it
     local current = Levels[voiceLevel] and Levels[voiceLevel].label or 'voice.normal'
-    WHudLocale.notify(current, '#34b895', 'tick', 4000, nil,
+    WHudLocale.notify(current, WHudLocale.PAPER, 'tick', 4000, nil,
         ('%s/%s'):format(tostring(voiceLevel), tostring(levelCount())))
-    WHudLocale.notify('voice.help', '#ffffff', 'rating_star', 4000, { levelCount() })
+    WHudLocale.notify('voice.help', WHudLocale.PAPER, 'rating_star', 4000, { levelCount() })
 end, false)
 
 -- ════════════════════════════════════════════════════════════════════════════

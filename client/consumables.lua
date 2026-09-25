@@ -712,7 +712,7 @@ RegisterNetEvent('w_hud:client:useFinished', function(token, item, target)
     PlaySoundFrontend('Core_Fill_Up', 'Consumption_Sounds', true, 0)
     local notice = entry.pack and 'needs.packOpened' or target == 'horse' and 'needs.horseFed'
         or target == 'animal' and 'needs.animalFed' or 'needs.consumed'
-    WHudLocale.notify(notice, '#34b895', 'mp_anim_eat', 4000, { WHudLocale.itemLabel(item) })
+    WHudLocale.notify(notice, WHudLocale.PAPER, 'mp_anim_eat', 4000, { WHudLocale.itemLabel(item) })
 end)
 
 function IsConsumeBusy() return busy end

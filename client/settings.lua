@@ -192,7 +192,7 @@ local function openMenu()
     -- ⚠️ An admin always gets in, even with player editing switched off -- otherwise
     --    turning it off would lock the person who turned it off out of turning it back on.
     if not WHudIsAdmin and not featureOn('playerPanel') then
-        WHudLocale.notify('settings.locked', '#e8c547', 'lock', 4000)
+        WHudLocale.notify('settings.locked', WHudLocale.DIM, 'lock', 4000)
         return
     end
 

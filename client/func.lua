@@ -37,9 +37,15 @@ function WHudLocale.itemLabel(item)
     return (ok and type(name) == 'string' and name ~= '') and name or tostring(item)
 end
 
---- The bare centred notice this HUD uses for its own messages (no plate, a colour per
---- meaning). `title` is a dictionary key (formatted with `args` when given) or an already
---- translated string; `description` is shown as it is (numbers, a level counter).
+--- The theme's two text tones (w_lib/nui/theme): paper, and paper-dim for a warning.
+WHudLocale.PAPER, WHudLocale.DIM = '#EDE6D6', '#B9AF9C'
+
+--- The bare centred notice this HUD uses for its own messages (no plate). White and black like
+--- Red Dead: the kind of notice is said by its icon (tick, cross, warning, lock), never by a
+--- hue. `color` is still accepted -- older callers and the server's notices pass one -- and is
+--- read only as light or dim: WHudLocale.DIM stays dim, anything else is drawn in paper.
+--- `title` is a dictionary key (formatted with `args` when given) or an already translated
+--- string; `description` is shown as it is (numbers, a level counter).
 ---@param title string
 ---@param color? string
 ---@param icon? string
@@ -53,11 +59,13 @@ function WHudLocale.notify(title, color, icon, duration, args, description)
         and locale(title, table.unpack(args))
         or locale(title)
 
+    local tone = (type(color) == 'string' and color:upper() == WHudLocale.DIM) and WHudLocale.DIM or WHudLocale.PAPER
+
     w.notify({
         title = text, description = description or '', icon = icon or 'tick',
         placement = 'middle-right', duration = duration or 5000, useBackground = false,
         contentAlignment = 'center', isRTL = WHudLocale.rtl(),
-        titleColor = color or '#34b895', descriptionColor = 'rgba(255,255,255,0.8)',
+        titleColor = tone, descriptionColor = WHudLocale.DIM,
     })
 end
 

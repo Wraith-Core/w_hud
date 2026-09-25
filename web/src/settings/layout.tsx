@@ -36,6 +36,7 @@ import {
   type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode,
 } from 'react';
 import { WIDGET_BY_ID, type HudSettings, type WidgetCfg, type WidgetId } from './types';
+import { toTone } from './palette';
 import { useI18n } from '../i18n';
 
 /* ── how close two edges must be, in screen pixels, before they snap together ── */
@@ -168,7 +169,8 @@ export function HudWidget({ id, children, className, override }: WidgetProps) {
     opacity: hidden ? undefined : cfg.opacity,
   };
 
-  if (cfg.color) (style as Record<string, string>)['--w-color'] = cfg.color;
+  /* Drawn as the nearest ink/paper tone: a colour saved by an older build stays saved. */
+  if (cfg.color) (style as Record<string, string>)['--w-color'] = toTone(cfg.color);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!editing) return;

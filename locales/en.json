@@ -624,11 +624,8 @@
     },
     "preset": {
       "stock": "Stock",
-      "gold": "Gold",
-      "blood": "Blood",
-      "sage": "Sage",
-      "frost": "Frost",
-      "amethyst": "Amethyst"
+      "bright": "Bright",
+      "ash": "Ash"
     },
     "theme": {
       "accent": "Accent",
@@ -642,7 +639,7 @@
       "danger": "Danger",
       "dangerHint": "Ring and icon at the danger line",
       "poison": "Poison",
-      "poisonHint": "The green heart and its fumes"
+      "poisonHint": "The heart's ring while its fumes rise"
     },
     "feature": {
       "health": "Health circle",

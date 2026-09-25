@@ -559,7 +559,7 @@ CreateThread(function()
                 if bleed() then
                     hungerTicks = hungerTicks + 1
                     if hungerTicks % NOTIFY_EVERY == 1 then
-                        needWarning('notify.hungry', 'mp_anim_eat', '#ff6b6b')
+                        needWarning('notify.hungry', 'mp_anim_eat', WHudLocale.PAPER)
                     end
                 end
             else
@@ -570,7 +570,7 @@ CreateThread(function()
                 if bleed() then
                     thirstTicks = thirstTicks + 1
                     if thirstTicks % NOTIFY_EVERY == 1 then
-                        needWarning('notify.thirsty', 'awards_set_g_013', '#4dabf7')
+                        needWarning('notify.thirsty', 'awards_set_g_013', WHudLocale.PAPER)
                     end
                 end
             else
