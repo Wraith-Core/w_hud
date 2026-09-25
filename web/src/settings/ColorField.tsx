@@ -126,7 +126,7 @@ export function ColorField({ value, onChange, inherit, title, red = false }: Pro
         onClick={toggle}
         title={title}
       >
-        <span>{inherit?.active ? inherit.label : shown}</span>
+        {inherit?.active ? <span>{inherit.label}</span> : <span dir="ltr">{shown}</span>}
       </button>
 
       {/* ★ Portalled to <body>, not left where it was written.

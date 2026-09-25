@@ -128,8 +128,8 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    ★ The wheel's dialog language (w_wheel .ww-picker-modal): the plate is RDR's help_text_bg
      tinted through a mask -- a brushed ink block with rough edges, never a CSS box -- and
      the rows inside are right-aligned figures in RDR Catalogue with one-colour icons.
-     A divider_line rule sets the cash apart from the three balances; the gold row takes
-     the wraith gold, the dirty money a muted red, everything else the HUD's white.
+     A divider_line rule sets the cash apart from the three balances; every figure is paper
+     and the dirty money paper-dim -- the icons say which purse is which, never a hue.
    ═══════════════════════════════════════════════════════════════════════════ */
 .plate {
   position: relative; isolation: isolate;
