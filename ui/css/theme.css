@@ -18,12 +18,12 @@
 @font-face { font-family: 'Tajawal'; src: url('../fonts/tajawal-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; unicode-range: U+0000-00FF; }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   1) redefining the colour variables -> the w_crafting palette (cream/black/red)
+   1) redefining the colour variables -> the w_crafting palette (white/black/red)
    This alone recolours every bar, border, icon, the compass, the temperature and the mic.
    ════════════════════════════════════════════════════════════════════════════ */
 :root {
   /* the w_crafting palette */
-  --wc-text:   #F2F2F2;   /* warm cream (RDR) */
+  --wc-text:   #F2F2F2;   /* paper: a neutral white (RDR) */
   --wc-panel:  #0B0B0B;   /* w_crafting black */
   --wc-red:    #CB0101;   /* red -- for negatives only */
   --wc-line:   rgba(242, 242, 242, 0.20);
@@ -34,7 +34,7 @@
   --inventory-accent: var(--wc-text);
   --inventory-border: var(--wc-line);
   --main-color:       var(--wc-text);
-  --server-color:     var(--wc-text);          /* the accent colour (fills/icons) -> cream */
+  --server-color:     var(--wc-text);          /* the accent colour (fills/icons) -> paper */
   --engine-off:       #050505;
   --micOff:           rgba(11, 11, 10, 0.72);
   --dy-border:        var(--wc-text);
@@ -72,7 +72,7 @@
   background-image: none !important;
 }
 
-/* A w_crafting touch: a faint cream glow instead of green on the squares */
+/* A w_crafting touch: a faint paper glow instead of green on the squares */
 .player-Hud,
 .player-HudNumber,
 .compDiv,
@@ -101,7 +101,7 @@ body,
   letter-spacing: .02em;
 }
 
-/* Money and status icons in one unified cream */
+/* Money and status icons in one unified paper white */
 .infoDiv-icon i,
 #infoDiv-cashicon i,
 #infoDiv-Goldicon i { color: var(--wc-text) !important; }
