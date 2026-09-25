@@ -127,4 +127,4 @@ export function luminance(hex: string): number {
 }
 
 /* The theme's ink and paper (w_lib/nui/theme), never pure black or white. */
-export const readableInk = (hex: string): string => (luminance(hex) > 0.3 ? '#0B0A08' : '#EDE6D6')
+export const readableInk = (hex: string): string => (luminance(hex) > 0.3 ? '#0A0A0A' : '#F2F2F2')

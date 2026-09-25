@@ -13,7 +13,7 @@ local function count(src, item)
     return exports.w_lib:InvGetItemCount(src, item) or 0
 end
 local function notify(src, reason)
-    WNeeds.notify(src, reason or 'needs.useFailed', '#EDE6D6', 'cross', 4000)
+    WNeeds.notify(src, reason or 'needs.useFailed', '#F2F2F2', 'cross', 4000)
 end
 local function finish(src, p, effects, reason)
     if pending[src] ~= p then return end

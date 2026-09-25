@@ -45,31 +45,31 @@ Config.Buffs = {
         label  = 'buff.health',
         drain  = 2,   -- how much the buff decays each tick
         amount = 10,  -- how much health is added each tick (RDR scale)
-        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
+        color  = '#F2F2F2', -- paper: the chip is told by its word, not a hue
     },
     cowboy = { -- horse stamina (moonshine)
         label  = 'buff.cowboy',
         drain  = 1,
         amount = 1000.0, -- how much stamina is added to the last horse ridden
-        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
+        color  = '#F2F2F2', -- paper: the chip is told by its word, not a hue
     },
     vegan = { -- hunger and thirst regeneration (stew/vegetables)
         label  = 'buff.vegan',
         drain  = 1,
         amount = 2,   -- added to hunger and thirst alike each tick
-        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
+        color  = '#F2F2F2', -- paper: the chip is told by its word, not a hue
     },
     energy = { -- player stamina regeneration (coffee/sugar)
         label  = 'buff.energy',
         drain  = 1,
         amount = 5,   -- the inner stamina core (0-100)
-        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
+        color  = '#F2F2F2', -- paper: the chip is told by its word, not a hue
     },
     vigor = { -- inner health-core regeneration (roasted meat)
         label  = 'buff.vigor',
         drain  = 1,
         amount = 3,
-        color  = '#EDE6D6', -- paper: the chip is told by its word, not a hue
+        color  = '#F2F2F2', -- paper: the chip is told by its word, not a hue
     },
 }
 

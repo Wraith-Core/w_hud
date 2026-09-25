@@ -153,7 +153,7 @@ local function sendDisplay()
         if type(cfg) == 'table' and cfg.label then
             buffMeta[kind] = {
                 label = locale(cfg.label), -- a dictionary key (buff.<kind>)
-                color = cfg.color or '#EDE6D6', -- still sent; the chip is drawn in paper whatever it says (App.tsx BuffRow)
+                color = cfg.color or '#F2F2F2', -- still sent; the chip is drawn in paper whatever it says (App.tsx BuffRow)
             }
         end
     end

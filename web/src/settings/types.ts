@@ -397,22 +397,31 @@ export function homeX(meta: WidgetMeta, a = aspect()): number {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 export const DEFAULT_THEME: Theme = {
-  accent: '#EDE6D6',   /* paper */
-  text:   '#EDE6D6',   /* paper */
-  dim:    '#B9AF9C',   /* paper-dim */
-  warn:   '#B9AF9C',   /* paper-dim: the core dims as it runs down */
+  accent: '#F2F2F2',   /* paper */
+  text:   '#F2F2F2',   /* paper */
+  dim:    '#B4B4B4',   /* paper-dim */
+  warn:   '#B4B4B4',   /* paper-dim: the core dims as it runs down */
   danger: '#CB0101',   /* the theme's red: the mark */
-  poison: '#7D7466',   /* paper-faint, with the fumes */
+  poison: '#7A7A7A',   /* paper-faint, with the fumes */
 };
 
-/* ★ The stock palettes of earlier builds: pure white on neutral grey, and then the theme's
-   paper with a yellow warning and a green poison. A save that still holds exactly one of these
-   never chose it: the whole default travels back with any layout the player saved. It is read
-   as today's stock, so a player who never touched the colours follows the theme; any palette
-   they did choose, even one field of it, is kept as it is (and drawn clamped, see palette.ts). */
+/* ★ The stock palettes of earlier builds: pure white on neutral grey, then the theme's warm
+   (cream) paper with a yellow warning and a green poison, then that warm paper alone. A save that
+   still holds exactly one of these never chose it: the whole default travels back with any layout
+   the player saved. It is read as today's stock, so a player who never touched the colours
+   follows the theme; any palette they did choose, even one field of it, is kept as it is (and
+   drawn clamped, see palette.ts).
+
+   ⚠️ Saved data, not paint: these are matched against what players have stored, so they stay
+   exactly as those builds wrote them. They are written without their '#' so that a colour sweep
+   over the sources (such as the warm -> neutral pass) cannot "fix" them and break the match. */
+const oldStock = (accent: string, text: string, dim: string, warn: string, danger: string, poison: string): Theme => ({
+  accent: '#' + accent, text: '#' + text, dim: '#' + dim, warn: '#' + warn, danger: '#' + danger, poison: '#' + poison,
+});
 const OLD_STOCKS: Theme[] = [
-  { accent: '#FFFFFF', text: '#F5F5F5', dim: '#BFBFBF', warn: '#E8C547', danger: '#E52D2D', poison: '#5AB054' },
-  { accent: '#EDE6D6', text: '#EDE6D6', dim: '#B9AF9C', warn: '#E8C547', danger: '#CB0101', poison: '#5AB054' },
+  oldStock('FFFFFF', 'F5F5F5', 'BFBFBF', 'E8C547', 'E52D2D', '5AB054'),
+  oldStock('EDE6D6', 'EDE6D6', 'B9AF9C', 'E8C547', 'CB0101', '5AB054'),
+  oldStock('EDE6D6', 'EDE6D6', 'B9AF9C', 'B9AF9C', 'CB0101', '7D7466'),
 ];
 
 export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true };
@@ -479,9 +488,9 @@ export interface ThemePreset { id: string; label: string; theme: Theme }
 export const THEME_PRESETS: ThemePreset[] = [
   { id: 'stock', label: 'preset.stock', theme: { ...DEFAULT_THEME } },
   { id: 'bright', label: 'preset.bright',
-    theme: { accent: '#F6F1E6', text: '#F6F1E6', dim: '#EDE6D6', warn: '#B9AF9C', danger: '#CB0101', poison: '#7D7466' } },
+    theme: { accent: '#FFFFFF', text: '#FFFFFF', dim: '#F2F2F2', warn: '#B4B4B4', danger: '#CB0101', poison: '#7A7A7A' } },
   { id: 'ash', label: 'preset.ash',
-    theme: { accent: '#B9AF9C', text: '#EDE6D6', dim: '#7D7466', warn: '#7D7466', danger: '#CB0101', poison: '#7D7466' } },
+    theme: { accent: '#B4B4B4', text: '#F2F2F2', dim: '#7A7A7A', warn: '#7A7A7A', danger: '#CB0101', poison: '#7A7A7A' } },
 ];
 
 /** `label` and `hint` are dictionary keys (ui.theme.<key>, ui.theme.<key>Hint). */
@@ -572,7 +581,7 @@ function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>): Record<Wi
     cfg.opacity = num(w.opacity, 1, 0.15, 1);
     cfg.show = bool(w.show, true);
     cfg.locked = bool(w.locked, false);
-    cfg.color = w.color == null ? null : normHex(w.color, '#EDE6D6');
+    cfg.color = w.color == null ? null : normHex(w.color, '#F2F2F2');
     cfg.visibility = pick(w.visibility, VISIBILITY, 'auto');
     cfg.showBelow = num(w.showBelow, 50, 1, 100);
     cfg.warn = w.warn == null ? null : num(w.warn, 40, 1, 100);

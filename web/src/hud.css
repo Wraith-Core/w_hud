@@ -10,12 +10,12 @@
   /* The Wraith theme on the game (w_lib/nui/theme, the loading screen and the pause menu): paper
      on the world, never #fff. These are the stock values; the player's palette (settings/theme.ts)
      writes over them, and the stock palette in settings/types.ts is this one. */
-  --gold-1: #EDE6D6;   /* paper (--w-paper) */
-  --gold-2: #B9AF9C;   /* paper-dim: one tone down (theme.ts: darker(accent, 1)) */
-  --gold-3: #7D7466;   /* paper-faint: two tones down (darker(accent, 2)) */
-  --cream:  #EDE6D6;   /* text: paper */
-  --dim:    #B9AF9C;   /* labels: paper-dim */
-  --line:   rgba(237, 230, 214, 0.28);
+  --gold-1: #F2F2F2;   /* paper (--w-paper) */
+  --gold-2: #B4B4B4;   /* paper-dim: one tone down (theme.ts: darker(accent, 1)) */
+  --gold-3: #7A7A7A;   /* paper-faint: two tones down (darker(accent, 2)) */
+  --cream:  #F2F2F2;   /* text: paper */
+  --dim:    #B4B4B4;   /* labels: paper-dim */
+  --line:   rgba(242, 242, 242, 0.28);
   /* faces by role, from the theme's tokens (they follow <html dir>) */
   --f-title: var(--w-f-display);  /* the server's name: RDR Lino / Lalezar */
   --f-label: var(--w-f-label);    /* captions, the compass, the place, the effects: Hapna Slab caps / Tajawal */
@@ -25,7 +25,7 @@
   /* ★ لون التسمُّم — لونٌ واحدٌ يحمله متغيّر: حلقة القلب تأخذه، والقلب والدخان
      درجةً أفتح منه، فتغييره سطرٌ واحدٌ لا خمسة. والهود أبيض وأسود كهود ريد ديد:
      فهو ورقٌ خافت (paper-faint)، والسمّ يُقرأ بدخانه ونبضه لا بلونه. */
-  --poison: #7D7466;
+  --poison: #7A7A7A;
 
   /* ── the state colours ──────────────────────────────────────────────────────
      ★ These used to be written into the rules themselves (a yellow for the warning, two
@@ -38,17 +38,17 @@
         the same hue at a dozen different alphas, and rgba() cannot take a hex -- so the
         channels are what every rgba() in this file is built from, and settings/theme.ts
         writes both from one chosen colour. */
-  --warn: #B9AF9C;        /* paper-dim: the core dims as it runs down */
-  --warn-rgb: 185, 175, 156;
+  --warn: #B4B4B4;        /* paper-dim: the core dims as it runs down */
+  --warn-rgb: 180, 180, 180;
 
   --danger: #CB0101;      /* the theme's red: a mark, the alarm */
   --danger-lit: #CB0101;  /* the same red (theme.ts): the theme has one */
   --danger-rgb: 203, 1, 1;
 
-  --poison-rgb: 125, 116, 102;       /* paper-faint */
-  --poison-lit-rgb: 185, 175, 156;   /* paper-dim: the heart and the smoke */
-  --poison-deep-rgb: 39, 35, 28;     /* ink-4: where the smoke thins out */
-  --poison-track: rgba(11, 10, 8, 0.75);
+  --poison-rgb: 122, 122, 122;       /* paper-faint */
+  --poison-lit-rgb: 180, 180, 180;   /* paper-dim: the heart and the smoke */
+  --poison-deep-rgb: 34, 34, 34;     /* ink-4: where the smoke thins out */
+  --poison-track: rgba(10, 10, 10, 0.75);
 
   /* ── the shape of the circles ────────────────────────────────────────────
      The stock weights, so the HUD draws correctly before the player's settings
@@ -92,7 +92,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   color: var(--cream); text-transform: uppercase; text-shadow: 0 0.15rem 0.5rem rgba(0,0,0,0.9);
 }
 .ti-server .dot { width: 1.7rem; height: 1.7rem; border-radius: 50%; border: 0.16rem solid var(--gold-2);
-  background: radial-gradient(circle at 35% 30%, var(--gold-1), rgba(237, 230, 214, 0) 60%); }
+  background: radial-gradient(circle at 35% 30%, var(--gold-1), rgba(242, 242, 242, 0) 60%); }
 /* A stack of rows, right-aligned -- the wallet and the identity each use one. */
 .ti-stack {
   display: flex; flex-direction: column; align-items: flex-end;
@@ -113,7 +113,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .ti-ic.currency { width: 3.15rem; height: 3.15rem; }
 /* Currency icon colours */
 .ti-ic.token, .ti-ic.gold, .ti-ic.cash, .ti-ic.dirty {
-  filter: drop-shadow(0 0.14rem 0.42rem rgba(0,0,0,1)) drop-shadow(0 0 0.14rem rgba(237,230,214,0.22));
+  filter: drop-shadow(0 0.14rem 0.42rem rgba(0,0,0,1)) drop-shadow(0 0 0.14rem rgba(242,242,242,0.22));
 }
 /* The bank is drawn, not photographed: an SVG fills its box edge to edge while the
    currency PNGs carry their own padding, so an equal box would print it larger than
@@ -166,7 +166,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .plate-ic.is-medal { width: 3rem; height: 3rem; }
 .plate-rule {
   display: block; width: 100%; height: 0.32rem; margin: 0.1rem 0 0.25rem;
-  background-color: rgba(237, 230, 214, 0.55);
+  background-color: rgba(242, 242, 242, 0.55);
   -webkit-mask: var(--tex-divider_line) center / 100% 100% no-repeat; mask: var(--tex-divider_line) center / 100% 100% no-repeat;
 }
 /* ★ One ink: the figures are paper and the icons say which purse is which (no gold coin, no
@@ -195,7 +195,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .horse-panel { display: flex; align-items: center; gap: 0.9rem; padding-bottom: 0.7rem;
   border-bottom: 0.1rem solid var(--line); animation: fadeUp 0.3s var(--ease) both; }
 .horse-badge { width: 4rem; height: 4rem; border-radius: 50%; flex-shrink: 0; border: 0.16rem solid var(--gold-2);
-  background: radial-gradient(circle at 50% 36%, rgba(29,26,21,0.92), rgba(11,10,8,0.96)); display: flex; align-items: center; justify-content: center; }
+  background: radial-gradient(circle at 50% 36%, rgba(25,25,25,0.92), rgba(10,10,10,0.96)); display: flex; align-items: center; justify-content: center; }
 .horse-badge svg { width: 2.5rem; height: 2.5rem; color: var(--gold-1); }
 .horse-bars { display: flex; flex-direction: column; gap: 0.45rem; min-width: 15rem; }
 .hb-row { display: flex; flex-direction: column; gap: 0.22rem; }
@@ -207,7 +207,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .bar-fill {
   height: 100%; border-radius: 0.1rem;
   background-image: linear-gradient(90deg, var(--gold-3), var(--gold-2) 45%, var(--gold-1));
-  box-shadow: 0 0 0.4rem rgba(237,230,214,0.25); transition: width 0.35s var(--ease);
+  box-shadow: 0 0 0.4rem rgba(242,242,242,0.25); transition: width 0.35s var(--ease);
 }
 .bar-fill.low { background-image: linear-gradient(90deg, rgba(var(--danger-rgb),0.55), var(--danger)); box-shadow: 0 0 0.5rem rgba(var(--danger-rgb),0.5); }
 
@@ -223,14 +223,14 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 /* A neutral black disc inside each circle (behind the icon) -- no brown */
 .gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 74%; height: 74%; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 36%, #1D1A15, #0B0A08 72%);
-  border: 0.09rem solid rgba(237,230,214,0.16);
+  background: radial-gradient(circle at 50% 36%, #191919, #0A0A0A 72%);
+  border: 0.09rem solid rgba(242,242,242,0.16);
   box-shadow: inset 0 0 0.9rem rgba(0,0,0,0.95), 0 0 0.3rem rgba(0,0,0,0.6); }
 .gauge-center svg { width: 2.7rem; height: 2.7rem; color: var(--cream); filter: drop-shadow(0 0.1rem 0.25rem rgba(0,0,0,0.9)); transform-origin: center; }
 /* The heart: steady at 100%, white and pulsing after damage, fast red near empty. */
 .gauge-center.beat:not(.low) svg {
   animation: heartbeat 1.35s ease-in-out infinite;
-  filter: drop-shadow(0 0.1rem 0.24rem rgba(0,0,0,0.95)) drop-shadow(0 0 0.48rem rgba(237,230,214,0.88));
+  filter: drop-shadow(0 0.1rem 0.24rem rgba(0,0,0,0.95)) drop-shadow(0 0 0.48rem rgba(242,242,242,0.88));
 }
 .gauge-center.low svg {
   color: var(--danger-lit);
@@ -259,7 +259,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .voice.active .voice-mic svg { color: var(--gold-1); }
 .voice-bars { display: flex; align-items: flex-end; gap: 0.28rem; height: 3rem;
   filter: drop-shadow(0 0.1rem 0.3rem rgba(0,0,0,0.9)); }
-.voice-bar { width: 0.5rem; border-radius: 0.15rem; background: rgba(237,230,214,0.2); transition: background 0.15s; }
+.voice-bar { width: 0.5rem; border-radius: 0.15rem; background: rgba(242,242,242,0.2); transition: background 0.15s; }
 .voice-bar.lit { background: var(--dim); }
 .voice.active .voice-bar.on { background: var(--gold-1); animation: vpulse 0.5s ease-in-out infinite alternate; }
 @keyframes vpulse { from { opacity: 0.6; } to { opacity: 1; } }
@@ -294,15 +294,15 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   border: 0.16rem dashed var(--line);
   border-radius: 0.2rem;
   background: repeating-linear-gradient(45deg,
-    rgba(237, 230, 214, 0.06) 0 0.8rem,
-    rgba(237, 230, 214, 0) 0.8rem 1.6rem);
+    rgba(242, 242, 242, 0.06) 0 0.8rem,
+    rgba(242, 242, 242, 0) 0.8rem 1.6rem);
 }
 /* A link that failed: the red is the mark (its outline), never a fill. */
 .hud-media-ph.is-bad {
   border-color: rgba(var(--danger-rgb), 0.75);
   background: repeating-linear-gradient(-45deg,
-    rgba(237, 230, 214, 0.1) 0 0.8rem,
-    rgba(237, 230, 214, 0) 0.8rem 1.6rem);
+    rgba(242, 242, 242, 0.1) 0 0.8rem,
+    rgba(242, 242, 242, 0) 0.8rem 1.6rem);
 }
 
 /* ══════════════════ top-centre: the compass + the location ══════════════════ */
@@ -383,7 +383,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .ammo-offhand {
   position: absolute; right: -0.2rem; bottom: -0.9rem;
   width: 1.15rem; height: 1.15rem; border-radius: 50%;
-  background: var(--gold-2); box-shadow: 0 0 0 0.16rem rgba(11,10,8,0.85), 0 0.15rem 0.4rem rgba(0,0,0,0.9);
+  background: var(--gold-2); box-shadow: 0 0 0 0.16rem rgba(10,10,10,0.85), 0 0.15rem 0.4rem rgba(0,0,0,0.9);
 }
 
 /* The active weapon is slightly clearer than its companion */
@@ -396,7 +396,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   padding-bottom: 0.6rem; animation: fadeUp 0.35s var(--ease) both; }
 .buff-chip { display: flex; align-items: center; gap: 0.55rem;
   padding: 0.35rem 0.75rem 0.35rem 0.5rem; min-width: 9.5rem;
-  background: linear-gradient(180deg, rgba(21,19,15,0.9), rgba(11,10,8,0.94));
+  background: linear-gradient(180deg, rgba(17,17,17,0.9), rgba(10,10,10,0.94));
   border: 0.09rem solid var(--line); border-left-width: 0.28rem; border-radius: 0.16rem;
   box-shadow: 0 0.15rem 0.5rem rgba(0,0,0,0.7); }
 .buff-ic { display: block; width: 1.9rem; height: 1.9rem; flex-shrink: 0; }
@@ -411,10 +411,10 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .buff-fill { display: block; height: 100%; transition: width 0.4s var(--ease); }
 /* the theme: a buff is told by its word and glyph, not by a hue, so the colour Config.Buffs sends
    (still sent, still in the message) is not drawn; paper edge, paper glyph, paper fill, no glow */
-.buff-chip { border-color: var(--line) !important; border-left-color: var(--w-paper, #EDE6D6) !important; }
-.buff-ic { color: var(--w-paper, #EDE6D6) !important; }
+.buff-chip { border-color: var(--line) !important; border-left-color: var(--w-paper, #F2F2F2) !important; }
+.buff-ic { color: var(--w-paper, #F2F2F2) !important; }
 .buff-ic svg { filter: drop-shadow(0 0.1rem 0.2rem rgba(0,0,0,0.9)); }
-.buff-fill { background: var(--w-paper, #EDE6D6) !important; }
+.buff-fill { background: var(--w-paper, #F2F2F2) !important; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    The status panel -- the same visual language as w_crafting
@@ -437,10 +437,10 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
      light on light drives brightness to its maximum. The correct choice:
        the light fill  <- multiply : can never brighten, leaves only dark grain.
        the dark plate  <- soft-light: reveals the grain gently without whitening. */
-  /* ★ The theme's ink and paper (w_lib/nui/theme): a warm black, not brown (#16120E was wood),
-     and aged paper, not a cold white -- the loading screen's and the pause menu's pair. */
-  --plate-dark: #0B0A08;   /* ink */
-  --plate-lite: #EDE6D6;   /* paper */
+  /* ★ The theme's ink and paper (w_lib/nui/theme): a neutral black and a neutral white, as the
+     launcher and the original Red Dead menus -- no brown, no cream (both used to be tinted warm). */
+  --plate-dark: #0A0A0A;   /* ink */
+  --plate-lite: #F2F2F2;   /* paper */
 }
 
 .status-panel {
@@ -473,7 +473,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   background-image: var(--tex-panel);
   background-size: cover;
   background-blend-mode: soft-light;
-  box-shadow: inset 0 0 0 0.1rem rgba(237,230,214,0.16),
+  box-shadow: inset 0 0 0 0.1rem rgba(242,242,242,0.16),
               0 0.14rem 0.5rem rgba(0,0,0,0.8);
 }
 .sbar-fill {
@@ -505,7 +505,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   background-image: var(--tex-panel);
   background-size: cover;
   background-blend-mode: soft-light;
-  box-shadow: inset 0 0 0 0.1rem rgba(237,230,214,0.16),
+  box-shadow: inset 0 0 0 0.1rem rgba(242,242,242,0.16),
               0 0.14rem 0.5rem rgba(0,0,0,0.8);
   /* ★ Confines mix-blend-mode for the icon to inside the tile -- without isolation it blends
      with everything behind the whole HUD and its colour becomes random with the scene. */
@@ -551,8 +551,8 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 /* While speaking the icon is lit paper with a halo -- no hue, the ripple says it. The blend is
    switched off so the halo reads at any fill, with a dark stroke for contrast. */
 .voice-tile.on .stile-ic svg {
-  mix-blend-mode: normal; color: #F6F1E6;
-  filter: drop-shadow(0 0 0.36rem rgba(237,230,214,0.85))
+  mix-blend-mode: normal; color: #FFFFFF;
+  filter: drop-shadow(0 0 0.36rem rgba(242,242,242,0.85))
           drop-shadow(0 0 0.12rem rgba(0,0,0,0.9));
 }
 .voice-tile.on .wv { animation: wvPulse 1s ease-in-out infinite; }
@@ -670,7 +670,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    And the difference in opacity (0.5 against 1) is what keeps the fill level readable:
    were they equal the icon would be one solid mass showing no loss. */
 .core .core-ic-dim svg,
-.core .core-ic-dim .tex-ic { color: rgba(237, 230, 214, 0.22); filter: none; }
+.core .core-ic-dim .tex-ic { color: rgba(242, 242, 242, 0.22); filter: none; }
 .core.warn   .core-ic-dim svg,
 .core.warn   .core-ic-dim .tex-ic { color: rgba(var(--warn-rgb), 0.3); }
 .core.danger .core-ic-dim svg,
@@ -705,8 +705,8 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .voice-core .wv { opacity: 0.85; transform-origin: 20% 50%; }
 .voice-core.on .core-disc::before { background-color: var(--cream); background-blend-mode: multiply; opacity: 1;
   box-shadow: inset 0 0 0.5rem rgba(0,0,0,0.35); }
-.voice-core.on .core-ic svg { color: #0B0A08; filter: none; }
-.voice-core.on .core-ic-dim svg { color: rgba(11,10,8,0.2); }
+.voice-core.on .core-ic svg { color: #0A0A0A; filter: none; }
+.voice-core.on .core-ic-dim svg { color: rgba(10,10,10,0.2); }
 .voice-core.on .wv { animation: wvPulse 1s ease-in-out infinite; }
 .voice-core.on .wv-2 { animation-delay: 0.14s; }
 .voice-core.on .wv-3 { animation-delay: 0.28s; }
@@ -735,9 +735,9 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    ════════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --gild:     #F6F1E6;   /* RDR's overpower, in paper-lit */
-  --gild-lit: #F6F1E6;
-  --gild-rgb: 246, 241, 230;
+  --gild:     #FFFFFF;   /* RDR's overpower, in paper-lit */
+  --gild-lit: #FFFFFF;
+  --gild-rgb: 255, 255, 255;
 }
 
 /* The ring: lit paper with a halo, so it reads as fortified rather than merely drawn */
@@ -747,7 +747,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 }
 
 /* And the track under it lights faintly: the whole circle is fortified, not just the part left */
-.core.gold-ring .core-track { stroke: rgba(237, 230, 214, 0.24); }
+.core.gold-ring .core-track { stroke: rgba(242, 242, 242, 0.24); }
 
 /* The icon: only when the inner is gilded too. The lit layer takes the gold and the dim
    layer takes it faintly -- the same two-layer arrangement as every other state. */

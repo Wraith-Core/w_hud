@@ -10,8 +10,8 @@ function diag(msg: string, ok: boolean) {
   if (!d) return;
   d.textContent = msg;
   // the theme's paper; a failure is told by the red mark on the edge, never by red text
-  (d as HTMLElement).style.color = '#EDE6D6';
-  (d as HTMLElement).style.borderColor = ok ? 'rgba(237,230,214,0.32)' : '#CB0101';
+  (d as HTMLElement).style.color = '#F2F2F2';
+  (d as HTMLElement).style.borderColor = ok ? 'rgba(242,242,242,0.32)' : '#CB0101';
 }
 
 // -- the faces are the Wraith theme's (w_lib/nui/theme/fonts.css, pulled in by the store-theme.css link in

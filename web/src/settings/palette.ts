@@ -17,20 +17,20 @@ import { hexToHsv, hexToRgb, normHex } from './color';
 
 /** Lightest first. The HUD's picker offers exactly these (and RED on the danger field). */
 export const TONES = [
-  '#F6F1E6', // paper-lit
-  '#EDE6D6', // paper
-  '#B9AF9C', // paper-dim
-  '#7D7466', // paper-faint
-  '#38322A', // ink-5
-  '#27231C', // ink-4
-  '#15130F', // ink-2
-  '#0B0A08', // ink
+  '#FFFFFF', // paper-lit
+  '#F2F2F2', // paper
+  '#B4B4B4', // paper-dim
+  '#7A7A7A', // paper-faint
+  '#333333', // ink-5
+  '#222222', // ink-4
+  '#111111', // ink-2
+  '#0A0A0A', // ink
 ] as const;
 
-export const PAPER = '#EDE6D6';
-export const PAPER_DIM = '#B9AF9C';
-export const PAPER_FAINT = '#7D7466';
-export const INK = '#0B0A08';
+export const PAPER = '#F2F2F2';
+export const PAPER_DIM = '#B4B4B4';
+export const PAPER_FAINT = '#7A7A7A';
+export const INK = '#0A0A0A';
 /** The mark: danger only. */
 export const RED = '#CB0101';
 

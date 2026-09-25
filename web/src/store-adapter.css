@@ -18,7 +18,7 @@
 .hs-root .hs-chip-btn.is-sel,.hs-root .hs-chip-btn.is-sel span { color:var(--w-ink)!important; }
 /* a section's name is the kicker (the label role), not a title */
 .hs-section-title { font-family:var(--w-f-label);color:var(--w-paper-dim); }
-.hs-foot { background:rgba(11,10,8,.35); }
+.hs-foot { background:rgba(10,10,10,.35); }
 .hs-root .hs-close { flex:none; }
 /* the label role everywhere in the panel; the theme's tokens switch it to Tajawal under dir=rtl */
 .hs-root { font-family:var(--w-f-label); }

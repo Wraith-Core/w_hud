@@ -124,7 +124,7 @@ local FEED_ADMIN_ONLY = true -- set false to open it to everyone (not advised on
 local function feedReply(src, key, description)
     if src == 0 then return print(('[w_hud] %s %s'):format(locale(key), description or '')) end
 
-    WNeeds.notify(src, key, '#EDE6D6', 'awards_set_g_013', 4000, nil, description)
+    WNeeds.notify(src, key, '#F2F2F2', 'awards_set_g_013', 4000, nil, description)
 end
 
 local FEED_SCALE = 100 -- the needs scale (server/metabolism.lua: Scale)

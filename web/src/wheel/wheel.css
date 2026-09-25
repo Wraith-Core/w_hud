@@ -41,9 +41,9 @@
   --ww-plate: var(--w-ink-3);
   --ww-red: var(--w-red);
   --ww-red-soft: var(--w-red-soft);
-  --ww-hover: rgba(237, 230, 214, 0.12);
+  --ww-hover: rgba(242, 242, 242, 0.12);
   --ww-accent: var(--w-paper);
-  --ww-glow: rgba(237, 230, 214, 0.06);
+  --ww-glow: rgba(242, 242, 242, 0.06);
 
   /* the marks that used to be gold are paper; the names stay so the rules below read the same */
   --ww-gold: var(--w-paper);
@@ -52,7 +52,7 @@
 
   --ww-glass:
     radial-gradient(85% 40% at 50% 0%, var(--ww-glow), rgba(0, 0, 0, 0) 72%),
-    radial-gradient(130% 90% at 50% 0%, rgba(29, 26, 21, 0.97) 0%, rgba(21, 19, 15, 0.98) 42%, rgba(11, 10, 8, 0.99) 100%);
+    radial-gradient(130% 90% at 50% 0%, rgba(25, 25, 25, 0.97) 0%, rgba(17, 17, 17, 0.98) 42%, rgba(10, 10, 10, 0.99) 100%);
 
   /* faces by role, from the Wraith theme (w_lib/nui/theme, @imported by the store-theme.css link) */
   --ww-f-display: var(--w-f-title);
@@ -130,8 +130,8 @@
   height: clamp(5px, 0.8vh, 8px);
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(237, 230, 214, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(237, 230, 214, 0.12);
+  background: rgba(242, 242, 242, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.12);
 }
 
 .ww-bar-fill {
@@ -143,7 +143,7 @@
   transition: width 0.25s linear;
 }
 
-.ww-bar-fill.is-bright { background: linear-gradient(180deg, #EDE6D6, #B9AF9C); }
+.ww-bar-fill.is-bright { background: linear-gradient(180deg, #F2F2F2, #B4B4B4); }
 .ww-bar.muted .ww-bar-fill { display: none; }
 
 /* ═══════════════ the header: R + the tabs ═══════════════ */
@@ -192,7 +192,7 @@
   line-height: 1;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  /* ★ It used to be --ww-text-faint (#7D7466) over a bright daylit scene -- unreadable.
+  /* ★ It used to be --ww-text-faint (#7A7A7A) over a bright daylit scene -- unreadable.
      And an inactive tab is an offered choice, not disabled text. */
   color: var(--ww-text-dim);
   text-shadow: 0 2px 10px #000, 0 0 22px #000;
@@ -209,8 +209,8 @@
 
 /* Active is plain white with a faint gold glow -- the colour separates it before the underline does */
 .ww-tab.active {
-  color: #EDE6D6;
-  text-shadow: 0 2px 10px #000, 0 0 22px #000, 0 0 14px rgba(237, 230, 214, 0.38);
+  color: #F2F2F2;
+  text-shadow: 0 2px 10px #000, 0 0 22px #000, 0 0 14px rgba(242, 242, 242, 0.38);
 }
 
 
@@ -263,7 +263,7 @@
 /* The thin ring passing through the bubble centres */
 .ww-ring {
   fill: none;
-  stroke: rgba(237, 230, 214, 0.16);
+  stroke: rgba(242, 242, 242, 0.16);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
@@ -290,9 +290,9 @@
   place-items: center;
   border-radius: 50%;
   background:
-    radial-gradient(120% 120% at 50% 12%, rgba(39, 35, 28, 0.97), rgba(11, 10, 8, 0.98) 70%);
+    radial-gradient(120% 120% at 50% 12%, rgba(34, 34, 34, 0.97), rgba(10, 10, 10, 0.98) 70%);
   box-shadow:
-    inset 0 0 0 1px rgba(237, 230, 214, 0.16),
+    inset 0 0 0 1px rgba(242, 242, 242, 0.16),
     0 6px 16px rgba(0, 0, 0, 0.75);
   transition: box-shadow 110ms ease, background 110ms ease;
 }
@@ -305,7 +305,7 @@
 
 /* Equipped: a light grey ring */
 .ww-bubble.equipped .ww-bubble-face {
-  box-shadow: inset 0 0 0 1.5px rgba(237, 230, 214, 0.55), 0 6px 16px rgba(0, 0, 0, 0.8);
+  box-shadow: inset 0 0 0 1.5px rgba(242, 242, 242, 0.55), 0 6px 16px rgba(0, 0, 0, 0.8);
 }
 
 /* Assigned to quick select: a gold ring */
@@ -320,10 +320,10 @@
 }
 
 .ww-bubble.selected .ww-bubble-face {
-  background: radial-gradient(120% 120% at 50% 12%, rgba(56, 50, 42, 0.98), rgba(11, 10, 8, 0.99) 70%);
+  background: radial-gradient(120% 120% at 50% 12%, rgba(51, 51, 51, 0.98), rgba(10, 10, 10, 0.99) 70%);
   box-shadow:
-    inset 0 0 0 2px #EDE6D6,
-    0 0 14px rgba(237, 230, 214, 0.28),
+    inset 0 0 0 2px #F2F2F2,
+    0 0 14px rgba(242, 242, 242, 0.28),
     0 8px 22px rgba(0, 0, 0, 0.85);
 }
 
@@ -411,16 +411,16 @@
   min-width: 1.7em;
   padding: 1px 5px;
   border-radius: 999px;
-  background: rgba(11, 10, 8, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(237, 230, 214, 0.22);
-  color: #EDE6D6;
+  background: rgba(10, 10, 10, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.22);
+  color: #F2F2F2;
   font: 700 clamp(9px, 1.15vh, 13px) / 1.35 var(--ww-f-num);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
 /* empty: the figure stays paper and the badge takes the red mark round it (never red text) */
-.ww-ammo.empty { color: #EDE6D6; box-shadow: inset 0 0 0 1px var(--ww-red); }
+.ww-ammo.empty { color: #F2F2F2; box-shadow: inset 0 0 0 1px var(--ww-red); }
 
 .ww-hand {
   width: 1.65em;
@@ -428,8 +428,8 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(11, 10, 8, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(237, 230, 214, 0.22);
+  background: rgba(10, 10, 10, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.22);
   font-size: clamp(9px, 1.15vh, 13px);
 }
 
@@ -443,7 +443,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(11, 10, 8, 0.94);
+  background: rgba(10, 10, 10, 0.94);
   box-shadow: inset 0 0 0 1px var(--ww-gold);
   color: var(--ww-gold-lit);
   font-size: clamp(9px, 1.15vh, 13px);
@@ -463,9 +463,9 @@
 .ww-more {
   padding: 1px 4px;
   border-radius: 999px;
-  background: rgba(11, 10, 8, 0.9);
-  box-shadow: inset 0 0 0 1px rgba(237, 230, 214, 0.14);
-  color: rgba(237, 230, 214, 0.8);
+  background: rgba(10, 10, 10, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.14);
+  color: rgba(242, 242, 242, 0.8);
   font: 700 clamp(7px, 0.9vh, 10px) / 1.4 var(--ww-f-num);
 }
 
@@ -530,8 +530,8 @@
   isolation: isolate;
   background: var(--ww-glass);
   box-shadow:
-    inset 0 0 0 1px rgba(237, 230, 214, 0.10),
-    0 0 0 1px rgba(237, 230, 214, 0.16),
+    inset 0 0 0 1px rgba(242, 242, 242, 0.10),
+    0 0 0 1px rgba(242, 242, 242, 0.16),
     0 14px 40px rgba(0, 0, 0, 0.8);
 }
 
@@ -570,7 +570,7 @@
 
 .ww-title {
   max-width: 100%;
-  color: #EDE6D6;
+  color: #F2F2F2;
   font-family: var(--ww-f-display);
   font-size: clamp(18px, 2.8vh, 33px);
   line-height: 1.08;
@@ -592,7 +592,7 @@
   width: 46%;
   height: 1px;
   margin-top: 3px;
-  background: linear-gradient(90deg, transparent, rgba(237, 230, 214, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(242, 242, 242, 0.55), transparent);
   opacity: 0.85;
 }
 
@@ -664,13 +664,13 @@
 }
 
 .ww-clip b {
-  color: #EDE6D6;
+  color: #F2F2F2;
   font: 700 clamp(16px, 2.3vh, 26px) / 1 var(--ww-f-num);
   font-variant-numeric: tabular-nums;
 }
 
 /* an empty clip: the figure stays paper, the red mark goes under it (never red text) */
-.ww-clip b.empty { color: #EDE6D6; text-decoration: underline; text-decoration-color: var(--ww-red); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.ww-clip b.empty { color: #F2F2F2; text-decoration: underline; text-decoration-color: var(--ww-red); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 
 .ww-clip span {
   color: var(--ww-text-dim);
@@ -691,7 +691,7 @@
   padding: 5px 9px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(237, 230, 214, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.16);
 }
 
 .ww-other-hand {
@@ -774,7 +774,7 @@
   place-items: center;
   padding: 0 16px;
   isolation: isolate;
-  color: #EDE6D6;
+  color: #F2F2F2;
   font-family: var(--ww-f-display);
   font-size: clamp(13px, 1.85vh, 21px);
   letter-spacing: 0.18em;
@@ -788,7 +788,7 @@
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: linear-gradient(180deg, rgba(29, 26, 21, 0.95), rgba(11, 10, 8, 0.95));
+  background: linear-gradient(180deg, rgba(25, 25, 25, 0.95), rgba(10, 10, 10, 0.95));
 }
 
 .ww-panel-title::after {
@@ -815,16 +815,16 @@
   gap: clamp(6px, 0.8vw, 11px);
   min-height: clamp(28px, 3.9vh, 48px);   /* 46px of 881 = 5.2vh at full height */
   padding: 0 clamp(9px, 0.8vw, 15px);
-  background: linear-gradient(180deg, rgba(29, 26, 21, 0.94), rgba(11, 10, 8, 0.94));
+  background: linear-gradient(180deg, rgba(25, 25, 25, 0.94), rgba(10, 10, 10, 0.94));
   box-shadow:
-    inset 0 1px 0 rgba(237, 230, 214, 0.10),
-    inset 0 0 0 1px rgba(237, 230, 214, 0.08);
+    inset 0 1px 0 rgba(242, 242, 242, 0.10),
+    inset 0 0 0 1px rgba(242, 242, 242, 0.08);
 }
 
 .ww-row.muted { opacity: 0.4; }
 
 .ww-row-name {
-  color: #EDE6D6;
+  color: #F2F2F2;
   font-family: var(--ww-f-display);
   font-size: clamp(9px, 1.3vh, 15px);
   letter-spacing: 0.06em;
@@ -844,7 +844,7 @@
   position: relative;
   height: clamp(4px, 0.62vh, 7px);
   border-radius: 999px;
-  background: rgba(237, 230, 214, 0.10);
+  background: rgba(242, 242, 242, 0.10);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55);
 }
 
@@ -853,7 +853,7 @@
   inset-block: 0;
   inset-inline-start: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, #EDE6D6, #C4BCAB);
+  background: linear-gradient(180deg, #F2F2F2, #BCBCBC);
   transition: width 0.2s ease-out;
 }
 
@@ -864,7 +864,7 @@
   height: clamp(11px, 1.55vh, 17px);
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: linear-gradient(180deg, #EDE6D6, #B9AF9C);
+  background: linear-gradient(180deg, #F2F2F2, #B4B4B4);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), inset 0 0 0 1px rgba(0, 0, 0, 0.25);
   transition: inset-inline-start 0.2s ease-out;
 }
@@ -887,8 +887,8 @@
   gap: 12px;
   min-height: clamp(24px, 3.2vh, 40px);
   padding: 0 clamp(9px, 0.8vw, 15px);
-  background: linear-gradient(180deg, rgba(21, 19, 15, 0.92), rgba(11, 10, 8, 0.92));
-  box-shadow: inset 0 1px 0 rgba(237, 230, 214, 0.08);
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.92), rgba(10, 10, 10, 0.92));
+  box-shadow: inset 0 1px 0 rgba(242, 242, 242, 0.08);
   color: var(--ww-text-dim);
   font-size: clamp(8px, 1.05vh, 12px);
   white-space: nowrap;

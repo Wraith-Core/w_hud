@@ -38,7 +38,7 @@ function WHudLocale.itemLabel(item)
 end
 
 --- The theme's two text tones (w_lib/nui/theme): paper, and paper-dim for a warning.
-WHudLocale.PAPER, WHudLocale.DIM = '#EDE6D6', '#B9AF9C'
+WHudLocale.PAPER, WHudLocale.DIM = '#F2F2F2', '#B4B4B4'
 
 --- The bare centred notice this HUD uses for its own messages (no plate). White and black like
 --- Red Dead: the kind of notice is said by its icon (tick, cross, warning, lock), never by a

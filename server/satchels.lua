@@ -152,14 +152,14 @@ local function useSatchel(src, item)
     local state = Bonus[src]
 
     if not state then
-        WNeeds.notify(src, 'satchel.noChar', '#EDE6D6', 'cross')
+        WNeeds.notify(src, 'satchel.noChar', '#F2F2F2', 'cross')
         return false
     end
 
     -- ★ Refused *and not consumed*: losing a satchel to a no-op is the kind of thing
     --   players remember, and rightly.
     if (entry.rank or 0) <= (state.rank or 0) then
-        WNeeds.notify(src, 'satchel.already', '#B9AF9C', 'warning')
+        WNeeds.notify(src, 'satchel.already', '#B4B4B4', 'warning')
         return false
     end
 
@@ -184,7 +184,7 @@ local function useSatchel(src, item)
 
     -- The new capacity travels as a format argument; the client formats the notice in
     -- the player's own language.
-    WNeeds.notify(src, 'satchel.upgraded', '#EDE6D6', 'tick', 5000,
+    WNeeds.notify(src, 'satchel.upgraded', '#F2F2F2', 'tick', 5000,
         { math.floor((baseWeight() + state.bonus) / 1000) })
 
     return true

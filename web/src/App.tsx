@@ -78,20 +78,20 @@ const LevelIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M
 const CashIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 6h20v12H2V6zm2 2v8h16V8H4zm8 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 1.6a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zM5 9.5h2v5H5v-5zm12 0h2v5h-2v-5z"/></svg>);
 const DirtyIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6l-1.2 2.4L15 6H9l1.2-1.6L9 2zm0 5h6c3.3 2.2 5 5.1 5 8.4 0 3.9-2.8 6.6-8 6.6s-8-2.7-8-6.6C4 12.1 5.7 9.2 9 7zm3 3.2c-1.9 0-3.1 1-3.1 2.4 0 1.2.8 1.9 2.5 2.2l.9.2c.9.2 1.2.4 1.2.8 0 .5-.5.8-1.4.8-1 0-1.6-.4-1.7-1H8.5c.1 1.5 1.2 2.5 3 2.7V19h1.2v-1.4c1.8-.2 2.9-1.2 2.9-2.6 0-1.3-.8-2-2.6-2.4l-.9-.2c-.8-.2-1.1-.4-1.1-.8 0-.4.4-.7 1.2-.7.8 0 1.3.3 1.4.9h1.9c-.1-1.4-1.1-2.3-2.8-2.5V8.9H12v1.3z"/></svg>);
 const GoldIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.2 4h9.6l2.2 5H5l2.2-5zm-4 7h8.6l2.2 5H1l2.2-5zm9.8 0h8.6l2.2 5H10.8l2.2-5zM3.2 18h8.6l2.2 5H1l2.2-5zm9.8 0h8.6l2.2 5H10.8l2.2-5z" transform="scale(.9) translate(1.3 -1)"/></svg>);
-/* The level's medallion -- w_level's, small: a paper-silver ring, an ink disc, a star (the theme's warm ink and paper). */
+/* The level's medallion -- w_level's, small: a paper-silver ring, an ink disc, a star (the theme's neutral ink and paper). */
 const LevelMedal = () => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
     <defs>
       <linearGradient id="hud-medal-silver" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#F6F1E6"/><stop offset=".3" stopColor="#C4BCAB"/><stop offset=".5" stopColor="#7D7466"/><stop offset=".72" stopColor="#D2CAB8"/><stop offset="1" stopColor="#8C8475"/>
+        <stop offset="0" stopColor="#FFFFFF"/><stop offset=".3" stopColor="#BCBCBC"/><stop offset=".5" stopColor="#7A7A7A"/><stop offset=".72" stopColor="#CACACA"/><stop offset="1" stopColor="#858585"/>
       </linearGradient>
       <radialGradient id="hud-medal-disc" cx=".5" cy=".38" r=".72">
-        <stop offset="0" stopColor="#38322A"/><stop offset=".55" stopColor="#15130F"/><stop offset="1" stopColor="#0B0A08"/>
+        <stop offset="0" stopColor="#333333"/><stop offset=".55" stopColor="#111111"/><stop offset="1" stopColor="#0A0A0A"/>
       </radialGradient>
     </defs>
-    <circle cx="20" cy="20" r="18.5" fill="url(#hud-medal-silver)" stroke="#0B0A08" strokeWidth=".8"/>
-    <circle cx="20" cy="20" r="15" fill="url(#hud-medal-disc)" stroke="#EDE6D6" strokeWidth=".9" opacity=".95"/>
-    <path d="M20 10.5l2.4 5 5.4.5-4.1 3.6 1.3 5.3-5-2.9-5 2.9 1.3-5.3-4.1-3.6 5.4-.5z" fill="#EDE6D6" stroke="#0B0A08" strokeWidth=".4"/>
+    <circle cx="20" cy="20" r="18.5" fill="url(#hud-medal-silver)" stroke="#0A0A0A" strokeWidth=".8"/>
+    <circle cx="20" cy="20" r="15" fill="url(#hud-medal-disc)" stroke="#F2F2F2" strokeWidth=".9" opacity=".95"/>
+    <path d="M20 10.5l2.4 5 5.4.5-4.1 3.6 1.3 5.3-5-2.9-5 2.9 1.3-5.3-4.1-3.6 5.4-.5z" fill="#F2F2F2" stroke="#0A0A0A" strokeWidth=".4"/>
   </svg>
 );
 const PvpIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l7 3v6c0 4.8-3.2 8.6-7 11-3.8-2.4-7-6.2-7-11V5l7-3zm0 3.2L7 6.9v4.1c0 3.4 2.1 6.3 5 8.2 2.9-1.9 5-4.8 5-8.2V6.9L12 5.2z"/></svg>);
@@ -998,9 +998,9 @@ function App() {
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
           <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#7D7466" />
-            <stop offset="50%" stopColor="#B9AF9C" />
-            <stop offset="100%" stopColor="#EDE6D6" />
+            <stop offset="0%" stopColor="#7A7A7A" />
+            <stop offset="50%" stopColor="#B4B4B4" />
+            <stop offset="100%" stopColor="#F2F2F2" />
           </linearGradient>
         </defs>
       </svg>
