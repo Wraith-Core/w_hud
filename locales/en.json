@@ -322,7 +322,7 @@
       },
       "poison": {
         "label": "Poisons",
-        "help": "Poisons the player for this many seconds: the heart turns green and health drops bit by bit. 0 = no poison.",
+        "help": "Poisons the player for this many seconds: the heart's ring dims, fumes rise from it and health drops bit by bit. 0 = no poison.",
         "example": "60 = poisoned for a whole minute",
         "unit": "s"
       },
@@ -399,7 +399,7 @@
     },
     "poison": {
       "label": "Poison",
-      "help": "Poison is temporary: the heart turns green and health drops every hit until time runs out, an antidote is taken or the player dies. Each item's time is in the food table.",
+      "help": "Poison is temporary: the heart's ring dims, fumes rise from it and health drops every hit until time runs out, an antidote is taken or the player dies. Each item's time is in the food table.",
       "enabled": {
         "label": "Poison is on",
         "help": "Off: poisonous food poisons nobody. The antidote still works as usual."
@@ -720,7 +720,7 @@
       "vBelow": "When low",
       "below": "Show once the value falls to",
       "ownLimits": "Its own warning lines",
-      "warnAt": "Turns yellow at",
+      "warnAt": "Dims at",
       "dangerAt": "Turns red at",
       "palettes": "Palettes",
       "singleColours": "Colours one by one",
