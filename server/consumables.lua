@@ -116,9 +116,10 @@ local function onUseEvent(name, callback)
         local ok, reason = xpcall(callback, debug.traceback, src, ...)
         if not ok then
             local p = pending[src]
-            if p then finish(src, p, false, 'needs.useFailed') end
-            -- this event's own token is answered too when the error left another use (or none)
-            if not p or p.token ~= token then reset(src, token) end
+            -- ! Only this event's own use is ended. The callback may have yielded in an export: a
+            --   commit the timeout thread ended as hung can throw long after, with a newer, unrelated
+            --   use pending by then. Another use (or none) leaves this event's token the reset.
+            if p and p.token == token then finish(src, p, false, 'needs.useFailed') else reset(src, token) end
             w.print.error(('consumable event %s failed for %s: %s'):format(name, src, reason))
         end
     end)
