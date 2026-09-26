@@ -633,8 +633,10 @@
   color: var(--dim);
   margin-bottom: calc(-4 * var(--hs-unit, 1px));
 }
-.hs-picker.is-free .hs-shelf,
-.hs-picker.is-free .hs-shelf.has-red { grid-template-columns: repeat(8, 1fr); gap: calc(6 * var(--hs-unit, 1px)); }
+.hs-picker.is-free .hs-shelf { grid-template-columns: repeat(8, 1fr); gap: calc(6 * var(--hs-unit, 1px)); }
+/* The danger field's shelf carries the red besides the eight tones: nine in one row (at eight
+   columns the ninth, the ink, wrapped onto a row of its own). */
+.hs-picker.is-free .hs-shelf.has-red { grid-template-columns: repeat(9, 1fr); gap: calc(5 * var(--hs-unit, 1px)); }
 .hs-picker.is-free .hs-chip { height: calc(28 * var(--hs-unit, 1px)); }
 .hs-sv {
   position: relative;

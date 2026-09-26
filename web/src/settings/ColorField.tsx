@@ -182,10 +182,22 @@ export function ColorField({ value, onChange, inherit, reset, title, red = false
 
     /* Below the swatch when there is room for it, above when there is not, and never
        past either side -- so a swatch near the bottom of the panel still opens fully. */
-    const top = r.bottom + gap + h > window.innerHeight ? r.top - gap - h : r.bottom + gap;
+    let left = r.right - w;
+    let top: number;
+    if (r.bottom + gap + h <= window.innerHeight) top = r.bottom + gap;
+    else if (r.top - gap - h >= gap) top = r.top - gap - h;
+    else {
+      /* ⚠️ A short screen (1280x720): the chooser is taller than the room above or below, and
+         clamped there it lay over the very swatch (and field name) being coloured. Beside the
+         swatch instead, centred on it -- on its left when there is room (in Arabic that is the
+         panel's outer side, over the game), else on its right. */
+      top = r.top + r.height / 2 - h / 2;
+      if (r.left - gap - w >= gap) left = r.left - gap - w;
+      else if (r.right + gap + w <= window.innerWidth - gap) left = r.right + gap;
+    }
 
     setAt({
-      left: Math.max(gap, Math.min(window.innerWidth - w - gap, r.right - w)),
+      left: Math.max(gap, Math.min(window.innerWidth - w - gap, left)),
       top: Math.max(gap, Math.min(window.innerHeight - h - gap, top)),
     });
   };
