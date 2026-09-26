@@ -78,7 +78,9 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
   const shelf: string[] = red ? [RED, ...TONES] : [...TONES];
 
   const hsv = hexToHsv(exact);
-  const hueRef = useRef(hsv.h);
+  /* A grey (the stock warning, the stock money) has no hue: the square opens on a warm gold
+     rather than on red, which would read as the danger colour. */
+  const hueRef = useRef(hsv.s > 0.02 && hsv.v > 0.02 ? hsv.h : 40);
   if (hsv.s > 0.02 && hsv.v > 0.02) hueRef.current = hsv.h;
   const hue = hueRef.current;
 
@@ -144,7 +146,8 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
      lifts it to a colour you can actually see rather than a grey with a tint nobody notices. */
   const pickHue = (h: number) => {
     hueRef.current = h;
-    onChange(hsvToHex({ h, s: hsv.s < 0.15 ? 0.8 : hsv.s, v: hsv.v < 0.3 ? 0.9 : hsv.v }));
+    const grey = hsv.s < 0.15;
+    onChange(hsvToHex({ h, s: grey ? 0.8 : hsv.s, v: grey ? Math.max(hsv.v, 0.9) : Math.max(hsv.v, 0.3) }));
   };
 
   /* Enter always applies what is in the field (even the colour already shown, which is how a

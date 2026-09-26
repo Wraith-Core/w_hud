@@ -653,6 +653,8 @@
   outline: none;
 }
 .hs-hex:focus { border-color: var(--gold-1); }
+/* the money field's "Default": a button's line-height is `normal`, too tight for Tajawal */
+.hs-picker.is-free .hs-mini { line-height: 1.4; }
 .hs-hex::placeholder { color: var(--dim); opacity: 0.6; }
 
 .hs-hexrow { display: flex; align-items: center; gap: 0.5rem; }
