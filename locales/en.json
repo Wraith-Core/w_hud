@@ -631,7 +631,7 @@
       "accent": "Accent",
       "accentHint": "The compass needle, the server name's dot, the wallet and player-info icons",
       "text": "Text",
-      "textHint": "Figures, server name, place name, the compass",
+      "textHint": "Figures, server name, place name, the compass, effects",
       "dim": "Muted text",
       "dimHint": "Intercardinals and compass ticks",
       "core": "Circle colour",
