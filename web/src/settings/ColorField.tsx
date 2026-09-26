@@ -189,9 +189,10 @@ export function ColorField({ value, onChange, inherit, reset, title, red = false
     else {
       /* ⚠️ A short screen (1280x720): the chooser is taller than the room above or below, and
          clamped there it lay over the very swatch (and field name) being coloured. Beside the
-         swatch instead, centred on it -- on its left when there is room (in Arabic that is the
-         panel's outer side, over the game), else on its right. */
-      top = r.top + r.height / 2 - h / 2;
+         swatch instead -- on its left when there is room (in Arabic that is the panel's outer
+         side, over the game), else on its right -- with its foot level with the swatch's, so it
+         never reaches down over the circles at the bottom of the screen that preview the pick. */
+      top = r.bottom - h;
       if (r.left - gap - w >= gap) left = r.left - gap - w;
       else if (r.right + gap + w <= window.innerWidth - gap) left = r.right + gap;
     }
