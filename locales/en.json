@@ -639,7 +639,9 @@
       "danger": "Danger",
       "dangerHint": "Ring and icon at the danger line",
       "poison": "Poison",
-      "poisonHint": "The heart's ring while its fumes rise"
+      "poisonHint": "The heart's ring while its fumes rise",
+      "money": "Money colour",
+      "moneyHint": "Money figures and their icons: cash, bank, gold"
     },
     "feature": {
       "health": "Health circle",
@@ -724,6 +726,10 @@
       "dangerAt": "Turns red at",
       "palettes": "Palettes",
       "singleColours": "Colours one by one",
+      "pickTones": "Theme tones",
+      "pickAny": "Any colour",
+      "pickHex": "Colour code (#RRGGBB)",
+      "moneyStock": "Default",
       "ring": "Ring thickness",
       "disc": "Disc behind the icon",
       "icon": "Icon size",

@@ -587,6 +587,74 @@
   -webkit-mask: var(--w-tex-tick) center / contain no-repeat; mask: var(--w-tex-tick) center / contain no-repeat;
 }
 
+/* ── the free chooser (the warning and the money colour: ColorField `free`) ──────
+   The tones stay on top as quick picks; under them a saturation square, a hue rail, a row of
+   ready colours and a #hex field. Sized in the editor's own unit (--hs-unit, store-adapter.css),
+   and three classes deep so it wins over `.hs-picker .hs-shelf` whatever order the sheets load in. */
+.hs-picker.is-free { width: calc(300 * var(--hs-unit, 1px)); }
+.hs-picker.is-free .hs-pick-cap {
+  font-family: var(--w-f-label);
+  font-size: calc(13 * var(--hs-unit, 1px));
+  line-height: 1.4;
+  color: var(--dim);
+  margin-bottom: calc(-4 * var(--hs-unit, 1px));
+}
+.hs-picker.is-free .hs-shelf,
+.hs-picker.is-free .hs-shelf.has-red { grid-template-columns: repeat(8, 1fr); gap: calc(6 * var(--hs-unit, 1px)); }
+.hs-picker.is-free .hs-chip { height: calc(28 * var(--hs-unit, 1px)); }
+.hs-sv {
+  position: relative;
+  height: calc(150 * var(--hs-unit, 1px));
+  border: 0.09rem solid rgba(242, 242, 242, 0.22);
+  cursor: crosshair;
+  touch-action: none;
+}
+.hs-sv-dot {
+  position: absolute;
+  width: calc(14 * var(--hs-unit, 1px));
+  height: calc(14 * var(--hs-unit, 1px));
+  transform: translate(-50%, -50%);
+  border: calc(2 * var(--hs-unit, 1px)) solid var(--w-paper);
+  border-radius: 50%;
+  box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.hs-hue {
+  position: relative;
+  height: calc(16 * var(--hs-unit, 1px));
+  cursor: pointer;
+  touch-action: none;
+  border: 0.09rem solid rgba(242, 242, 242, 0.22);
+  background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00);
+}
+.hs-hue-dot {
+  position: absolute;
+  top: calc(-3 * var(--hs-unit, 1px));
+  bottom: calc(-3 * var(--hs-unit, 1px));
+  width: calc(5 * var(--hs-unit, 1px));
+  transform: translateX(-50%);
+  background: var(--w-paper);
+  border: 1px solid #0A0A0A;
+  pointer-events: none;
+}
+.hs-hex {
+  flex: 1;
+  min-width: 0;
+  height: calc(34 * var(--hs-unit, 1px));
+  padding: 0 calc(10 * var(--hs-unit, 1px));
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid var(--line);
+  border-radius: 0.1rem;
+  color: var(--cream);
+  font-family: var(--f-num);
+  font-size: var(--hs-text, 15px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  outline: none;
+}
+.hs-hex:focus { border-color: var(--gold-1); }
+.hs-hex::placeholder { color: var(--dim); opacity: 0.6; }
+
 .hs-hexrow { display: flex; align-items: center; gap: 0.5rem; }
 .hs-mini {
   padding: 0.45rem 0.75rem;

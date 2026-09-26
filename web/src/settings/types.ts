@@ -16,6 +16,7 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 
 import { normHex } from './color';
+import { toTone } from './palette';
 
 export type WidgetId =
   | 'server' | 'ammo' | 'money' | 'identity'
@@ -137,12 +138,18 @@ export interface Theme {
   text: string;
   /** Secondary text, ticks, minor cardinals. */
   dim: string;
-  /** The warning state (paper-dim by default). */
+  /** The warning state (paper-dim by default). Any colour: painted exactly as chosen (palette.ts). */
   warn: string;
   /** The danger state -- the theme's red, the one mark the HUD may paint red. */
   danger: string;
   /** Poisoning -- the heart's ring while its fumes rise (paper-faint by default). */
   poison: string;
+  /**
+   * The wallet's figures and their icons (cash, bank, dirty, gold). Any colour, painted as chosen.
+   * '' = none chosen: the stock look (the figures in the text tone, the icons a step dimmer, the
+   * dirty money dim), so the wallet stays exactly as it was until a player picks a colour.
+   */
+  money: string;
 }
 
 /**
@@ -403,6 +410,7 @@ export const DEFAULT_THEME: Theme = {
   warn:   '#B4B4B4',   /* paper-dim: the core dims as it runs down */
   danger: '#CB0101',   /* the theme's red: the mark */
   poison: '#7A7A7A',   /* paper-faint, with the fumes */
+  money:  '',          /* none chosen: the wallet keeps its stock tones (hud.css) */
 };
 
 /* ★ The stock palettes of earlier builds: pure white on neutral grey, then the theme's warm
@@ -414,9 +422,11 @@ export const DEFAULT_THEME: Theme = {
 
    ⚠️ Saved data, not paint: these are matched against what players have stored, so they stay
    exactly as those builds wrote them. They are written without their '#' so that a colour sweep
-   over the sources (such as the warm -> neutral pass) cannot "fix" them and break the match. */
+   over the sources (such as the warm -> neutral pass) cannot "fix" them and break the match.
+   None of those builds had a money colour, so a save of theirs reads it as '' (none chosen). */
 const oldStock = (accent: string, text: string, dim: string, warn: string, danger: string, poison: string): Theme => ({
   accent: '#' + accent, text: '#' + text, dim: '#' + dim, warn: '#' + warn, danger: '#' + danger, poison: '#' + poison,
+  money: '',
 });
 const OLD_STOCKS: Theme[] = [
   oldStock('FFFFFF', 'F5F5F5', 'BFBFBF', 'E8C547', 'E52D2D', '5AB054'),
@@ -427,8 +437,22 @@ const OLD_STOCKS: Theme[] = [
 export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true };
 export const DEFAULT_WORLD: WorldCfg = { onFoot: 'server', mounted: 'server' };
 
-/** v3 replaces the companion card with three independently editable cores. */
-export const SETTINGS_VERSION = 3;
+/** v3 replaces the companion card with three independently editable cores.
+    v4 paints the warning colour exactly as chosen (see FREE_WARN_SINCE). */
+export const SETTINGS_VERSION = 4;
+
+/**
+ * The first version whose warning colour is painted as it is stored.
+ *
+ * ⚠️ Before it, every warning colour was drawn as the nearest ink/paper tone -- an old build's
+ *   yellow default and a hue picked before the neutral pass alike were shown as paper-dim. A save
+ *   (or a profile, or a share code) older than this is read as the tone it was drawn in, so
+ *   opening this build changes nothing on anyone's screen; the free colour is for what is picked
+ *   from now on. Its own number rather than SETTINGS_VERSION, which will move again for other
+ *   reasons and must not drag a v4 save back into the clamp when it does.
+ */
+const FREE_WARN_SINCE = 4;
+const isLegacy = (v: unknown): boolean => !(Number(v) >= FREE_WARN_SINCE);
 
 export function defaultWidget(meta: WidgetMeta, a = aspect()): WidgetCfg {
   return {
@@ -479,7 +503,9 @@ export function defaultSettings(): HudSettings {
  *   ready-made sets come first and the pickers are there for whoever wants them.
  *
  * ★ White and black only, like Red Dead: the sets differ in how bright the paper is, never
- *   in hue, and every one keeps the red for danger alone.
+ *   in hue, and every one keeps the red for danger alone. The two free colours (a warning
+ *   hue, a money colour) are the player's own business: a set leaves the money as none
+ *   chosen and puts the warning back on a tone.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /** `label` is a dictionary key (ui.preset.<id>). */
@@ -488,19 +514,25 @@ export interface ThemePreset { id: string; label: string; theme: Theme }
 export const THEME_PRESETS: ThemePreset[] = [
   { id: 'stock', label: 'preset.stock', theme: { ...DEFAULT_THEME } },
   { id: 'bright', label: 'preset.bright',
-    theme: { accent: '#FFFFFF', text: '#FFFFFF', dim: '#F2F2F2', warn: '#B4B4B4', danger: '#CB0101', poison: '#7A7A7A' } },
+    theme: { accent: '#FFFFFF', text: '#FFFFFF', dim: '#F2F2F2', warn: '#B4B4B4', danger: '#CB0101', poison: '#7A7A7A', money: '' } },
   { id: 'ash', label: 'preset.ash',
-    theme: { accent: '#B4B4B4', text: '#F2F2F2', dim: '#7A7A7A', warn: '#7A7A7A', danger: '#CB0101', poison: '#7A7A7A' } },
+    theme: { accent: '#B4B4B4', text: '#F2F2F2', dim: '#7A7A7A', warn: '#7A7A7A', danger: '#CB0101', poison: '#7A7A7A', money: '' } },
 ];
 
-/** `label` and `hint` are dictionary keys (ui.theme.<key>, ui.theme.<key>Hint). */
-export const THEME_FIELDS: Array<{ key: keyof Theme; label: string; hint: string }> = [
+/**
+ * `label` and `hint` are dictionary keys (ui.theme.<key>, ui.theme.<key>Hint).
+ * ★ This list is also the whitelist a save is read through (readTheme): a key not here is dropped.
+ *   free -- any colour: the full chooser (hue, ready colours, #hex) beside the tones, and painted
+ *           exactly as chosen. Every other field is the tone shelf, drawn as the nearest tone.
+ */
+export const THEME_FIELDS: Array<{ key: keyof Theme; label: string; hint: string; free?: boolean }> = [
   { key: 'accent', label: 'theme.accent', hint: 'theme.accentHint' },
   { key: 'text', label: 'theme.text', hint: 'theme.textHint' },
   { key: 'dim', label: 'theme.dim', hint: 'theme.dimHint' },
-  { key: 'warn', label: 'theme.warn', hint: 'theme.warnHint' },
+  { key: 'warn', label: 'theme.warn', hint: 'theme.warnHint', free: true },
   { key: 'danger', label: 'theme.danger', hint: 'theme.dangerHint' },
   { key: 'poison', label: 'theme.poison', hint: 'theme.poisonHint' },
+  { key: 'money', label: 'theme.money', hint: 'theme.moneyHint', free: true },
 ];
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -528,7 +560,11 @@ const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T):
 const VISIBILITY = ['auto', 'always', 'below'] as const;
 const MAP_MODES = ['server', 'off', 'map', 'compass'] as const;
 
-function readTheme(raw: unknown, base: Theme): Theme {
+/**
+ * `legacy`: the save predates FREE_WARN_SINCE, so its warning colour is read as the tone it was
+ * drawn in. `money` accepts '' (none chosen) and otherwise a colour; anything unreadable is ''.
+ */
+function readTheme(raw: unknown, base: Theme, legacy = false): Theme {
   if (!raw || typeof raw !== 'object') return base;
   const src = raw as Record<string, unknown>;
 
@@ -537,6 +573,7 @@ function readTheme(raw: unknown, base: Theme): Theme {
     if (value != null) base[field.key] = normHex(value, base[field.key]);
   }
   if (OLD_STOCKS.some((old) => THEME_FIELDS.every((f) => String(base[f.key]).toUpperCase() === old[f.key]))) Object.assign(base, DEFAULT_THEME);
+  if (legacy) base.warn = toTone(base.warn);
   return base;
 }
 
@@ -608,7 +645,7 @@ function readMedia(raw: unknown, base: Record<MediaId, MediaCfg>): Record<MediaI
   return base;
 }
 
-function readProfile(raw: unknown, index: number): Profile | null {
+function readProfile(raw: unknown, index: number, legacy = false): Profile | null {
   if (!raw || typeof raw !== 'object') return null;
   const src = raw as Record<string, unknown>;
 
@@ -620,7 +657,7 @@ function readProfile(raw: unknown, index: number): Profile | null {
     name: typeof src.name === 'string' && src.name.trim() !== ''
       ? src.name.trim().slice(0, 24)
       : `#${index + 1}`,
-    theme: readTheme(src.theme, { ...DEFAULT_THEME }),
+    theme: readTheme(src.theme, { ...DEFAULT_THEME }, legacy),
     scale: num(src.scale, 1, 0.6, 1.8),
     shape: readShape(src.shape, { ...DEFAULT_SHAPE }),
     widgets: readWidgets(src.widgets, widgets),
@@ -633,8 +670,10 @@ export function mergeSettings(raw: unknown): HudSettings {
   if (!raw || typeof raw !== 'object') return base;
 
   const src = raw as Record<string, unknown>;
+  /* The version the save was written by; the profiles inside it were written by the same build. */
+  const legacy = isLegacy(src.v);
 
-  readTheme(src.theme, base.theme);
+  readTheme(src.theme, base.theme, legacy);
   readShape(src.shape, base.shape);
   readWidgets(src.widgets, base.widgets);
   readMedia(src.media, base.media);
@@ -661,7 +700,7 @@ export function mergeSettings(raw: unknown): HudSettings {
   }
 
   if (Array.isArray(src.profiles)) {
-    for (let i = 0; i < PROFILE_SLOTS; i += 1) base.profiles[i] = readProfile(src.profiles[i], i);
+    for (let i = 0; i < PROFILE_SLOTS; i += 1) base.profiles[i] = readProfile(src.profiles[i], i, legacy);
   }
 
   return base;
@@ -943,7 +982,8 @@ const CODE_PREFIX = 'WHUD1:';
 
 export function encodeShare(p: Profile): string {
   try {
-    const json = JSON.stringify({ n: p.name, t: p.theme, s: p.scale, h: p.shape, w: p.widgets, m: p.media });
+    /* v: which build wrote it -- a code from before FREE_WARN_SINCE has its warning read as a tone. */
+    const json = JSON.stringify({ v: SETTINGS_VERSION, n: p.name, t: p.theme, s: p.scale, h: p.shape, w: p.widgets, m: p.media });
     return CODE_PREFIX + btoa(encodeURIComponent(json));
   } catch {
     return '';
@@ -963,6 +1003,7 @@ export function decodeShare(code: string): Profile | null {
     return readProfile(
       { name: raw.n, theme: raw.t, scale: raw.s, shape: raw.h, widgets: raw.w, media: raw.m },
       0,
+      isLegacy(raw.v),
     );
   } catch {
     return null;

@@ -28,6 +28,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { play } from '../wheel/nui';
 import { useI18n, type TFn } from '../i18n';
 import { ColorField } from './ColorField';
+import { toTone } from './palette';
 import {
   FEATURES, FEATURE_WIDGETS, GROUP_LABEL, PROFILE_SLOTS, THEME_FIELDS, THEME_PRESETS,
   WIDGETS, WIDGET_BY_ID, deathMinutes, drainMinutes, encodeShare, profileFrom, safeUrl,
@@ -577,10 +578,21 @@ export function SettingsPanel(p: PanelProps) {
                           <b>{t(field.label)}</b>
                           <em>{t(field.hint)}</em>
                         </span>
+                        {/* ★ The money colour may be none at all ('' -- the wallet's stock tones), so
+                            it is the one field with a way back to that: the swatch says so, and
+                            shows the figures' own tone meanwhile. */}
                         <ColorField
-                          value={p.settings.theme[field.key]}
+                          value={field.key === 'money'
+                            ? (p.settings.theme.money || toTone(p.settings.theme.text))
+                            : p.settings.theme[field.key]}
                           onChange={(hex) => p.setTheme({ [field.key]: hex } as Partial<Theme>)}
                           red={field.key === 'danger'}
+                          free={field.free}
+                          inherit={field.key === 'money' ? {
+                            active: p.settings.theme.money === '',
+                            label: t(S('moneyStock')),
+                            onPick: () => p.setTheme({ money: '' }),
+                          } : undefined}
                         />
                       </li>
                     ))}

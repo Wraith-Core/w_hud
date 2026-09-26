@@ -11,6 +11,15 @@
  *   from an older build (or a share code from a friend); what is stored stays stored, and
  *   is *drawn* as the nearest tone of this palette. `toTone` is called where a colour is
  *   painted (theme.ts, App.tsx, layout.tsx, ColorField.tsx), never where it is read.
+ *
+ * ★ Two colours are the player's own and never pass through here: the warning (theme.warn)
+ *   and the money (theme.money). The owner wants those in any hue, so ColorField offers them
+ *   a full chooser beside these tones and theme.ts paints them exactly as chosen. Their stock
+ *   values are still tones (paper-dim, and the wallet's own tones), so nothing is coloured
+ *   until somebody picks a colour.
+ *   The one exception to "never rewritten": a warning saved before it went free was only
+ *   ever seen as its tone, so types.ts reads it as that tone (FREE_WARN_SINCE) -- otherwise
+ *   an old build's yellow default would reappear the moment the clamp came off.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 import { hexToHsv, hexToRgb, normHex } from './color';

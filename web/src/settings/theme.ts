@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * w_hud · settings/theme.ts
- * Turning six chosen colours into the variables hud.css already speaks.
+ * Turning the chosen colours into the variables hud.css already speaks.
  *
  * ★ The HUD was written against a small set of variables long before it was
  *   configurable -- --gold-1/2/3, --cream, --dim, --line, --warn, --danger,
@@ -17,8 +17,8 @@
  *   settings panel live outside that container and must follow the same palette.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-import { hexToRgb, rgba } from './color';
-import { INK, darker, lighter, toTone } from './palette';
+import { hexToRgb, normHex, rgba } from './color';
+import { INK, PAPER_DIM, darker, lighter, toTone } from './palette';
 import type { ShapeCfg, Theme } from './types';
 
 /** "229, 45, 45" -- the form rgba() can take through a variable. */
@@ -33,15 +33,19 @@ const channels = (hex: string): string => {
  *
  * ⚠️ The saved theme is not touched -- a blue accent from an older build stays in the save
  *   and is drawn as paper. Clamping here, at the paint, is what keeps saved data intact.
+ *
+ * ★ Except the two free colours: the warning and the money are painted exactly as chosen, in
+ *   any hue (palette.ts). money '' stays '' -- none chosen, the wallet keeps its stock tones.
  */
 export function drawnTheme(theme: Theme): Theme {
   return {
     accent: toTone(theme.accent),
     text: toTone(theme.text),
     dim: toTone(theme.dim),
-    warn: toTone(theme.warn),
+    warn: normHex(theme.warn, PAPER_DIM),
     danger: toTone(theme.danger, { red: true }),
     poison: toTone(theme.poison),
+    money: theme.money ? normHex(theme.money, '') : '',
   };
 }
 
@@ -79,6 +83,11 @@ export function applyTheme(saved: Theme): void {
   root.setProperty('--poison-deep-rgb', channels(darker(theme.poison, 2)));
   root.setProperty('--poison-track', rgba(INK, 0.75));
 
+  /* The wallet: one colour for its figures and icons once the player has chosen one. Removed
+     rather than set to a default when none is chosen -- hud.css reads var(--money, <stock tone>),
+     so an unset variable is what keeps each row on the tone it has always had. */
+  if (theme.money) root.setProperty('--money', theme.money);
+  else root.removeProperty('--money');
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

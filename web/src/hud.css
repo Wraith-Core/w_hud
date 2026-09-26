@@ -32,7 +32,8 @@
        reds for the danger). They are variables now because the player chooses them from
        the control panel -- and a colour written into thirty rules is a colour nobody can
        change. The choice is the theme's tones only (settings/palette.ts): Red Dead's HUD is
-       white and black, and its one red is the danger mark.
+       white and black, and its one red is the danger mark -- all but the warning, which the
+       player may paint any hue (its stock value below is still a tone).
 
      ⚠️ Each one comes twice: once as a colour and once as bare channels. A glow needs
         the same hue at a dozen different alphas, and rgba() cannot take a hex -- so the
@@ -171,12 +172,18 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 }
 /* ★ One ink: the figures are paper and the icons say which purse is which (no gold coin, no
    pink for the dirty money). PvP is told by its word and its shield: full paper when it is
-   on, dim when it is off -- no hue, like the rest of the HUD. */
+   on, dim when it is off -- no hue, like the rest of the HUD.
+   ★ The money colour (settings: لون الأموال): once a player picks one, settings/theme.ts sets
+     --money and every figure and icon of the wallet takes it, in whatever hue was chosen. Until
+     then --money is unset and each var() falls back to the tone written beside it -- the stock
+     look above, exactly. Scoped to .wallet: the identity plate shares these rules. */
+.wallet .plate-val { color: var(--money, var(--cream)); }
+.wallet .plate-ic { color: var(--money, var(--gold-2)); }
 .plate-row.is-cash .plate-val { font-size: 3rem; }
-.plate-row.is-cash .plate-ic { color: var(--gold-1); }
-.plate-row.is-gold .plate-val { color: var(--cream); }
-.plate-row.is-gold .plate-ic { color: var(--gold-2); }
-.plate-row.is-dirty .plate-val, .plate-row.is-dirty .plate-ic { color: var(--dim); }
+.plate-row.is-cash .plate-ic { color: var(--money, var(--gold-1)); }
+.plate-row.is-gold .plate-val { color: var(--money, var(--cream)); }
+.plate-row.is-gold .plate-ic { color: var(--money, var(--gold-2)); }
+.plate-row.is-dirty .plate-val, .plate-row.is-dirty .plate-ic { color: var(--money, var(--dim)); }
 .plate-row.is-pvp .plate-ic, .plate-row.is-pvp .plate-val { color: var(--dim); }
 .plate-row.is-pvp.is-on .plate-ic, .plate-row.is-pvp.is-on .plate-val { color: var(--cream); }
 .plate-row.is-level .plate-val { color: var(--cream); }
