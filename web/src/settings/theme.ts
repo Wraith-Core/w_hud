@@ -74,7 +74,6 @@ export function applyTheme(saved: Theme): void {
   root.setProperty('--gold-3', ramp(theme.accent, 2));
 
   root.setProperty('--cream', theme.text);
-  root.setProperty('--cream-rgb', channels(theme.text));
   root.setProperty('--dim', theme.dim);
   root.setProperty('--line', rgba(theme.text, 0.28));
 

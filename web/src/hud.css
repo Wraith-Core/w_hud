@@ -14,7 +14,6 @@
   --gold-2: #B4B4B4;   /* paper-dim: one tone down (theme.ts: darker(accent, 1)) */
   --gold-3: #7A7A7A;   /* paper-faint: two tones down (darker(accent, 2)) */
   --cream:  #F2F2F2;   /* text: paper */
-  --cream-rgb: 242, 242, 242;
   --dim:    #B4B4B4;   /* labels: paper-dim */
   --line:   rgba(242, 242, 242, 0.28);
   /* faces by role, from the theme's tokens (they follow <html dir>) */
@@ -176,7 +175,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .plate-ic.is-medal { width: 3rem; height: 3rem; }
 .plate-rule {
   display: block; width: 100%; height: 0.32rem; margin: 0.1rem 0 0.25rem;
-  background-color: rgba(var(--cream-rgb), 0.55);   /* the text colour, faded (stock paper) */
+  background-color: rgba(242, 242, 242, 0.55);   /* a fixed paper rule: a divider, it carries no state */
   -webkit-mask: var(--tex-divider_line) center / 100% 100% no-repeat; mask: var(--tex-divider_line) center / 100% 100% no-repeat;
 }
 /* ★ One ink: the figures are paper and the icons say which purse is which (no gold coin, no
@@ -435,12 +434,12 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   background: rgba(0,0,0,0.6); border: 0.06rem solid var(--line); overflow: hidden; }
 .buff-fill { display: block; height: 100%; transition: width 0.4s var(--ease); }
 /* a buff is told by its word and glyph, not by a hue, so the colour Config.Buffs sends (still sent,
-   still in the message) is not drawn: edge, glyph and fill in the text colour (Colours -> لون النصوص;
-   stock paper), no glow */
-.buff-chip { border-color: var(--line) !important; border-left-color: var(--cream) !important; }
-.buff-ic { color: var(--cream) !important; }
+   still in the message) is not drawn: edge, glyph and fill in the Effects element's own colour
+   (Elements -> التأثيرات -> اللون; --w-color), and the theme's paper until one is chosen. no glow */
+.buff-chip { border-color: var(--line) !important; border-left-color: var(--w-color, var(--w-paper, #F2F2F2)) !important; }
+.buff-ic { color: var(--w-color, var(--w-paper, #F2F2F2)) !important; }
 .buff-ic svg { filter: drop-shadow(0 0.1rem 0.2rem rgba(0,0,0,0.9)); }
-.buff-fill { background: var(--cream) !important; }
+.buff-fill { background: var(--w-color, var(--w-paper, #F2F2F2)) !important; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    The status panel -- the same visual language as w_crafting

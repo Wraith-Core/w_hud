@@ -365,10 +365,12 @@ export const WIDGETS: WidgetMeta[] = [
   { id: 'companionThirst', group: 'pet', label: 'widget.companionThirst',
     origin: [0.5, 0.5], home: { x: CORE_X(0) + 9, y: CORE_Y - 7.2 }, xUnit: 'vh', tint: true, gauge: true },
 
-  /* -- effects, just above the player circles -- */
+  /* -- effects, just above the player circles --
+     tint: its chips (edge, glyph, fill) take the element's own colour; the theme's paper until one
+     is chosen (hud.css .buff-*), so no save that never coloured them looks any different. */
   { id: 'buffs', group: 'status', label: 'widget.buffs',
     origin: [0, 1], home: { x: 27, y: 91.5 }, xUnit: 'vh',
-    tint: false, gauge: false, displayKey: 'buffs' },
+    tint: true, gauge: false, displayKey: 'buffs' },
 
   /* -- the top-right column -- */
   { id: 'server', group: 'info', label: 'widget.server',

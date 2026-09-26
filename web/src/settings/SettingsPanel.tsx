@@ -405,16 +405,19 @@ export function SettingsPanel(p: PanelProps) {
   const name = (id: WidgetId) => t(WIDGET_BY_ID[id].label);
 
   /* An element with no colour of its own is drawn in the theme's: the circles in theirs, the
-     wallet in the money colour (or its stock tones), the compass in the accent, the rest in the
-     text colour. The swatch shows that, and its "follow" button says which it is. */
+     wallet in the money colour (or its stock tones), the compass in the accent, the effects in the
+     theme's paper, the rest in the text colour. The swatch shows that, and its "follow" button says
+     which it is. */
   const theme = p.settings.theme;
   const followColour = (id: WidgetId): string =>
-    CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? theme.core
-      : id === 'money' ? (theme.money || theme.text)
-        : id === 'compass' ? theme.accent : theme.text;
+    id === 'buffs' ? DEFAULT_THEME.text
+      : CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? theme.core
+        : id === 'money' ? (theme.money || theme.text)
+          : id === 'compass' ? theme.accent : theme.text;
   const followLabel = (id: WidgetId): string =>
-    CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? 'inheritCore'
-      : id === 'money' ? 'inheritMoney' : 'inheritColour';
+    id === 'buffs' ? 'fieldDefault'
+      : CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? 'inheritCore'
+        : id === 'money' ? 'inheritMoney' : 'inheritColour';
 
   const saveLabel =
     p.saving === 'saving' ? t(S('saving'))
