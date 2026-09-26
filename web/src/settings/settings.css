@@ -7,9 +7,12 @@
 
    ★ The panel is built from the same materials as the HUD and the weapon wheel:
      RDR2's own textures through a tinted mask, the three RDR fonts, white on black,
-     and one red for anything destructive. It reads the same --gold/--cream/--line
-     variables the HUD does, so a palette the player chooses recolours the panel that
-     chose it -- they are looking at the result while they pick it.
+     and one red for anything destructive.
+
+   ⚠️ It does NOT take the player's palette any more (see "the panel keeps the theme" below).
+     It used to read the HUD's --gold/--cream/--line so the panel recoloured as colours were
+     picked; with every colour free, a dark text or accent colour would have left the panel --
+     the one place to undo it -- unreadable. The HUD behind it shows the result instead.
 
    ⚠️ The panel is laid out as a rail beside a body, not a stack of everything.
      The first version stacked tabs, a fourteen-row list with two buttons on every
@@ -67,7 +70,7 @@
 
 .hw-edit.is-sel::before {
   border-style: solid;
-  border-color: var(--gold-1);
+  border-color: #F2F2F2;   /* the theme's paper: editor chrome, not the player's accent */
   background: rgba(242, 242, 242, 0.09);
   box-shadow: 0 0 0 0.12rem rgba(0, 0, 0, 0.75), 0 0 1.4rem rgba(242, 242, 242, 0.28);
 }
@@ -146,18 +149,9 @@
 .hw[style*='--w-color'] .compass-marker { border-top-color: var(--w-color); }
 .hw[style*='--w-color'] .compass-card { color: var(--w-color); }
 .hw[style*='--w-color'] .ti-server .dot { border-color: var(--w-color); }
-/* The wallet: its figures and their icons (cash, bank, dirty, gold). It is drawn as .plate-val /
-   .plate-ic now, which the .ti-val line above no longer reaches -- that is why the element's
-   colour used to do nothing here.
-   ★ Precedence, highest first:
-       1. this element's own colour (Elements -> Wallet -> Colour; --w-color, drawn as a tone)
-       2. the theme's money colour (Colours -> لون الأموال; --money, any hue -- hud.css)
-       3. the stock tones (hud.css: figures paper, icons paper-dim, dirty money dim)
-     The element beats the theme by specificity: four classes here against at most three on the
-     wallet's rules in hud.css, whichever sheet loads last. Scoped to .wallet: the identity plate
-     uses the same classes and is left as it is. */
-.hw[style*='--w-color'] .wallet .plate-val,
-.hw[style*='--w-color'] .wallet .plate-ic { color: var(--w-color); }
+/* The wallet takes no rule here. Its element colour (--w-color) is one link of a chain in hud.css
+   (.wallet .plate-row): a row's own colour > this element's colour > the money colour > the stock
+   tones -- a rule here would outrank the rows by specificity and break that order. */
 /* Player Info (.plate.ident): the same fix. The PvP word and shield, the server id and its card,
    the level number take the element's colour (five classes here, against four at most on its
    rules in hud.css). The level's medal is w_level's own art in fixed fills and stays as it is.
@@ -170,6 +164,23 @@
 /* ══════════════════════════════════════════════════════════════════════════
    2 · the control panel
    ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the panel keeps the theme ──────────────────────────────────────────────────
+   ★ The player's palette is for the HUD. The panel, its colour chooser and the editor's name tags
+     and guides are the server's UI and stay in the Wraith theme's ink and paper whatever is picked:
+     every colour is free now, and a dark text or accent colour must never make the panel -- the
+     one place to change it back -- unreadable. The same variables, reset to the stock values for
+     everything inside these roots. */
+.hs-root, .hs-picker, .hw-tag, .hw-guides {
+  --gold-1: #F2F2F2;
+  --gold-2: #B4B4B4;
+  --gold-3: #7A7A7A;
+  --cream: #F2F2F2;
+  --dim: #B4B4B4;
+  --line: rgba(242, 242, 242, 0.28);
+  --danger: #CB0101;
+  --danger-rgb: 203, 1, 1;
+}
 
 .hs-root {
   position: fixed;
@@ -543,6 +554,9 @@
 
 /* ── colour fields ──────────────────────────────────────────────────────────── */
 .hs-fields { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+/* The wallet rows under the Wallet element (Elements pane): a caption and the four fields. */
+.hs-subcap { display: block; margin-top: 1rem; font-size: 1.35rem; color: var(--dim); }
+.hs-fields.is-compact .hs-field { padding: 0.45rem 0; }
 .hs-field {
   display: flex;
   align-items: center;
@@ -607,7 +621,7 @@
   -webkit-mask: var(--w-tex-tick) center / contain no-repeat; mask: var(--w-tex-tick) center / contain no-repeat;
 }
 
-/* ── the free chooser (the warning and the money colour: ColorField `free`) ──────
+/* ── the full chooser (every colour field: ColorField) ───────────────────────────
    The tones stay on top as quick picks; under them a saturation square, a hue rail, a row of
    ready colours and a #hex field. Sized in the editor's own unit (--hs-unit, store-adapter.css),
    and three classes deep so it wins over `.hs-picker .hs-shelf` whatever order the sheets load in. */
@@ -673,7 +687,7 @@
   outline: none;
 }
 .hs-hex:focus { border-color: var(--gold-1); }
-/* the money field's "Default": a button's line-height is `normal`, too tight for Tajawal */
+/* "Default" / "follow": a button's line-height is `normal`, too tight for Tajawal */
 .hs-picker.is-free .hs-mini { line-height: 1.4; }
 .hs-hex::placeholder { color: var(--dim); opacity: 0.6; }
 

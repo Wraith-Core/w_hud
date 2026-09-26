@@ -6,13 +6,14 @@ import { applyLocale, useI18n } from './i18n';
 import { EditGrid, HudLayoutProvider, HudWidget, useNudge } from './settings/layout';
 import { SettingsPanel } from './settings/SettingsPanel';
 import { applyShape, applyTheme } from './settings/theme';
-import { toTone } from './settings/palette';
+import { normHex } from './settings/color';
+import { coreLook, previewLook, type CoreKind, type CoreLevel, type CoreLook, type CoreMarks } from './settings/states';
 import {
   FEATURE_WIDGETS, WIDGETS, cloneProfile, cloneSettings, decodeShare, defaultServer,
   defaultSettings, defaultWidget, homeX, isMotionFile, mergeServerCfg, mergeSettings,
   profileFrom, safeUrl,
   type GridCfg, type HudSettings, type MediaCfg, type MediaId, type ServerCfg,
-  type ShapeCfg, type Theme, type WidgetCfg, type WidgetId, type WorldCfg,
+  type ShapeCfg, type Theme, type ThemeKey, type WidgetCfg, type WidgetId, type WorldCfg,
 } from './settings/types';
 
 const clamp = (v: number, a: number, b: number) => Math.min(Math.max(v, a), b);
@@ -271,16 +272,15 @@ function BuffRow({ buffs, meta }: { buffs: Record<string, number>; meta: Record<
      circular cores -- so we follow it rather than invent.
 
    The structure: an outer ring that is the gauge (360 degrees draining from the top) and a
-   dark disc with RDR grain in the middle, with the icon over it. */
-type CoreState = 'ok' | 'warn' | 'danger';
+   dark disc with RDR grain in the middle, with the icon over it.
 
-function Core({ value, icon, brokenIcon, color, state, title, split = true, goldRing, goldIcon,
-  poisoned, poisonRatio = 1 }: {
+   ★ `state` is how far the gauge has run down (it decides the broken heart); `look` is the colour
+     the circle is painted in -- that level, or a poison or a booster that outranks it
+     (settings/states.ts). A state is the circle itself changing colour, ring and icon together:
+     nothing is ever drawn on top of it to say so. */
+function Core({ value, icon, brokenIcon, color, state, look, title, split = true }: {
   value: number; icon: React.ReactNode; brokenIcon?: React.ReactNode;
-  color?: string; state?: CoreState; title?: string; split?: boolean;
-  goldRing?: boolean; goldIcon?: boolean;
-  /** مسموم: حلقة القلب تخفت ويتصاعد منه دخانٌ عفن */
-  poisoned?: boolean; poisonRatio?: number;
+  color?: string; state?: CoreLevel; look?: CoreLook; title?: string; split?: boolean;
 }) {
   const R = 44, C = 2 * Math.PI * R;
   const full = clamp(Number(value) || 0, 0, 100);
@@ -321,19 +321,13 @@ function Core({ value, icon, brokenIcon, color, state, title, split = true, gold
      its meaning: one picture accompanying you half the game and warning of nothing. So it
      goes with the red, never ahead of it. */
   const face = state === 'danger' && brokenIcon ? brokenIcon : icon;
+  const paint = look ?? state ?? 'ok';
 
   return (
-    /* ★ Two degrees of gilding, not one: the item that gilds the ring alone is a half
-       gilding, and the one that gilds the icon with it is a full one. Which is exactly
-       what the goldHealthOuter / goldHealthInner pair says. */
-    /* ★ التسمُّم يعلو على لون التحذير، والأحمر وحده يعلو عليه: الهود أبيض وأسود،
-       فالسمّ يُقرأ بدخانه ونبضه لا بلونه، والأحمر علامة الخطر فلا يُخفيه شيء.
-       الترتيب في hud.css يضمن ذلك. */
-    <div className={'core'
-        + (state && state !== 'ok' ? ' ' + state : '')
-        + (goldRing ? ' gold-ring' : '')
-        + (goldIcon ? ' gold-icon' : '')
-        + (poisoned ? ' poisoned' : '')} title={title}>
+    /* One class for the look -- warn, danger, poison, boost-health, boost-stamina -- and hud.css
+       paints the ring and the icon in its colour. Which state wins when there are two is decided
+       before this (coreLook), never by the stylesheet. */
+    <div className={'core' + (paint !== 'ok' ? ' ' + paint : '')} title={title}>
       <svg className="core-ring-svg" viewBox="0 0 100 100">
         <circle className="core-track" cx="50" cy="50" r={R} />
         <circle className="core-ring" cx="50" cy="50" r={R}
@@ -346,16 +340,6 @@ function Core({ value, icon, brokenIcon, color, state, title, split = true, gold
         <span className="core-ic">
           <span className="core-ic-dim">{face}</span>
           <span className="core-ic-lit" style={{ clipPath: `inset(${100 - cv}% 0 0 0)` }}>{face}</span>
-
-          {/* ★ ثلاث خصلاتٍ لا واحدة: خصلةٌ واحدة تُقرأ فقاعةً صاعدة، والثلاث
-              بتأخيرٍ مختلفٍ تُقرأ دخاناً. وشدّتها تتبع ما بقي من السمّ فتخفت
-              وحدها قبل أن تنقطع — فلا يختفي الدخان دفعةً بلا مقدّمة. */}
-          {poisoned && (
-            <span className="core-fumes" aria-hidden="true"
-              style={{ opacity: 0.35 + 0.65 * Math.max(0, Math.min(1, poisonRatio)) }}>
-              <i /><i /><i />
-            </span>
-          )}
         </span>
       </span>
     </div>
@@ -415,8 +399,12 @@ interface Hud {
   cash: number; gold: number; bank: number; dirty: number;
   talking: boolean;
   healthCore: number; staminaCore: number;
-  /* ★ Which parts are gilded right now. Absent = nothing is -- see client/consumables.lua. */
-  gilded?: { healthRing?: boolean; healthIcon?: boolean; staminaRing?: boolean; staminaIcon?: boolean };
+  /* ★ Which cores a booster is on right now. Absent = none -- see client/consumables.lua.
+     The player's arrive as ring / icon (the two engine overpowers); either one boosts that core.
+     horseHealth / horseStamina: a booster on the horse being ridden (w_stables' horse medicine and
+     stimulants, announced to w_hud by the w_stables:horseBoosted event). */
+  gilded?: { healthRing?: boolean; healthIcon?: boolean; staminaRing?: boolean; staminaIcon?: boolean;
+             horseHealth?: boolean; horseStamina?: boolean };
   /* ★ التسمُّم — غائبٌ ما دام اللاعب سليماً. left ثوانٍ باقية، وratio نسبتها. */
   poisoned?: { active?: boolean; left?: number; ratio?: number };
   horsehealthCore: number; horsestaminaCore: number;
@@ -523,6 +511,9 @@ function App() {
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<WidgetId | null>(null);
   const [saving, setSaving] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  /* The state colour the Colours pane is previewing (a field hovered or its chooser open): the
+     circles it belongs to are shown in it while the panel is open -- see previewLook. */
+  const [previewField, setPreviewField] = useState<ThemeKey | null>(null);
 
   /* ⚠️ A ref beside the state: the autosave timer fires outside React's flow and must send
      the settings as they are at that instant, not as they were when the timer was armed. */
@@ -718,6 +709,7 @@ function App() {
   const closeMenu = useCallback(() => {
     setEditing(false);
     setSelected(null);
+    setPreviewField(null);
     flush();
     void post('hud:settings:close', {});
   }, [flush]);
@@ -876,7 +868,8 @@ function App() {
   }, []);
 
   const visible = hud.show !== false;
-  const active = hud.talking;
+  /* Speaking -- or, while the panel previews the talking colour, shown as speaking. */
+  const active = hud.talking || (editing && previewField === 'talk');
   // ★ The fill is the level as a proportion of its maximum -- not a fixed scale of five as before.
   //   The source is client/voice.lua, and the number of levels comes from the config so it follows automatically.
   const voiceFill = clamp((hud.voiceLevel / Math.max(1, hud.voiceLevels)) * 100, 0, 100);
@@ -908,7 +901,7 @@ function App() {
      and they are per widget because the needs do not warn at the same point: hunger at
      40 is a nuisance and health at 40 is an emergency. One shared pair has to be wrong
      for one of them. */
-  const st = (id: WidgetId, v: number): CoreState => {
+  const st = (id: WidgetId, v: number): CoreLevel => {
     const w = settings.widgets[id];
     const danger = w.danger ?? thr.dangerLow ?? 20;
     const warn = w.warn ?? thr.warnLow ?? 40;
@@ -916,14 +909,21 @@ function App() {
     return v <= danger ? 'danger' : v <= warn ? 'warn' : 'ok';
   };
 
+  /* The colour a circle is painted in: its level, or a poison / booster that outranks it, in the
+     order the player chose (settings/states.ts) -- and, while the Colours pane previews a state
+     colour, that state on the circles it belongs to. */
+  const lookOf = (kind: CoreKind, level: CoreLevel, marks?: CoreMarks): CoreLook =>
+    (editing ? previewLook(previewField, kind) : null) ?? coreLook(level, marks, settings.shape.dangerWins);
+
+  /* The boosters: either of the player's two engine overpowers (ring, icon) boosts that core. */
+  const boostHealth = !!(hud.gilded?.healthRing || hud.gilded?.healthIcon);
+  const boostStamina = !!(hud.gilded?.staminaRing || hud.gilded?.staminaIcon);
+
   /* The player's colour wins over the server's, and the server's over none. A colour the
      player never chose is `null` -- not white -- so Config.Display keeps its say until then.
-     ★ Either is drawn as the nearest ink/paper tone (settings/palette.ts): the HUD is white and
-       black, and a colour saved by an older build stays in the save, only its paint changes. */
-  const tint = (id: WidgetId, fallback?: string): string | undefined => {
-    const c = settings.widgets[id].color ?? fallback;
-    return c ? toTone(c) : undefined;
-  };
+     Painted exactly as chosen (an older save's colour was read as the tone it showed: types.ts). */
+  const tint = (id: WidgetId, fallback?: string): string | undefined =>
+    settings.widgets[id].color ?? (normHex(fallback, '') || undefined);
 
   // Top-right info -- from VORP if available, otherwise from hudtick
   const gold = econ.has ? econ.gold : hud.gold;
@@ -1026,9 +1026,10 @@ function App() {
           if (!vis(id, { show: true, alwaysOn: true }, value)) return null;
           const status = companion ? t(companion.dead ? 'pet.injured' : companion.mode === 'stay' ? 'pet.stay' : 'pet.follow') : t('pet.preview');
           const title = `${companion?.name || t('widget.companion')} · ${t('pet.' + need)}: ${Math.round(value)}% · ${status}`;
+          const level = st(id, value);
           return <HudWidget id={id} key={id} className="companion-core">
             <Core value={value} icon={icon} brokenIcon={brokenIcon} title={title}
-              color={tint(id)} state={st(id, value)} />
+              color={tint(id)} state={level} look={lookOf('need', level)} />
           </HudWidget>;
         })}
         {/* ── top right: the server, the ammo, the wallet, the identity ───────── */}
@@ -1066,13 +1067,16 @@ function App() {
               The blue Rol row is gone on purpose: not one character on this server holds
               any, so it was a permanent zero taking a line from figures that move. Its
               icon stays bundled in vorpCurrencyIcons for whoever wants it back. */}
+          {/* ★ Each row is its own colour field (Colours -> the wallet): its figure and its icon take
+              the row's colour, else the Wallet element's, else the money colour, else its stock tone
+              -- the chain is in hud.css (.wallet .plate-row), one variable per row. */}
           <div className="plate wallet">
             <div className="plate-row is-cash">
               <span className="plate-val">{fmtMoney(cash)}</span>
               <span className="plate-ic"><CashIcon /></span>
             </div>
             <span className="plate-rule" aria-hidden="true" />
-            <div className="plate-row">
+            <div className="plate-row is-bank">
               <span className="plate-val">{fmtMoney(bank)}</span>
               <span className="plate-ic"><BankIcon /></span>
             </div>
@@ -1120,35 +1124,44 @@ function App() {
         )}
 
         {/* ★ The state is read from the same value the two stages are drawn from, or the
-            colour would say one thing and the shape another. */}
-        {vis('health', display.health, hud.health) && (
-          <HudWidget id="health">
-            <Core value={hud.health} icon={<HeartIcon />} brokenIcon={<BrokenHeartIcon />} title={t('hud.health')}
-              color={tint('health', display.health?.color)} state={st('health', hud.health)}
-              goldRing={hud.gilded?.healthRing} goldIcon={hud.gilded?.healthIcon}
-              poisoned={!!hud.poisoned?.active} poisonRatio={hud.poisoned?.ratio ?? 1} />
-          </HudWidget>
-        )}
+            colour would say one thing and the shape another.
+            ★ Poisoned or boosted, the circle itself takes that colour (Colours -> the states);
+              nothing is drawn over it to say so. */}
+        {vis('health', display.health, hud.health) && (() => {
+          const level = st('health', hud.health);
+          return (
+            <HudWidget id="health">
+              <Core value={hud.health} icon={<HeartIcon />} brokenIcon={<BrokenHeartIcon />} title={t('hud.health')}
+                color={tint('health', display.health?.color)} state={level}
+                look={lookOf('health', level, { poison: !!hud.poisoned?.active, boost: boostHealth ? 'health' : null })} />
+            </HudWidget>
+          );
+        })()}
 
-        {vis('stamina', display.stamina, hud.stamina) && (
-          <HudWidget id="stamina">
-            <Core value={hud.stamina} icon={<BoltIcon />} title={t('hud.stamina')}
-              color={tint('stamina', display.stamina?.color)} state={st('stamina', hud.stamina)}
-              goldRing={hud.gilded?.staminaRing} goldIcon={hud.gilded?.staminaIcon} />
-          </HudWidget>
-        )}
+        {vis('stamina', display.stamina, hud.stamina) && (() => {
+          const level = st('stamina', hud.stamina);
+          return (
+            <HudWidget id="stamina">
+              <Core value={hud.stamina} icon={<BoltIcon />} title={t('hud.stamina')}
+                color={tint('stamina', display.stamina?.color)} state={level}
+                look={lookOf('stamina', level, { boost: boostStamina ? 'stamina' : null })} />
+            </HudWidget>
+          );
+        })()}
 
         {vis('hunger', display.hunger, hud.hunger) && (
           <HudWidget id="hunger">
             <Core value={hud.hunger} icon={<MeatIcon />} title={t('hud.food')}
-              color={tint('hunger', display.hunger?.color)} state={st('hunger', hud.hunger)} />
+              color={tint('hunger', display.hunger?.color)} state={st('hunger', hud.hunger)}
+              look={lookOf('need', st('hunger', hud.hunger))} />
           </HudWidget>
         )}
 
         {vis('thirst', display.thirst, hud.thirst) && (
           <HudWidget id="thirst">
             <Core value={hud.thirst} icon={<WaterIcon />} title={t('hud.water')}
-              color={tint('thirst', display.thirst?.color)} state={st('thirst', hud.thirst)} />
+              color={tint('thirst', display.thirst?.color)} state={st('thirst', hud.thirst)}
+              look={lookOf('need', st('thirst', hud.thirst))} />
           </HudWidget>
         )}
 
@@ -1163,16 +1176,20 @@ function App() {
         </HudWidget>
 
         {/* Horse -- only while mounted */}
+        {/* ★ The same booster colours as the player's: a horse medicine turns the horse's health
+            circle, a stimulant its stamina circle (w_stables -> the w_stables:horseBoosted event). */}
         {(hud.onHorse || showAll) && display.horse?.show !== false && (
           <HudWidget id="horseHealth">
             <Core value={hud.horsehealth} icon={<HorseIcon />} title={t('hud.horseHealth')}
-              color={tint('horseHealth', display.horse?.color)} state={st('horseHealth', hud.horsehealth)} />
+              color={tint('horseHealth', display.horse?.color)} state={st('horseHealth', hud.horsehealth)}
+              look={lookOf('horseHealth', st('horseHealth', hud.horsehealth), { boost: hud.gilded?.horseHealth ? 'health' : null })} />
           </HudWidget>
         )}
         {(hud.onHorse || showAll) && display.horse?.show !== false && (
           <HudWidget id="horseStamina">
             <Core value={hud.horsestamina} icon={<HorseShoeIcon />} title={t('hud.horseStamina')}
-              color={tint('horseStamina', display.horse?.color)} state={st('horseStamina', hud.horsestamina)} />
+              color={tint('horseStamina', display.horse?.color)} state={st('horseStamina', hud.horsestamina)}
+              look={lookOf('horseStamina', st('horseStamina', hud.horsestamina), { boost: hud.gilded?.horseStamina ? 'stamina' : null })} />
           </HudWidget>
         )}
 
@@ -1227,6 +1244,7 @@ function App() {
         applyProfile={applyProfile}
         clearProfile={clearProfile}
         importCode={importCode}
+        previewState={setPreviewField}
         onSave={flush}
         onClose={closeMenu}
       />

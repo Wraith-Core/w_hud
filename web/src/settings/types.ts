@@ -689,12 +689,14 @@ function readTheme(raw: unknown, base: Theme, ver = SETTINGS_VERSION): Theme {
     if (OLD_STOCKS.some((old) => OLD_KEYS.every((k) => String(base[k]).toUpperCase() === old[k]))) {
       return Object.assign(base, DEFAULT_THEME);
     }
-    if (ver < FREE_WARN_SINCE) base.warn = toTone(base.warn);
-    base.accent = toTone(base.accent);
-    base.text = toTone(base.text);
-    base.dim = toTone(base.dim);
-    base.danger = toTone(base.danger, { red: true });
-    base.poison = OLD_POISONS.includes(base.poison.toUpperCase()) ? DEFAULT_THEME.poison : toTone(base.poison);
+    /* Only what the save held: a field it never had (or could not be read) keeps today's default. */
+    const had = (key: ThemeKey): boolean => normHex(src[key], '') !== '';
+    if (ver < FREE_WARN_SINCE && had('warn')) base.warn = toTone(base.warn);
+    if (had('accent')) base.accent = toTone(base.accent);
+    if (had('text')) base.text = toTone(base.text);
+    if (had('dim')) base.dim = toTone(base.dim);
+    if (had('danger')) base.danger = toTone(base.danger, { red: true });
+    if (had('poison')) base.poison = OLD_POISONS.includes(base.poison.toUpperCase()) ? DEFAULT_THEME.poison : toTone(base.poison);
   }
 
   /* Split out of the text colour, which drew the circles and the speaking disc until they had

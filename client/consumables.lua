@@ -294,20 +294,62 @@ local function gild(index, outer, inner)
     if inner > 0 and until_ > slot.icon then slot.icon = until_ end
 end
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- The horse's boosters
+--
+-- ★ w_stables' potent / special horse medicine and stimulants put an engine overpower on the
+--   horse (w_stables client/care.lua) and announce it with the local event below. This is the same
+--   bookkeeping WHudGold keeps for the player, per horse, so that the horse being ridden has its
+--   health or stamina circle drawn in the booster colour while it lasts. Keyed by the entity
+--   handle, which is the same in every resource on this client.
+--
+-- ⚠️ AddEventHandler, not RegisterNetEvent: a local announcement from another resource on this
+--   client. The server cannot raise it.
+-- ════════════════════════════════════════════════════════════════════════════
+WHudGold.horses   = {}                           -- [ped] = { health = until, stamina = until }
+WHudGold.horseDev = { health = 0, stamina = 0 }  -- /hudgold horse (client/dev.lua)
+
+AddEventHandler('w_stables:horseBoosted', function(ped, core, seconds)
+    ped, core, seconds = tonumber(ped), tonumber(core), tonumber(seconds)
+    if not ped or ped == 0 or not seconds or seconds <= 0 then return end
+    if core ~= CORE_HEALTH and core ~= CORE_STAMINA then return end
+
+    local now = GetGameTimer()
+
+    -- the table only ever holds a horse or two: drop the ones whose boosters have run out
+    for handle, slot in pairs(WHudGold.horses) do
+        if slot.health <= now and slot.stamina <= now then WHudGold.horses[handle] = nil end
+    end
+
+    local slot  = WHudGold.horses[ped] or { health = 0, stamina = 0 }
+    local key   = (core == CORE_HEALTH) and 'health' or 'stamina'
+    local until_ = now + math.floor(math.min(seconds, 3600) * 1000)
+
+    -- the longer wins, as for the player's gilding
+    if until_ > slot[key] then slot[key] = until_ end
+    WHudGold.horses[ped] = slot
+end)
+
 --- What the HUD payload carries. nil while nothing is gilded, so the fingerprint stays quiet.
+---@param mount number|nil the horse being ridden, if any: its boosters ride along
 ---@return table|nil
-function WHudGold.snapshot()
+function WHudGold.snapshot(mount)
     local now = GetGameTimer()
     local h, s = WHudGold.health, WHudGold.stamina
+    local horse = mount and mount ~= 0 and WHudGold.horses[mount] or nil
+    local dev = WHudGold.horseDev
 
     local out = {
         healthRing   = h.ring > now,
         healthIcon   = h.icon > now,
         staminaRing  = s.ring > now,
         staminaIcon  = s.icon > now,
+        horseHealth  = (horse ~= nil and horse.health > now) or dev.health > now,
+        horseStamina = (horse ~= nil and horse.stamina > now) or dev.stamina > now,
     }
 
-    if out.healthRing or out.healthIcon or out.staminaRing or out.staminaIcon then
+    if out.healthRing or out.healthIcon or out.staminaRing or out.staminaIcon
+        or out.horseHealth or out.horseStamina then
         return out
     end
 
@@ -344,7 +386,7 @@ function WHudPoison.snapshot()
     return {
         active = true,
         left   = math.ceil(left / 1000),
-        -- نسبة ما بقي — الواجهة تُشدّد الدخان في أوّله وتُخفّفه في آخره.
+        -- نسبة ما بقي (تُرسَل مع الحالة؛ الواجهة تكتفي بتلوين دائرة الصحة).
         ratio  = WHudPoison.total > 0 and math.min(1.0, left / WHudPoison.total) or 1.0,
     }
 end

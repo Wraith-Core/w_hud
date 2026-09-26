@@ -28,14 +28,13 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { play } from '../wheel/nui';
 import { useI18n, type TFn } from '../i18n';
 import { ColorField } from './ColorField';
-import { toTone } from './palette';
 import {
-  FEATURES, FEATURE_WIDGETS, GROUP_LABEL, PROFILE_SLOTS, THEME_FIELDS, THEME_PRESETS,
-  WIDGETS, WIDGET_BY_ID, deathMinutes, drainMinutes, encodeShare, profileFrom, safeUrl,
+  DEFAULT_THEME, FEATURES, FEATURE_WIDGETS, GROUP_LABEL, PROFILE_SLOTS, THEME_FIELDS, THEME_PRESETS,
+  WIDGETS, WIDGET_BY_ID, deathMinutes, drainMinutes, encodeShare, moneyRowColour, profileFrom, safeUrl,
   type FeatureId, type GridCfg, type HudSettings, type MapMode, type MediaCfg,
   type MediaId, type ServerCfg, type ServerDamageCfg, type ServerNeedsCfg, type ShapeCfg,
-  type Theme, type Visibility, type WidgetCfg, type WidgetGroup, type WidgetId,
-  type WorldCfg,
+  type Theme, type ThemeGroup, type ThemeKey, type Visibility, type WidgetCfg, type WidgetGroup,
+  type WidgetId, type WorldCfg,
 } from './types';
 
 type Pane = 'elements' | 'colours' | 'shape' | 'display' | 'layout' | 'profiles' | 'admin';
@@ -60,6 +59,8 @@ export interface PanelProps {
   applyProfile: (slot: number) => void;
   clearProfile: (slot: number) => void;
   importCode: (code: string) => boolean;
+  /** The state colour being looked at (a field hovered, its chooser open) -- the HUD shows it. */
+  previewState: (key: ThemeKey | null) => void;
   /** The server's half -- everyone sees it, only an admin may change it. */
   serverCfg: ServerCfg;
   isAdmin: boolean;
@@ -221,6 +222,61 @@ function MediaFields({ id, cfg, t, onChange }: {
   );
 }
 
+/**
+ * One colour of the theme: its name, what it paints, and the chooser.
+ *
+ * ★ Every field has a way back: a field that may be none chosen (the money, each wallet row) offers
+ *   what it follows; every other field offers its stock colour ("Default").
+ * ★ Hovering the field or opening its chooser previews it on the HUD (App.tsx previewLook), so a
+ *   poison or a booster colour is picked while looking at a poisoned or boosted circle.
+ */
+function ThemeColour({ field, settings, t, setTheme, preview }: {
+  field: (typeof THEME_FIELDS)[number];
+  settings: HudSettings;
+  t: TFn;
+  setTheme: (patch: Partial<Theme>) => void;
+  preview: (key: ThemeKey | null) => void;
+}) {
+  const theme = settings.theme;
+  const key = field.key;
+  const value = theme[key];
+  const open = useRef(false);
+
+  /* What the swatch shows while the field is none chosen: what is drawn in its place. */
+  const shown = field.empty === 'stock' ? (value || theme.text)
+    : field.empty === 'wallet' ? moneyRowColour(theme, settings.widgets.money.color, key)
+      : value;
+
+  const set = (hex: string) => setTheme({ [key]: hex } as Partial<Theme>);
+
+  return (
+    <li className="hs-field"
+      onMouseEnter={() => preview(key)}
+      onMouseLeave={() => { if (!open.current) preview(null); }}>
+      <span className="hs-field-text">
+        <b>{t(field.label)}</b>
+        <em>{t(field.hint)}</em>
+      </span>
+      <ColorField
+        value={shown}
+        onChange={set}
+        red={key === 'danger'}
+        onOpenChange={(o) => { open.current = o; preview(o ? key : null); }}
+        inherit={field.empty ? {
+          active: value === '',
+          label: t(S(field.empty === 'stock' ? 'moneyStock' : 'inheritWallet')),
+          onPick: () => set(''),
+        } : undefined}
+        reset={field.empty ? undefined : {
+          active: value === DEFAULT_THEME[key],
+          label: t(S('fieldDefault')),
+          onPick: () => set(DEFAULT_THEME[key]),
+        }}
+      />
+    </li>
+  );
+}
+
 function Section({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
   return (
     <section className="hs-section">
@@ -249,6 +305,9 @@ function duration(mins: number, t: TFn, never: string): string {
   return `${h} ${t(S('hour'))} ${m} ${t(S('minute'))}`;
 }
 const GROUP_ORDER: WidgetGroup[] = ['status', 'horse', 'pet', 'info', 'nav', 'media'];
+const COLOUR_GROUPS: ThemeGroup[] = ['base', 'states', 'wallet'];
+/** The circles: an element of these with no colour of its own follows the circles' colour. */
+const CORE_GROUPS: WidgetGroup[] = ['status', 'horse', 'pet'];
 
 export function SettingsPanel(p: PanelProps) {
   const { t } = useI18n();
@@ -344,6 +403,18 @@ export function SettingsPanel(p: PanelProps) {
   const meta = p.selected ? WIDGET_BY_ID[p.selected] : null;
   const cfg: WidgetCfg | null = p.selected ? p.settings.widgets[p.selected] : null;
   const name = (id: WidgetId) => t(WIDGET_BY_ID[id].label);
+
+  /* An element with no colour of its own is drawn in the theme's: the circles in theirs, the
+     wallet in the money colour (or its stock tones), the compass in the accent, the rest in the
+     text colour. The swatch shows that, and its "follow" button says which it is. */
+  const theme = p.settings.theme;
+  const followColour = (id: WidgetId): string =>
+    CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? theme.core
+      : id === 'money' ? (theme.money || theme.text)
+        : id === 'compass' ? theme.accent : theme.text;
+  const followLabel = (id: WidgetId): string =>
+    CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? 'inheritCore'
+      : id === 'money' ? 'inheritMoney' : 'inheritColour';
 
   const saveLabel =
     p.saving === 'saving' ? t(S('saving'))
@@ -482,17 +553,29 @@ export function SettingsPanel(p: PanelProps) {
                       <div className="hs-fieldrow">
                         <span>{t(S('colour'))}</span>
                         <ColorField
-                          value={cfg.color ?? p.settings.theme.accent}
+                          value={cfg.color ?? followColour(meta.id)}
                           onChange={(hex) => p.patch(meta.id, { color: hex })}
                           inherit={{
                             active: cfg.color === null,
-                            /* The wallet with no colour of its own follows the theme's money colour
-                               (and that, when unset, the stock tones) -- not the accent. */
-                            label: t(S(meta.id === 'money' ? 'inheritMoney' : 'inheritColour')),
+                            label: t(S(followLabel(meta.id))),
                             onPick: () => p.patch(meta.id, { color: null }),
                           }}
                         />
                       </div>
+                    )}
+
+                    {/* The wallet's rows, each its own colour -- the same fields as the Colours pane,
+                        offered here too because this is where a player looking at the wallet is. */}
+                    {meta.id === 'money' && (
+                      <>
+                        <span className="hs-subcap">{t(S('rowColours'))}</span>
+                        <ul className="hs-fields is-compact">
+                          {THEME_FIELDS.filter((f) => f.empty === 'wallet').map((field) => (
+                            <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
+                              setTheme={p.setTheme} preview={p.previewState} />
+                          ))}
+                        </ul>
+                      </>
                     )}
 
                     {meta.media && (
@@ -572,34 +655,26 @@ export function SettingsPanel(p: PanelProps) {
                   </div>
                 </Section>
 
-                <Section title={t(S('singleColours'))}>
-                  <ul className="hs-fields">
-                    {THEME_FIELDS.map((field) => (
-                      <li key={field.key} className="hs-field">
-                        <span className="hs-field-text">
-                          <b>{t(field.label)}</b>
-                          <em>{t(field.hint)}</em>
-                        </span>
-                        {/* ★ The money colour may be none at all ('' -- the wallet's stock tones), so
-                            it is the one field with a way back to that: the swatch says so, and
-                            shows the figures' own tone meanwhile. */}
-                        <ColorField
-                          value={field.key === 'money'
-                            ? (p.settings.theme.money || toTone(p.settings.theme.text))
-                            : p.settings.theme[field.key]}
-                          onChange={(hex) => p.setTheme({ [field.key]: hex } as Partial<Theme>)}
-                          red={field.key === 'danger'}
-                          free={field.free}
-                          inherit={field.key === 'money' ? {
-                            active: p.settings.theme.money === '',
-                            label: t(S('moneyStock')),
-                            onPick: () => p.setTheme({ money: '' }),
-                          } : undefined}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </Section>
+                {/* ★ Three groups: the general colours, the circles and every state they can show
+                    (one field each -- a state is the circle changing colour), and the wallet with a
+                    field per row. */}
+                {COLOUR_GROUPS.map((group) => (
+                  <Section key={group} title={t(S('colGroup_' + group))}
+                    note={group === 'states'
+                      ? t(S(p.settings.shape.dangerWins ? 'statesOrderDanger' : 'statesOrderEffect'))
+                      : group === 'wallet' ? t(S('walletOrder')) : undefined}>
+                    <ul className="hs-fields">
+                      {THEME_FIELDS.filter((f) => f.group === group).map((field) => (
+                        <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
+                          setTheme={p.setTheme} preview={p.previewState} />
+                      ))}
+                    </ul>
+                    {group === 'states' && (
+                      <Toggle label={t(S('dangerWins'))} on={p.settings.shape.dangerWins}
+                        onChange={(v) => p.setShape({ dangerWins: v })} />
+                    )}
+                  </Section>
+                ))}
               </>
             )}
 

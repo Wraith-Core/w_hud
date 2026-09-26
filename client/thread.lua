@@ -169,9 +169,10 @@ CreateThread(function()
                 -- full needs (server/metabolism.lua) + buffs
                 buffs = buffs,
                 -- ★ nil while nothing is gilded, so the payload fingerprint stays quiet.
-                gilded = WHudGold and WHudGold.snapshot() or nil,
-                -- ★ وكذلك التسمُّم: nil ما دام اللاعب سليماً — القلب الأخضر
-                --   والدخان لا يُرسَلان إلّا حين يكونان.
+                --   The ridden horse is passed in: its boosters (w_stables) ride along.
+                gilded = WHudGold and WHudGold.snapshot(mounted and GetMount(cache.ped) or nil) or nil,
+                -- ★ وكذلك التسمُّم: nil ما دام اللاعب سليماً — دائرة الصحة لا تأخذ
+                --   لون السمّ إلّا حين يكون.
                 poisoned = WHudPoison and WHudPoison.snapshot() or nil,
                 talking = talking,
                 temp = temperature,

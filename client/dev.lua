@@ -271,6 +271,8 @@ end)
 --     /hudgold                 both cores fully gilded
 --     /hudgold health ring     the ring alone -- a half gilding
 --     /hudgold stamina both    ring and icon -- a full one
+--     /hudgold horse           the horse's two circles (shown while riding)
+--     /hudgold horse health    the horse's health circle alone (or: stamina)
 --     /hudgold off             clear it
 -- ════════════════════════════════════════════════════════════════════════════
 RegisterCommand('hudgold', function(_, args)
@@ -284,12 +286,22 @@ RegisterCommand('hudgold', function(_, args)
     if which == 'off' then
         WHudGold.health = { ring = 0, icon = 0 }
         WHudGold.stamina = { ring = 0, icon = 0 }
+        if WHudGold.horseDev then WHudGold.horseDev = { health = 0, stamina = 0 } end
         return print('^2[w_hud]^7 gilding cleared.^0')
     end
 
     -- ⚠️ A long window on purpose: the default duration is 30s, and reviewing a colour
     --    outlasts that. This is preview, not simulation.
     local until_ = GetGameTimer() + 600000
+
+    if which == 'horse' then
+        WHudGold.horseDev = WHudGold.horseDev or { health = 0, stamina = 0 }
+        local part = tostring(args[2] or 'all'):lower()
+        if part == 'health' or part == 'hp' or part == 'all' then WHudGold.horseDev.health = until_ end
+        if part == 'stamina' or part == 'stam' or part == 'all' then WHudGold.horseDev.stamina = until_ end
+        return print(('^2[w_hud]^7 horse boosted (%s) for 10 minutes, shown while riding -- /hudgold off to clear.^0')
+            :format(part))
+    end
 
     local function set(slot)
         slot.ring = until_

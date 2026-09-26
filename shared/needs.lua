@@ -112,9 +112,10 @@ Config.HorseCare = {
 --   item's own number because those numbers are engine magnitudes, not seconds: one item
 --   carries 30/10 and another 1000/500. (Detail in client/consumables.lua.)
 --
---   The item still decides *what* is gilded: goldHealthOuter gilds the ring, and
---   goldHealthInner gilds the icon with it -- so 'outer only' is a half gilding and
---   'both' is a full one.
+--   The item still decides *what* the engine fortifies: goldHealthOuter the bar (the ring),
+--   goldHealthInner the core (the icon). On the HUD either one turns that circle -- ring and
+--   icon -- into the booster colour (HUD menu -> Colours: لون معزز الصحة / لون معزز اللياقة),
+--   and the horse's circles do the same for w_stables' horse medicine and stimulants.
 Config.Gold = {
     Duration = 30000, -- ms
 }
@@ -133,8 +134,10 @@ Config.Gold = {
 --
 -- ═══ ما يراه اللاعب ═══
 --
--- قلبُ الهود يخضرّ ويتصاعد منه دخانٌ عفن (web/src/App.tsx و hud.css)، وضربةٌ
--- كلّ Tick تُنقص صحّته. والترياق منقوع الأعشاب — curesPoison في consumables.
+-- دائرة الصحة نفسها تأخذ لون التسمُّم، حلقتها وأيقونتها، ولا يُرسَم فوقها شيء
+-- (اللون من قائمة الهود ← الألوان: لون التسمُّم)، وضربةٌ كلّ Tick تُنقص صحّته.
+-- والترياق منقوع الأعشاب — curesPoison في consumables. ومؤثّر الشاشة Fx أدناه
+-- مؤثّر اللعبة نفسها لا شكلٌ في الهود.
 --
 -- ⚠️ ولا يقتل: يقف عند MinHealth. سمٌّ يقتل من تلقاء نفسه يعني موتاً لا يملك
 --   اللاعب دفعه بعد أن أكل، وهو عقابٌ لا لعبة. اجعله 0 إن أردته قاتلاً.
@@ -173,8 +176,9 @@ Config.Thresholds = {
 --   ★ This is the layer the player settings panel will read later.
 --
 --   show      whether it appears at all
---   color     colour of the ring and icon (empty = the accent; drawn as the nearest ink/paper
---             tone -- the HUD is white and black -- and the state overrides it)
+--   color     colour of the ring and icon (empty = the circles' colour from the HUD menu; drawn
+--             exactly as written; a player's own colour for the circle wins, and every state
+--             -- warning, danger, poison, booster -- overrides both)
 --   alwaysOn  always visible
 --   showBelow if not alwaysOn: only appears below this value
 ----------------------------------

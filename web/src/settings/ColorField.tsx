@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * w_hud · settings/ColorField.tsx
- * A colour picker with no dependency -- a swatch that opens a shelf of the theme's tones,
- * and on the two free fields a full chooser beside them.
+ * A colour picker with no dependency -- a swatch that opens the theme's tones as quick picks and
+ * a full chooser under them, on every colour field of the panel.
  *
  * ★ Why not <input type="color">?
  *
@@ -9,22 +9,18 @@
  *   outside the game, behind it in fullscreen. The player clicks the swatch and nothing
  *   appears to happen. So the picker is drawn here, in the page, in the HUD's own idiom.
  *
- * ★ Why a shelf and no colour wheel?
+ * ★ Tones first, then everything.
  *
- *   The HUD is white and black, like Red Dead's own: the only colours it may draw are the
- *   theme's ink and paper tones and, for danger alone, its one red (palette.ts). A hue rail
- *   would offer colours the HUD then refuses to paint. So the choice is the tones themselves,
- *   lightest first, and the red only on the field that means danger.
+ *   The stock HUD is white and black, like Red Dead's own, so the theme's ink and paper tones
+ *   sit on top as one-click picks (and its red on the danger field). Under them is everything
+ *   else -- the owner wants full freedom in the colours, and the HUD paints exactly what is
+ *   picked (theme.ts): a saturation square and a hue rail, a row of ready colours (the game's
+ *   poison green and fortify gold among them), and a #hex field. The swatch shows the colour
+ *   itself. The picker stays open while a colour is picked, so it can be nudged afterwards.
  *
- * ⚠️ `value` may still be a colour saved by an older build (a blue accent, a green circle).
- *   It is shown as the tone it is drawn in -- the save itself is not changed until the
- *   player picks something.
- *
- * ★ Except on a free field (`free`: the warning and the money colour). The owner wants those
- *   in any hue, and the HUD paints them exactly as chosen (theme.ts), so the picker offers
- *   everything: the same tones on top as quick picks, then a saturation square and a hue rail,
- *   a row of ready colours, and a #hex field -- and the swatch shows the colour itself, not a
- *   tone. The picker stays open while a free colour is picked, so it can be nudged afterwards.
+ * ★ Two ways back, beside the #hex field: `inherit` for a field that may follow something else
+ *   (an element that follows the theme, a wallet row that follows the wallet), and `reset` for a
+ *   field with a stock colour of its own ("Default") -- so no pick is a one-way door.
  *
  * ⚠️ Hue is kept in a ref alongside the hex, not derived from it on every render: a grey
  *   has no hue (s = 0), so dragging the saturation square down to grey and back up again
@@ -36,13 +32,13 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { hexToHsv, hsvToHex, normHex, readableInk } from './color';
-import { PAPER, RED, TONES, toTone } from './palette';
+import { PAPER, RED, TONES } from './palette';
 
-/* Ready colours for a free field: ones that read over a dark, moving game -- a warning yellow
-   and orange, a red, two golds for the money, a green, a blue, a violet. Nothing so dark that it
-   disappears against the ground. (The earlier build's shelf, less its whites and greys, which
-   the tones above them already cover.) */
-const READY = ['#E8C547', '#F2994A', '#E05555', '#E7CE8A', '#C8A44D', '#5AB054', '#8EC8E8', '#B48CD9'];
+/* Ready colours: ones that read over a dark, moving game -- a warning yellow and orange, a red,
+   RDR's fortify gold (the boosters' stock) and a paler gold, RDR's poisoned green (the poison's
+   stock), a blue, a violet. Nothing so dark that it disappears against the ground; the tones above
+   them already cover the whites and greys. */
+const READY = ['#E8C547', '#F2994A', '#E05555', '#D9B45A', '#E7CE8A', '#6FAE55', '#8EC8E8', '#B48CD9'];
 
 /** #RRGGBB (the # optional) -- applied as it is typed; anything shorter waits for Enter. */
 const FULL_HEX = /^#?[0-9a-f]{6}$/i;
@@ -52,14 +48,16 @@ interface Props {
   onChange: (hex: string) => void;
   /** Shown as a "follow the theme" choice when the widget has no colour of its own. */
   inherit?: { active: boolean; label: string; onPick: () => void };
+  /** A field with a stock colour of its own: one click back to it. */
+  reset?: { active: boolean; label: string; onPick: () => void };
   title?: string;
-  /** The danger field: the theme's red is offered too (and a reddish save is drawn red). */
+  /** The danger field: the theme's red is offered among the quick picks too. */
   red?: boolean;
-  /** Any colour (the warning, the money): the full chooser, shown and painted exactly as chosen. */
-  free?: boolean;
+  /** Told whenever the chooser opens or closes (the panel previews the state being coloured). */
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function ColorField({ value, onChange, inherit, title, red = false, free = false }: Props) {
+export function ColorField({ value, onChange, inherit, reset, title, red = false, onOpenChange }: Props) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   /* ⚠️ The popover is placed in viewport coordinates, not relative to the swatch.
@@ -72,10 +70,16 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
 
-  /* A free field shows (and is painted in) the colour itself; every other field, its tone. */
+  /* The swatch shows (and the HUD is painted in) the colour itself. */
   const exact = normHex(value, PAPER);
-  const shown = free ? exact : toTone(value, { red });
+  const shown = exact;
   const shelf: string[] = red ? [RED, ...TONES] : [...TONES];
+
+  const onOpenRef = useRef(onOpenChange);
+  onOpenRef.current = onOpenChange;
+  useEffect(() => { onOpenRef.current?.(open); }, [open]);
+  /* Closing by unmounting (the pane changed) still says so. */
+  useEffect(() => () => { onOpenRef.current?.(false); }, []);
 
   const hsv = hexToHsv(exact);
   /* A grey (the stock warning, the stock money) has no hue: the square opens on a warm gold
@@ -159,11 +163,9 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
     if (force || hex !== exact) onChange(hex);
   };
 
-  /* A chip: a tone field closes on the pick (there is nothing else to do there); a free one
-     stays open so the colour can still be nudged on the square or the rail. */
+  /* A chip keeps the picker open, so the colour can still be nudged on the square or the rail. */
   const pickChip = (hex: string) => {
     onChange(hex);
-    if (!free) setOpen(false);
   };
 
   /* Measure the actual editor-scale popup, independently from the HUD's tiny rem. */
@@ -175,7 +177,7 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
     const unit = Math.max(1, Math.min(2, window.innerHeight / 1080));
     const bounds = pop.current?.getBoundingClientRect();
     const w = bounds?.width ?? 288 * unit;
-    const h = bounds?.height ?? (free ? 440 : 160) * unit;
+    const h = bounds?.height ?? 460 * unit;
     const gap = 16 * unit;
 
     /* Below the swatch when there is room for it, above when there is not, and never
@@ -231,13 +233,13 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
       {open && createPortal((
         <div
           ref={pop}
-          className={'hs-picker wst-root wst-panel' + (free ? ' is-free' : '')}
+          className="hs-picker wst-root wst-panel is-free"
           style={{ left: `${at.left}px`, top: `${at.top}px` }}
           dir={document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'}
         >
           <span className="wst-frame" aria-hidden="true"><span className="wst-fr-t" /><span className="wst-fr-b" /><span className="wst-fr-l" /><span className="wst-fr-r" /><span className="wst-fr-tl" /><span className="wst-fr-tr" /><span className="wst-fr-bl" /><span className="wst-fr-br" /></span>
 
-          {free && <span className="hs-pick-cap">{t('settings.pickTones')}</span>}
+          <span className="hs-pick-cap">{t('settings.pickTones')}</span>
           <div className={'hs-shelf' + (red ? ' has-red' : '')}>
             {shelf.map((hex) => (
               <button
@@ -251,75 +253,76 @@ export function ColorField({ value, onChange, inherit, title, red = false, free 
             ))}
           </div>
 
-          {/* ── the free chooser: square, rail, ready colours (the warning and the money only) ── */}
-          {free && (
-            <>
-              <span className="hs-pick-cap">{t('settings.pickAny')}</span>
-              {/* ⚠️ Physical left/right on purpose, in both directions: the gradients run left to
-                  right and the pointer is read against the box's left edge, so under dir=rtl the
-                  square and the rail must not be mirrored or the dot would land opposite the colour. */}
-              <div
-                className="hs-sv"
-                style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hsvToHex({ h: hue, s: 1, v: 1 })})` }}
-                onPointerDown={(e) => track(e, (fx, fy) => onChange(hsvToHex({ h: hue, s: fx, v: 1 - fy })))}
+          {/* ── the full chooser: square, rail, ready colours ── */}
+          <span className="hs-pick-cap">{t('settings.pickAny')}</span>
+          {/* ⚠️ Physical left/right on purpose, in both directions: the gradients run left to
+              right and the pointer is read against the box's left edge, so under dir=rtl the
+              square and the rail must not be mirrored or the dot would land opposite the colour. */}
+          <div
+            className="hs-sv"
+            style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hsvToHex({ h: hue, s: 1, v: 1 })})` }}
+            onPointerDown={(e) => track(e, (fx, fy) => onChange(hsvToHex({ h: hue, s: fx, v: 1 - fy })))}
+          >
+            <i
+              className="hs-sv-dot"
+              style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, borderColor: readableInk(exact) }}
+            />
+          </div>
+
+          <div className="hs-hue" onPointerDown={(e) => track(e, (fx) => pickHue(fx * 360))}>
+            <i className="hs-hue-dot" style={{ left: `${(hue / 360) * 100}%` }} />
+          </div>
+
+          <div className="hs-shelf is-ready">
+            {READY.map((hex) => (
+              <button
+                key={hex}
+                type="button"
+                className={'hs-chip' + (hex === shown && !inherit?.active ? ' is-on' : '')}
+                style={{ background: hex, color: readableInk(hex) }}
+                onClick={() => pickChip(hex)}
+                title={hex}
+              />
+            ))}
+          </div>
+
+          <div className="hs-hexrow">
+            <input
+              className="hs-hex"
+              dir="ltr"
+              value={text}
+              spellCheck={false}
+              maxLength={7}
+              placeholder="#RRGGBB"
+              aria-label={t('settings.pickHex')}
+              title={t('settings.pickHex')}
+              onChange={(e) => {
+                const v = e.target.value;
+                setText(v);
+                if (FULL_HEX.test(v.trim())) onChange(normHex(v, exact));
+              }}
+              onBlur={() => commitText(false)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitText(true); }}
+            />
+            {inherit && (
+              <button
+                type="button"
+                className={'hs-mini' + (inherit.active ? ' is-on' : '')}
+                onClick={() => { inherit.onPick(); setOpen(false); }}
               >
-                <i
-                  className="hs-sv-dot"
-                  style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, borderColor: readableInk(exact) }}
-                />
-              </div>
-
-              <div className="hs-hue" onPointerDown={(e) => track(e, (fx) => pickHue(fx * 360))}>
-                <i className="hs-hue-dot" style={{ left: `${(hue / 360) * 100}%` }} />
-              </div>
-
-              <div className="hs-shelf is-ready">
-                {READY.map((hex) => (
-                  <button
-                    key={hex}
-                    type="button"
-                    className={'hs-chip' + (hex === shown && !inherit?.active ? ' is-on' : '')}
-                    style={{ background: hex, color: readableInk(hex) }}
-                    onClick={() => pickChip(hex)}
-                    title={hex}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-
-          {(free || inherit) && (
-            <div className="hs-hexrow">
-              {free && (
-                <input
-                  className="hs-hex"
-                  dir="ltr"
-                  value={text}
-                  spellCheck={false}
-                  maxLength={7}
-                  placeholder="#RRGGBB"
-                  aria-label={t('settings.pickHex')}
-                  title={t('settings.pickHex')}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setText(v);
-                    if (FULL_HEX.test(v.trim())) onChange(normHex(v, exact));
-                  }}
-                  onBlur={() => commitText(false)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') commitText(true); }}
-                />
-              )}
-              {inherit && (
-                <button
-                  type="button"
-                  className={'hs-mini' + (inherit.active ? ' is-on' : '')}
-                  onClick={() => { inherit.onPick(); setOpen(false); }}
-                >
-                  {inherit.label}
-                </button>
-              )}
-            </div>
-          )}
+                {inherit.label}
+              </button>
+            )}
+            {reset && (
+              <button
+                type="button"
+                className={'hs-mini is-reset' + (reset.active ? ' is-on' : '')}
+                onClick={() => { reset.onPick(); }}
+              >
+                {reset.label}
+              </button>
+            )}
+          </div>
         </div>
       ), document.body)}
     </div>

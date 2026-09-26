@@ -22,23 +22,24 @@
   --f-num:   var(--w-f-num);      /* figures: RDR Catalogue, Western digits */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ★ لون التسمُّم — لونٌ واحدٌ يحمله متغيّر: حلقة القلب تأخذه، والقلب والدخان
-     درجةً أفتح منه، فتغييره سطرٌ واحدٌ لا خمسة. والهود أبيض وأسود كهود ريد ديد:
-     فهو ورقٌ خافت (paper-faint)، والسمّ يُقرأ بدخانه ونبضه لا بلونه. */
-  --poison: #7A7A7A;
-
   /* ── the state colours ──────────────────────────────────────────────────────
      ★ These used to be written into the rules themselves (a yellow for the warning, two
        reds for the danger). They are variables now because the player chooses them from
        the control panel -- and a colour written into thirty rules is a colour nobody can
-       change. The choice is the theme's tones only (settings/palette.ts): Red Dead's HUD is
-       white and black, and its one red is the danger mark -- all but the warning, which the
-       player may paint any hue (its stock value below is still a tone).
+       change. Every one is a field of its own in the Colours pane, painted exactly as chosen
+       (settings/theme.ts); the values here are the stock ones (settings/types.ts DEFAULT_THEME)
+       for the first frame, before the player's palette arrives.
+
+     ★ A state is the circle itself changing colour -- ring and icon -- and nothing else: no
+       smoke, no halo, no badge. Which state wins when a circle is in two is settings/states.ts.
 
      ⚠️ Each one comes twice: once as a colour and once as bare channels. A glow needs
         the same hue at a dozen different alphas, and rgba() cannot take a hex -- so the
         channels are what every rgba() in this file is built from, and settings/theme.ts
         writes both from one chosen colour. */
+  --core: #F2F2F2;        /* paper: the circles in their normal state */
+  --core-rgb: 242, 242, 242;
+
   --warn: #B4B4B4;        /* paper-dim: the core dims as it runs down */
   --warn-rgb: 180, 180, 180;
 
@@ -46,10 +47,17 @@
   --danger-lit: #CB0101;  /* the same red (theme.ts): the theme has one */
   --danger-rgb: 203, 1, 1;
 
-  --poison-rgb: 122, 122, 122;       /* paper-faint */
-  --poison-lit-rgb: 180, 180, 180;   /* paper-dim: the heart and the smoke */
-  --poison-deep-rgb: 34, 34, 34;     /* ink-4: where the smoke thins out */
-  --poison-track: rgba(10, 10, 10, 0.75);
+  --poison: #6FAE55;      /* RDR's poisoned green: the health circle while the poison runs */
+  --poison-rgb: 111, 174, 85;
+
+  --boost-health: #D9B45A;        /* RDR's fortify gold: a health booster (player or horse) */
+  --boost-health-rgb: 217, 180, 90;
+  --boost-stamina: #D9B45A;       /* the same gold: a stamina booster */
+  --boost-stamina-rgb: 217, 180, 90;
+
+  --talk: #F2F2F2;        /* paper: the voice disc while speaking */
+  --talk-ink: #0A0A0A;    /* ink or paper, whichever reads on --talk (theme.ts) */
+  --talk-ink-rgb: 10, 10, 10;
 
   /* ── the shape of the circles ────────────────────────────────────────────
      The stock weights, so the HUD draws correctly before the player's settings
@@ -60,10 +68,10 @@
 }
 
 /* ⚠️ A blanket rule, and it has to be one.
-   The heartbeat, the warning pulse, the gilding shimmer, the poison fumes and the voice
-   ripple are five animations declared in five different places; naming them here would
-   guarantee that the sixth one added later is the one nobody remembers to add. Scoped to
-   .hud-root so the control panel keeps its own entrance. */
+   The heartbeat, the danger pulse and the voice ripple are animations declared in
+   different places; naming them here would guarantee that the next one added later is the
+   one nobody remembers to add. Scoped to .hud-root so the control panel keeps its own
+   entrance. (The poison and the boosters have no motion: the circle changes colour, that is all.) */
 :root.no-motion .hud-root *,
 :root.no-motion .hud-root *::before,
 :root.no-motion .hud-root *::after { animation: none !important; }
@@ -173,19 +181,25 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 /* ★ One ink: the figures are paper and the icons say which purse is which (no gold coin, no
    pink for the dirty money). PvP is told by its word and its shield: full paper when it is
    on, dim when it is off -- no hue, like the rest of the HUD.
-   ★ The money colour (settings: لون الأموال): once a player picks one, settings/theme.ts sets
-     --money and every figure and icon of the wallet takes it, in whatever hue was chosen. Until
-     then --money is unset and each var() falls back to the tone written beside it -- the stock
-     look above, exactly. Scoped to .wallet: the identity plate shares these rules.
-     The wallet's own element colour (--w-color) outranks --money: element > theme money >
-     stock tones -- the rule and the reasoning are in settings/settings.css (per-widget tint). */
-.wallet .plate-val { color: var(--money, var(--cream)); }
-.wallet .plate-ic { color: var(--money, var(--gold-2)); }
+   ★ The wallet's colours, one chain per row -- highest first:
+       1. the row's own colour      (Colours -> لون الكاش / البنك / المال القذر / الذهب: --money-<row>)
+       2. the Wallet element colour (Elements -> المحفظة -> اللون: --w-color, set on the widget)
+       3. the money colour          (Colours -> لون الأموال: --money)
+       4. the row's stock tone      (the figures paper, the icons a step dimmer, the dirty money dim)
+     Each colour variable is set only once a player has chosen it (settings/theme.ts, layout.tsx),
+     so an unset one hands the row down to the next link: --row is left invalid when all three are
+     unset, and var(--row, <stock tone>) then draws the stock look above, exactly.
+     Scoped to .wallet: the identity plate shares these classes and is left as it is. */
+.wallet .plate-row          { --row: var(--w-color, var(--money)); }
+.wallet .plate-row.is-cash  { --row: var(--money-cash,  var(--w-color, var(--money))); }
+.wallet .plate-row.is-bank  { --row: var(--money-bank,  var(--w-color, var(--money))); }
+.wallet .plate-row.is-dirty { --row: var(--money-dirty, var(--w-color, var(--money))); }
+.wallet .plate-row.is-gold  { --row: var(--money-gold,  var(--w-color, var(--money))); }
+.wallet .plate-val { color: var(--row, var(--cream)); }
+.wallet .plate-ic { color: var(--row, var(--gold-2)); }
 .plate-row.is-cash .plate-val { font-size: 3rem; }
-.plate-row.is-cash .plate-ic { color: var(--money, var(--gold-1)); }
-.plate-row.is-gold .plate-val { color: var(--money, var(--cream)); }
-.plate-row.is-gold .plate-ic { color: var(--money, var(--gold-2)); }
-.plate-row.is-dirty .plate-val, .plate-row.is-dirty .plate-ic { color: var(--money, var(--dim)); }
+.wallet .plate-row.is-cash .plate-ic { color: var(--row, var(--gold-1)); }
+.wallet .plate-row.is-dirty .plate-val, .wallet .plate-row.is-dirty .plate-ic { color: var(--row, var(--dim)); }
 .plate-row.is-pvp .plate-ic, .plate-row.is-pvp .plate-val { color: var(--dim); }
 .plate-row.is-pvp.is-on .plate-ic, .plate-row.is-pvp.is-on .plate-val { color: var(--cream); }
 .plate-row.is-level .plate-val { color: var(--cream); }
@@ -604,15 +618,15 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    circle drawn twice, and a track thinner than its gauge shows as a halo. */
 .core-track { fill: none; stroke: rgba(0,0,0,0.72); stroke-width: var(--core-ring-w, 8); }
 .core-ring {
-  fill: none; stroke: var(--cream); stroke-width: var(--core-ring-w, 8);
+  fill: none; stroke: var(--core); stroke-width: var(--core-ring-w, 8);
   transition: stroke-dasharray 0.3s var(--ease);
 }
 
 /* The dark disc with RDR grain, and the icon over it */
 .core-disc {
-  /* ★ The core's colour is set here from the config, and the icon inherits it through
-     currentColor -- so the colour is not passed twice and no icon parts from its ring. */
-  color: var(--cream);
+  /* ★ The core's colour is set here (the theme's --core, or the element's own colour inline), and
+     the icon inherits it through currentColor -- so no icon parts from its ring. */
+  color: var(--core);
   /* ★ No gap between the disc and the ring.
      The ring has radius 44 and thickness 8 => its inner edge sits at 40.
      So the disc must end at 40 too, i.e. inset: 10% -- and we took 9% so they overlap into one:
@@ -680,7 +694,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    And the difference in opacity (0.5 against 1) is what keeps the fill level readable:
    were they equal the icon would be one solid mass showing no loss. */
 .core .core-ic-dim svg,
-.core .core-ic-dim .tex-ic { color: rgba(242, 242, 242, 0.22); filter: none; }
+.core .core-ic-dim .tex-ic { color: rgba(var(--core-rgb), 0.22); filter: none; }
 .core.warn   .core-ic-dim svg,
 .core.warn   .core-ic-dim .tex-ic { color: rgba(var(--warn-rgb), 0.3); }
 .core.danger .core-ic-dim svg,
@@ -690,13 +704,17 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   animation: warnPulse 0.9s ease-in-out infinite;
 }
 
-/* ★ Three states and no more -- and never a fourth. Red Dead's cores, white and black:
-     paper is the normal state · paper-dim is warning (the core dims) · red is danger.
-   The colour says the **state**, not the **kind of need**; the kind is said by its icon.
-   Which is why there is no per-need colour -- that spent red and yellow on decoration and left
-   no colour to distinguish the alarm.
+/* ★ The colour says the **state**, not the **kind of need**; the kind is said by its icon.
+     Stock, Red Dead's cores, white and black: paper is normal · paper-dim is warning (the core
+     dims) · red is danger -- and the three passing states in the game's own colours: the poisoned
+     health core green, a boosted health or stamina core fortify gold. Every one is a field in the
+     Colours pane (--core, --warn, --danger, --poison, --boost-health, --boost-stamina).
+   ★ One look at a time: App.tsx puts exactly one of .warn .danger .poison .boost-health
+     .boost-stamina on a core, already decided (settings/states.ts) -- so these rules never
+     compete with each other.
 
-   !important so it beats a colour set in the config: the alarm outranks customisation. */
+   !important on the ring so a state beats a colour set on the element: the state outranks
+   customisation (the element's colour is the normal look). */
 .core.warn .core-ring { stroke: var(--warn) !important;
   filter: drop-shadow(0 0 0.32rem rgba(var(--warn-rgb),0.75)); }
 /* The colour goes on the lit layer alone -- that is the one being read */
@@ -708,15 +726,38 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .core.danger .core-ic-lit svg,
 .core.danger .core-ic-lit .tex-ic { color: var(--danger-lit); animation: warnPulse 0.9s ease-in-out infinite; }
 
+/* ── the passing states: poison, the health booster, the stamina booster ─────────
+   ★ The circle itself, nothing added: the ring and the icon take the state's colour, the faint
+     copy of the icon (what has drained) takes it faintly -- the same two-layer arrangement as the
+     warning. No glow, no smoke, no halo, no breath: the owner wants the core to change and nothing
+     to appear beside it. (The poisoned screen effect, Config.Poison.Fx, is the game's own and is
+     set in shared/needs.lua -- it is not a HUD shape.) */
+.core.poison        { --st: var(--poison);        --st-rgb: var(--poison-rgb); }
+.core.boost-health  { --st: var(--boost-health);  --st-rgb: var(--boost-health-rgb); }
+.core.boost-stamina { --st: var(--boost-stamina); --st-rgb: var(--boost-stamina-rgb); }
+
+.core.poison .core-ring,
+.core.boost-health .core-ring,
+.core.boost-stamina .core-ring { stroke: var(--st) !important; }
+
+.core.poison .core-ic-lit svg, .core.poison .core-ic-lit .tex-ic,
+.core.boost-health .core-ic-lit svg, .core.boost-health .core-ic-lit .tex-ic,
+.core.boost-stamina .core-ic-lit svg, .core.boost-stamina .core-ic-lit .tex-ic { color: var(--st); }
+
+.core.poison .core-ic-dim svg, .core.poison .core-ic-dim .tex-ic,
+.core.boost-health .core-ic-dim svg, .core.boost-health .core-ic-dim .tex-ic,
+.core.boost-stamina .core-ic-dim svg, .core.boost-stamina .core-ic-dim .tex-ic { color: rgba(var(--st-rgb), 0.3); }
+
 /* Voice -- the same core, and it ripples while speaking.
-   ★ Speaking turns the disc into the paper band with the waves in ink -- the menus' "active"
-     state -- rather than a hue: the red is kept for danger alone. */
+   ★ Speaking fills the disc with the talking colour (Colours -> لون التحدّث; stock paper, the
+     menus' "active" band) and draws the waves in whichever of ink and paper reads on it
+     (--talk-ink, settings/theme.ts) -- so any talking colour keeps its waves visible. */
 .voice-core { display: contents; }
 .voice-core .wv { opacity: 0.85; transform-origin: 20% 50%; }
-.voice-core.on .core-disc::before { background-color: var(--cream); background-blend-mode: multiply; opacity: 1;
+.voice-core.on .core-disc::before { background-color: var(--talk); background-blend-mode: multiply; opacity: 1;
   box-shadow: inset 0 0 0.5rem rgba(0,0,0,0.35); }
-.voice-core.on .core-ic svg { color: #0A0A0A; filter: none; }
-.voice-core.on .core-ic-dim svg { color: rgba(10,10,10,0.2); }
+.voice-core.on .core-ic svg { color: var(--talk-ink); filter: none; }
+.voice-core.on .core-ic-dim svg { color: rgba(var(--talk-ink-rgb), 0.2); }
 .voice-core.on .wv { animation: wvPulse 1s ease-in-out infinite; }
 .voice-core.on .wv-2 { animation-delay: 0.14s; }
 .voice-core.on .wv-3 { animation-delay: 0.28s; }
@@ -726,128 +767,9 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
   45%      { opacity: 1;    transform: scaleX(1.06); }
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   Gilding (overpower) -- two degrees, not one
-
-   ★ The item decides which: goldHealthOuter gilds the ring alone -- a half gilding --
-     and goldHealthInner gilds the icon with it, which is a full one. So the player can
-     tell a tonic that fortified the bar from one that fortified the core itself, at a
-     glance and without a number.
-
-   ★ White and black like the rest: the game's gold is lit paper here, with a halo round
-     it and the track lit under it, and a slow breath -- the fortified core glows, it does
-     not change hue.
-
-   ⚠️ Gilding sits *below* the warning colours in priority. A gilded core that has since
-      drained to danger must still read red: the gold says 'fortified' while the red says
-      'about to die', and the second is the one you act on. Which is why the .danger and
-      .warn rules carry !important and these do not.
-   ════════════════════════════════════════════════════════════════════════════ */
-
-:root {
-  --gild:     #FFFFFF;   /* RDR's overpower, in paper-lit */
-  --gild-lit: #FFFFFF;
-  --gild-rgb: 255, 255, 255;
-}
-
-/* The ring: lit paper with a halo, so it reads as fortified rather than merely drawn */
-.core.gold-ring .core-ring {
-  stroke: var(--gild);
-  filter: drop-shadow(0 0 0.3rem rgba(var(--gild-rgb), 0.85)) drop-shadow(0 0 0.7rem rgba(var(--gild-rgb), 0.45));
-}
-
-/* And the track under it lights faintly: the whole circle is fortified, not just the part left */
-.core.gold-ring .core-track { stroke: rgba(242, 242, 242, 0.24); }
-
-/* The icon: only when the inner is gilded too. The lit layer takes the gold and the dim
-   layer takes it faintly -- the same two-layer arrangement as every other state. */
-.core.gold-icon .core-ic-lit svg,
-.core.gold-icon .core-ic-lit .tex-ic {
-  color: var(--gild-lit);
-  filter: drop-shadow(0 0 0.3rem rgba(var(--gild-rgb), 0.8));
-}
-
-.core.gold-icon .core-ic-dim svg,
-.core.gold-icon .core-ic-dim .tex-ic { color: rgba(var(--gild-rgb), 0.3); }
-
-/* ★ A slow breath, not a pulse. The danger pulse is fast and alarming; gilding is a boon,
-   so it breathes calmly -- the two are never confused even out of the corner of an eye. */
-.core.gold-ring .core-ring,
-.core.gold-icon .core-ic-lit { animation: gildBreathe 2.4s ease-in-out infinite; }
-
-@keyframes gildBreathe {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.82; }
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   التسمُّم — حلقة القلب تخفت ويتصاعد منه دخانٌ عفن
-
-   ★ الهود أبيض وأسود كهود ريد ديد، فالسمّ لا لون له: حلقته ورقٌ خافت، وقلبه
-     ينبض ببطء، والدخان يتصاعد منه — وهذا ما يُقرأ من نظرة.
-     ألوان الحالة تقول «كم بقي»، والتسمُّم يقول «ماذا جرى لك»؛ فهو يعلو على
-     التحذير، أمّا الأحمر فعلامة الخطر ولا يُخفيه شيء: مسمومٌ على حافّة الموت
-     يرى حلقةً حمراء ودخاناً معاً. ولذلك :not(.danger) على اللون وحده: النبض
-     والانكسار وبقيّة سلوك الحالة تبقى كما هي.
-
-   ⚠️ والدخان داخل القرص لا فوق الشاشة: طلبُ «دخانٍ من القلب» يعني علامةً في
-     الهود يقرؤها اللاعب بنظرة، لا مؤثّراً يحجب المشهد. ومؤثّر الشاشة موجودٌ
-     معه ويُضبط من Config.Poison.Fx.
-   ════════════════════════════════════════════════════════════════════════ */
-
-.core.poisoned:not(.danger) .core-ring { stroke: var(--poison) !important; }
-.core.poisoned .core-track { stroke: var(--poison-track); }
-
-.core.poisoned:not(.danger) .core-ic-lit svg,
-.core.poisoned:not(.danger) .core-ic-lit .tex-ic {
-  color: rgb(var(--poison-lit-rgb)) !important;
-  filter: drop-shadow(0 0 6px rgba(var(--poison-lit-rgb), 0.45));
-  animation: poisonThrob 1.6s ease-in-out infinite;
-}
-
-.core.poisoned:not(.danger) .core-ic-dim svg,
-.core.poisoned:not(.danger) .core-ic-dim .tex-ic { color: rgba(var(--poison-rgb), 0.3) !important; }
-
-/* ── الدخان ─────────────────────────────────────────────────────────────
-   ثلاث خصلاتٍ من قرصٍ واحد، لكلٍّ تأخيرها ومسارها. والحاوية بلا أبعادٍ
-   ثابتة: تتبع الأيقونة فتصعد من فوقها مهما تغيّر قياس الهود. */
-.core-fumes {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: visible;
-  transition: opacity 0.6s var(--ease);
-}
-
-.core-fumes i {
-  position: absolute;
-  left: 50%;
-  bottom: 46%;
-  width: 0.62em;
-  height: 0.62em;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%,
-              rgba(var(--poison-lit-rgb), 0.85), rgba(var(--poison-deep-rgb), 0.05) 70%);
-  filter: blur(1.2px);
-  opacity: 0;
-  animation: poisonFume 2.8s ease-out infinite;
-}
-
-/* ★ التأخير والإزاحة معاً: التأخير وحده يجعلها تصعد في خطٍّ واحد كالخرز. */
-.core-fumes i:nth-child(1) { animation-delay: 0s;    --fx: -0.55em; }
-.core-fumes i:nth-child(2) { animation-delay: 0.95s; --fx:  0.45em; }
-.core-fumes i:nth-child(3) { animation-delay: 1.8s;  --fx: -0.1em;  }
-
-@keyframes poisonFume {
-  0%   { opacity: 0;    transform: translate(-50%, 0)          scale(0.45); }
-  18%  { opacity: 0.85; }
-  100% { opacity: 0;    transform: translate(calc(-50% + var(--fx)), -2.6em) scale(1.5); }
-}
-
-@keyframes poisonThrob {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(var(--poison-lit-rgb), 0.35)); opacity: 1; }
-  50%      { filter: drop-shadow(0 0 11px rgba(var(--poison-lit-rgb), 0.7)); opacity: 0.78; }
-}
+/* ⚠️ The gilding (a lit ring with a halo, a lit track and a slow breath) and the poison (a
+   faint ring, a throbbing heart and three wisps of smoke) used to be drawn here. Both are gone:
+   a boosted or poisoned core is the circle itself in its state colour (above), and nothing else. */
 
 /* The same textured Core used for player/horse needs, at a smaller base size.
    Per-widget scale, tint, visibility and thresholds come from the HUD editor. */
