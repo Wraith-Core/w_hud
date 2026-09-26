@@ -555,8 +555,8 @@
 /* ── colour fields ──────────────────────────────────────────────────────────── */
 .hs-fields { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
 /* The wallet rows under the Wallet element (Elements pane): a caption and the four fields. */
-.hs-subcap { display: block; margin-top: 1rem; font-size: 1.35rem; color: var(--dim); }
-.hs-fields.is-compact .hs-field { padding: 0.45rem 0; }
+.hs-subcap { display: block; margin-top: calc(14 * var(--hs-unit, 1px)); font-size: calc(13 * var(--hs-unit, 1px)); line-height: 1.5; color: var(--dim); }
+.hs-root .hs-fields.is-compact .hs-field { padding: calc(8 * var(--hs-unit, 1px)) 0; }
 .hs-field {
   display: flex;
   align-items: center;
