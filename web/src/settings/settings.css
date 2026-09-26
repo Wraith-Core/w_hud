@@ -146,6 +146,18 @@
 .hw[style*='--w-color'] .compass-marker { border-top-color: var(--w-color); }
 .hw[style*='--w-color'] .compass-card { color: var(--w-color); }
 .hw[style*='--w-color'] .ti-server .dot { border-color: var(--w-color); }
+/* The wallet: its figures and their icons (cash, bank, dirty, gold). It is drawn as .plate-val /
+   .plate-ic now, which the .ti-val line above no longer reaches -- that is why the element's
+   colour used to do nothing here.
+   ★ Precedence, highest first:
+       1. this element's own colour (Elements -> Wallet -> Colour; --w-color, drawn as a tone)
+       2. the theme's money colour (Colours -> لون الأموال; --money, any hue -- hud.css)
+       3. the stock tones (hud.css: figures paper, icons paper-dim, dirty money dim)
+     The element beats the theme by specificity: four classes here against at most three on the
+     wallet's rules in hud.css, whichever sheet loads last. Scoped to .wallet: the identity plate
+     uses the same classes and is left as it is. */
+.hw[style*='--w-color'] .wallet .plate-val,
+.hw[style*='--w-color'] .wallet .plate-ic { color: var(--w-color); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    2 · the control panel

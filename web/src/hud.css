@@ -176,7 +176,9 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
    ★ The money colour (settings: لون الأموال): once a player picks one, settings/theme.ts sets
      --money and every figure and icon of the wallet takes it, in whatever hue was chosen. Until
      then --money is unset and each var() falls back to the tone written beside it -- the stock
-     look above, exactly. Scoped to .wallet: the identity plate shares these rules. */
+     look above, exactly. Scoped to .wallet: the identity plate shares these rules.
+     The wallet's own element colour (--w-color) outranks --money: element > theme money >
+     stock tones -- the rule and the reasoning are in settings/settings.css (per-widget tint). */
 .wallet .plate-val { color: var(--money, var(--cream)); }
 .wallet .plate-ic { color: var(--money, var(--gold-2)); }
 .plate-row.is-cash .plate-val { font-size: 3rem; }
