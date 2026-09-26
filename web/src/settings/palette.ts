@@ -1,30 +1,25 @@
 /* ════════════════════════════════════════════════════════════════════════════
  * w_hud · settings/palette.ts
- * The only colours the HUD may draw: the Wraith theme's ink and paper (w_lib/nui/theme
- * tokens.css), and its one red as a mark.
+ * The Wraith theme's ink and paper (w_lib/nui/theme tokens.css) and its one red -- the HUD's
+ * stock look, and the quick picks on top of every colour chooser.
  *
- * ★ Red Dead's own HUD is white and black. Its cores are paper on ink, and the one colour
- *   it allows itself is the red that flashes when a core runs out -- so the danger state is
- *   the only thing here that may be red, and nothing else can be picked red.
+ * ★ Red Dead's own HUD is white and black, and the stock HUD still is: its cores paper on ink,
+ *   the warning paper a step down, the red for danger. These tones are what it ships in.
  *
- * ⚠️ Saved colours are never rewritten. A player may hold a blue accent or a green circle
- *   from an older build (or a share code from a friend); what is stored stays stored, and
- *   is *drawn* as the nearest tone of this palette. `toTone` is called where a colour is
- *   painted (theme.ts, App.tsx, layout.tsx, ColorField.tsx), never where it is read.
+ * ★ Since SETTINGS_VERSION 5 every colour is the player's own and is painted exactly as chosen
+ *   (the owner wants full freedom): ColorField offers these tones first and a full chooser under
+ *   them, and theme.ts paints what was picked. Nothing is clamped at the paint any more.
  *
- * ★ Two colours are the player's own and never pass through here: the warning (theme.warn)
- *   and the money (theme.money). The owner wants those in any hue, so ColorField offers them
- *   a full chooser beside these tones and theme.ts paints them exactly as chosen. Their stock
- *   values are still tones (paper-dim, and the wallet's own tones), so nothing is coloured
- *   until somebody picks a colour.
- *   The one exception to "never rewritten": a warning saved before it went free was only
- *   ever seen as its tone, so types.ts reads it as that tone (FREE_WARN_SINCE) -- otherwise
- *   an old build's yellow default would reappear the moment the clamp came off.
+ * ⚠️ `toTone` survives for one job: reading a save from before that version. Every colour such a
+ *   save held was only ever *seen* as its nearest tone here (the old clamp), so types.ts reads it
+ *   as that tone (FREE_WARN_SINCE, FREE_ALL_SINCE) -- otherwise an old build's yellow warning or
+ *   a blue accent from a friend's share code would reappear the moment the clamp came off, and
+ *   opening this build would change what anyone sees. What is picked from now on is never toned.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 import { hexToHsv, hexToRgb, normHex } from './color';
 
-/** Lightest first. The HUD's picker offers exactly these (and RED on the danger field). */
+/** Lightest first. The quick picks on top of every chooser (and RED on the danger field). */
 export const TONES = [
   '#FFFFFF', // paper-lit
   '#F2F2F2', // paper
@@ -63,7 +58,8 @@ function isReddish(hex: string): boolean {
 }
 
 /**
- * The palette colour a stored colour is drawn as.
+ * The palette colour a stored colour *was* drawn as before colours went free -- used only to read
+ * saves from before SETTINGS_VERSION 5 (types.ts).
  *   red: true -- the danger field: anything reddish is the theme's red.
  * Everything else lands on the ink/paper tone of the nearest lightness.
  */

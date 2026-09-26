@@ -131,26 +131,53 @@ export interface WidgetCfg {
   danger: number | null;
 }
 
+/**
+ * Every colour the HUD draws, one field each, and every one of them painted exactly as chosen
+ * (since SETTINGS_VERSION 5 -- see FREE_ALL_SINCE for what older saves are read as).
+ *
+ * ★ Each state the circles can show has a field of its own and nothing else paints it: the core's
+ *   own colour (normal), the warning, the danger, the poison, the two boosters, the voice while
+ *   speaking. A state is told by the core itself changing colour -- never by a shape added to it.
+ */
 export interface Theme {
-  /** Rings, numerals, the compass needle, the bars -- the HUD's leading colour. */
+  /** The compass needle, the server name's dot, the wallet and player-info icons' stock tone. */
   accent: string;
-  /** Body text and labels. */
+  /** Body text and labels: the figures, the server name, the place, the compass cards. */
   text: string;
-  /** Secondary text, ticks, minor cardinals. */
+  /** Secondary text, ticks, minor cardinals, the dirty money's stock tone. */
   dim: string;
-  /** The warning state (paper-dim by default). Any colour: painted exactly as chosen (palette.ts). */
+  /** The circles in their normal state -- ring and icon. A circle's own colour (Elements) wins. */
+  core: string;
+  /** The warning state (paper-dim by default). */
   warn: string;
-  /** The danger state -- the theme's red, the one mark the HUD may paint red. */
+  /** The danger state -- the theme's red by default. */
   danger: string;
-  /** Poisoning -- the heart's ring while its fumes rise (paper-faint by default). */
+  /** Poisoning: the health circle itself, ring and icon, while the poison runs. */
   poison: string;
+  /** A health booster (tonic, fortify) on the player's or the horse's health circle. */
+  boostHealth: string;
+  /** A stamina booster on the player's or the horse's stamina circle. */
+  boostStamina: string;
+  /** The voice circle while you speak: its disc fills with this, the waves take ink or paper over it. */
+  talk: string;
   /**
-   * The wallet's figures and their icons (cash, bank, dirty, gold). Any colour, painted as chosen.
+   * The wallet's figures and their icons (cash, bank, dirty, gold).
    * '' = none chosen: the stock look (the figures in the text tone, the icons a step dimmer, the
    * dirty money dim), so the wallet stays exactly as it was until a player picks a colour.
    */
   money: string;
+  /**
+   * One wallet row each: its figure and its icon. '' = follow the wallet.
+   * Precedence, highest first: this row's colour > the Wallet element's own colour (Elements) >
+   * the money colour above > the stock tone of that row. (hud.css, the wallet rows.)
+   */
+  moneyCash: string;
+  moneyBank: string;
+  moneyDirty: string;
+  moneyGold: string;
 }
+
+export type ThemeKey = keyof Theme;
 
 /**
  * How the circles are drawn -- one set for all of them.
@@ -166,8 +193,16 @@ export interface ShapeCfg {
   disc: number;
   /** The icon's share of the disc. 0.64 is stock (~52% of the whole circle). */
   icon: number;
-  /** Heartbeats, warning pulses, gilding shimmer, poison fumes. */
+  /** The danger pulse and the voice ripple. */
   motion: boolean;
+  /**
+   * Which colour a circle takes when it is in danger AND poisoned or boosted at once.
+   *   true  (stock) -- danger first: danger > poison > booster > warning > normal
+   *   false         -- the effect first: poison > booster > danger > warning > normal
+   * Stored with the shape (it is how the circles behave, and it travels with a profile);
+   * offered in the Colours pane beside the state colours it orders. See settings/states.ts.
+   */
+  dangerWins: boolean;
 }
 
 /** off = no minimap · map = the map · compass = the game's compass strip */
@@ -398,48 +433,74 @@ export function homeX(meta: WidgetMeta, a = aspect()): number {
  * Defaults
  * ★ The stock palette verbatim -- Red Dead's white and black: the Wraith theme's paper on the
  *   game (w_lib/nui/theme: the loading screen and the pause menu), its one red for danger, and
- *   the two other states as paper a step and two steps down. A player who resets must land
- *   exactly on the HUD they were shipped, not on something near it; hud.css carries the same
- *   values for the first frame.
+ *   the warning as paper a step down. A player who resets must land exactly on the HUD they were
+ *   shipped, not on something near it; hud.css carries the same values for the first frame.
+ *
+ * ★ The three passing states are Red Dead's own colours, so the change reads at a glance: a
+ *   poisoned health core goes the game's sickly green, a fortified core its fortify gold. They
+ *   are defaults only -- every one of them is a field in the Colours pane.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 export const DEFAULT_THEME: Theme = {
-  accent: '#F2F2F2',   /* paper */
-  text:   '#F2F2F2',   /* paper */
-  dim:    '#B4B4B4',   /* paper-dim */
-  warn:   '#B4B4B4',   /* paper-dim: the core dims as it runs down */
-  danger: '#CB0101',   /* the theme's red: the mark */
-  poison: '#7A7A7A',   /* paper-faint, with the fumes */
-  money:  '',          /* none chosen: the wallet keeps its stock tones (hud.css) */
+  accent:       '#F2F2F2',   /* paper */
+  text:         '#F2F2F2',   /* paper */
+  dim:          '#B4B4B4',   /* paper-dim */
+  core:         '#F2F2F2',   /* paper: the circles as they always were (they used to follow the text) */
+  warn:         '#B4B4B4',   /* paper-dim: the core dims as it runs down */
+  danger:       '#CB0101',   /* the theme's red: the mark */
+  poison:       '#6FAE55',   /* RDR's poisoned green: the health core itself */
+  boostHealth:  '#D9B45A',   /* RDR's fortify gold */
+  boostStamina: '#D9B45A',   /* the same gold: a booster is a booster, the icon says which */
+  talk:         '#F2F2F2',   /* paper: the voice disc while speaking, as it always was */
+  money:        '',          /* none chosen: the wallet keeps its stock tones (hud.css) */
+  moneyCash:    '',          /* each row: '' = follow the wallet */
+  moneyBank:    '',
+  moneyDirty:   '',
+  moneyGold:    '',
 };
 
+/** The fields that may hold '' (none chosen) and what '' falls back to -- see THEME_FIELDS. */
+export type EmptyMode = 'stock' | 'wallet';
+
 /* ★ The stock palettes of earlier builds: pure white on neutral grey, then the theme's warm
-   (cream) paper with a yellow warning and a green poison, then that warm paper alone. A save that
-   still holds exactly one of these never chose it: the whole default travels back with any layout
-   the player saved. It is read as today's stock, so a player who never touched the colours
-   follows the theme; any palette they did choose, even one field of it, is kept as it is (and
-   drawn clamped, see palette.ts).
+   (cream) paper with a yellow warning and a green poison, then that warm paper alone, then the
+   neutral paper with a faint-grey poison (v4, the build before the states got colours of their
+   own). A save that still holds exactly one of these never chose it: the whole default travels
+   back with any layout the player saved. It is read as today's stock, so a player who never
+   touched the colours follows the theme; any palette they did choose, even one field of it, is
+   kept as it is -- as the tone it was drawn in (FREE_ALL_SINCE).
 
    ⚠️ Saved data, not paint: these are matched against what players have stored, so they stay
    exactly as those builds wrote them. They are written without their '#' so that a colour sweep
    over the sources (such as the warm -> neutral pass) cannot "fix" them and break the match.
-   None of those builds had a money colour, so a save of theirs reads it as '' (none chosen). */
-const oldStock = (accent: string, text: string, dim: string, warn: string, danger: string, poison: string): Theme => ({
+   None of those builds had a money colour, so a save of theirs reads it as '' (none chosen), and
+   only the seven fields those builds had are compared (OLD_KEYS). */
+type OldTheme = Pick<Theme, 'accent' | 'text' | 'dim' | 'warn' | 'danger' | 'poison' | 'money'>;
+const OLD_KEYS: Array<keyof OldTheme> = ['accent', 'text', 'dim', 'warn', 'danger', 'poison', 'money'];
+const oldStock = (accent: string, text: string, dim: string, warn: string, danger: string, poison: string): OldTheme => ({
   accent: '#' + accent, text: '#' + text, dim: '#' + dim, warn: '#' + warn, danger: '#' + danger, poison: '#' + poison,
   money: '',
 });
-const OLD_STOCKS: Theme[] = [
+const OLD_STOCKS: OldTheme[] = [
   oldStock('FFFFFF', 'F5F5F5', 'BFBFBF', 'E8C547', 'E52D2D', '5AB054'),
   oldStock('EDE6D6', 'EDE6D6', 'B9AF9C', 'E8C547', 'CB0101', '5AB054'),
   oldStock('EDE6D6', 'EDE6D6', 'B9AF9C', 'B9AF9C', 'CB0101', '7D7466'),
+  oldStock('F2F2F2', 'F2F2F2', 'B4B4B4', 'B4B4B4', 'CB0101', '7A7A7A'),
 ];
+/* ★ The poison each of those builds shipped. A save older than FREE_ALL_SINCE that still holds one
+   of them never chose a poison colour -- the only poison it ever saw was the fumes, which are gone
+   -- so it takes today's poison, the same rule as OLD_STOCKS applied to this one field. Every other
+   field of those stocks equals today's default already (once drawn as a tone), so this is the only
+   field that needs it. */
+const OLD_POISONS = ['5AB054', '7D7466', '7A7A7A'].map((h) => '#' + h);
 
-export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true };
+export const DEFAULT_SHAPE: ShapeCfg = { ring: 8, disc: 1, icon: 0.64, motion: true, dangerWins: true };
 export const DEFAULT_WORLD: WorldCfg = { onFoot: 'server', mounted: 'server' };
 
 /** v3 replaces the companion card with three independently editable cores.
-    v4 paints the warning colour exactly as chosen (see FREE_WARN_SINCE). */
-export const SETTINGS_VERSION = 4;
+    v4 paints the warning colour exactly as chosen (see FREE_WARN_SINCE).
+    v5 paints every colour exactly as chosen and adds the state and wallet-row fields (FREE_ALL_SINCE). */
+export const SETTINGS_VERSION = 5;
 
 /**
  * The first version whose warning colour is painted as it is stored.
@@ -452,7 +513,18 @@ export const SETTINGS_VERSION = 4;
  *   reasons and must not drag a v4 save back into the clamp when it does.
  */
 const FREE_WARN_SINCE = 4;
-const isLegacy = (v: unknown): boolean => !(Number(v) >= FREE_WARN_SINCE);
+/**
+ * The first version whose every colour is painted as it is stored -- the accent, the text, the
+ * dim, the danger, the poison and each element's own colour (the warning went free at v4, the
+ * money was born free at v4).
+ *
+ * ⚠️ The same rule as FREE_WARN_SINCE, for the rest: an older save was only ever seen through the
+ *   clamp (settings/palette.ts toTone), so it is read as the tone it was drawn in and looks exactly
+ *   as it did; a colour picked from this version on is exact.
+ */
+const FREE_ALL_SINCE = 5;
+/** The version a save (or profile, or share code) was written by; 0 when it does not say. */
+const versionOf = (v: unknown): number => { const n = Number(v); return isFinite(n) ? n : 0; };
 
 export function defaultWidget(meta: WidgetMeta, a = aspect()): WidgetCfg {
   return {
@@ -502,38 +574,72 @@ export function defaultSettings(): HudSettings {
  *   nothing else guarantees most of them end up with a HUD that fights itself, so the
  *   ready-made sets come first and the pickers are there for whoever wants them.
  *
- * ★ White and black only, like Red Dead: the sets differ in how bright the paper is, never
- *   in hue, and every one keeps the red for danger alone. The two free colours (a warning
- *   hue, a money colour) are the player's own business: a set leaves the money as none
- *   chosen and puts the warning back on a tone.
+ * ★ White and black, like Red Dead: the sets differ in how bright the paper is, never in hue,
+ *   and every one keeps the red for danger and the game's green and gold for the poison and the
+ *   boosters. A set is a clean palette: it leaves the money and its rows as none chosen.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /** `label` is a dictionary key (ui.preset.<id>). */
 export interface ThemePreset { id: string; label: string; theme: Theme }
 
+/** The fields a set does not change from the stock: the passing states and the wallet. */
+const SET_REST = {
+  poison: DEFAULT_THEME.poison, boostHealth: DEFAULT_THEME.boostHealth, boostStamina: DEFAULT_THEME.boostStamina,
+  money: '', moneyCash: '', moneyBank: '', moneyDirty: '', moneyGold: '',
+};
+
 export const THEME_PRESETS: ThemePreset[] = [
   { id: 'stock', label: 'preset.stock', theme: { ...DEFAULT_THEME } },
   { id: 'bright', label: 'preset.bright',
-    theme: { accent: '#FFFFFF', text: '#FFFFFF', dim: '#F2F2F2', warn: '#B4B4B4', danger: '#CB0101', poison: '#7A7A7A', money: '' } },
+    theme: { accent: '#FFFFFF', text: '#FFFFFF', dim: '#F2F2F2', core: '#FFFFFF', warn: '#B4B4B4', danger: '#CB0101', talk: '#FFFFFF', ...SET_REST } },
   { id: 'ash', label: 'preset.ash',
-    theme: { accent: '#B4B4B4', text: '#F2F2F2', dim: '#7A7A7A', warn: '#7A7A7A', danger: '#CB0101', poison: '#7A7A7A', money: '' } },
+    theme: { accent: '#B4B4B4', text: '#F2F2F2', dim: '#7A7A7A', core: '#F2F2F2', warn: '#7A7A7A', danger: '#CB0101', talk: '#F2F2F2', ...SET_REST } },
 ];
+
+/** How the Colours pane groups the fields (ui.settings.colGroup_<group>). */
+export type ThemeGroup = 'base' | 'states' | 'wallet';
 
 /**
  * `label` and `hint` are dictionary keys (ui.theme.<key>, ui.theme.<key>Hint).
  * ★ This list is also the whitelist a save is read through (readTheme): a key not here is dropped.
- *   free -- any colour: the full chooser (hue, ready colours, #hex) beside the tones, and painted
- *           exactly as chosen. Every other field is the tone shelf, drawn as the nearest tone.
+ * ★ Every field is free: the full chooser (the theme's tones as quick picks, a saturation square,
+ *   a hue rail, ready colours, #hex), painted exactly as chosen.
+ *   empty -- the field may hold '' (none chosen): 'stock' falls back to the wallet's stock tones,
+ *            'wallet' to the wallet itself (its element colour, then the money colour, then stock).
  */
-export const THEME_FIELDS: Array<{ key: keyof Theme; label: string; hint: string; free?: boolean }> = [
-  { key: 'accent', label: 'theme.accent', hint: 'theme.accentHint' },
-  { key: 'text', label: 'theme.text', hint: 'theme.textHint' },
-  { key: 'dim', label: 'theme.dim', hint: 'theme.dimHint' },
-  { key: 'warn', label: 'theme.warn', hint: 'theme.warnHint', free: true },
-  { key: 'danger', label: 'theme.danger', hint: 'theme.dangerHint' },
-  { key: 'poison', label: 'theme.poison', hint: 'theme.poisonHint' },
-  { key: 'money', label: 'theme.money', hint: 'theme.moneyHint', free: true },
+export const THEME_FIELDS: Array<{ key: ThemeKey; label: string; hint: string; group: ThemeGroup; empty?: EmptyMode }> = [
+  { key: 'accent', label: 'theme.accent', hint: 'theme.accentHint', group: 'base' },
+  { key: 'text', label: 'theme.text', hint: 'theme.textHint', group: 'base' },
+  { key: 'dim', label: 'theme.dim', hint: 'theme.dimHint', group: 'base' },
+  { key: 'core', label: 'theme.core', hint: 'theme.coreHint', group: 'states' },
+  { key: 'warn', label: 'theme.warn', hint: 'theme.warnHint', group: 'states' },
+  { key: 'danger', label: 'theme.danger', hint: 'theme.dangerHint', group: 'states' },
+  { key: 'poison', label: 'theme.poison', hint: 'theme.poisonHint', group: 'states' },
+  { key: 'boostHealth', label: 'theme.boostHealth', hint: 'theme.boostHealthHint', group: 'states' },
+  { key: 'boostStamina', label: 'theme.boostStamina', hint: 'theme.boostStaminaHint', group: 'states' },
+  { key: 'talk', label: 'theme.talk', hint: 'theme.talkHint', group: 'states' },
+  { key: 'money', label: 'theme.money', hint: 'theme.moneyHint', group: 'wallet', empty: 'stock' },
+  { key: 'moneyCash', label: 'theme.moneyCash', hint: 'theme.moneyRowHint', group: 'wallet', empty: 'wallet' },
+  { key: 'moneyBank', label: 'theme.moneyBank', hint: 'theme.moneyRowHint', group: 'wallet', empty: 'wallet' },
+  { key: 'moneyDirty', label: 'theme.moneyDirty', hint: 'theme.moneyRowHint', group: 'wallet', empty: 'wallet' },
+  { key: 'moneyGold', label: 'theme.moneyGold', hint: 'theme.moneyRowHint', group: 'wallet', empty: 'wallet' },
 ];
+
+/** The four wallet rows, top to bottom (App.tsx draws them in this order). */
+export const MONEY_ROWS: ThemeKey[] = ['moneyCash', 'moneyBank', 'moneyDirty', 'moneyGold'];
+
+/**
+ * What a wallet row is drawn in right now -- the precedence, in one place (hud.css does the same
+ * with variables): the row's own colour > the Wallet element's colour > the money colour > the
+ * row's stock tone (the dirty money dim, the rest the text).
+ */
+export function moneyRowColour(theme: Theme, walletColour: string | null, row: ThemeKey): string {
+  const own = theme[row];
+  if (own) return own;
+  if (walletColour) return walletColour;
+  if (theme.money) return theme.money;
+  return row === 'moneyDirty' ? theme.dim : theme.text;
+}
 
 /* ════════════════════════════════════════════════════════════════════════════
  * Reading a saved value
@@ -561,10 +667,16 @@ const VISIBILITY = ['auto', 'always', 'below'] as const;
 const MAP_MODES = ['server', 'off', 'map', 'compass'] as const;
 
 /**
- * `legacy`: the save predates FREE_WARN_SINCE, so its warning colour is read as the tone it was
- * drawn in. `money` accepts '' (none chosen) and otherwise a colour; anything unreadable is ''.
+ * `ver`: the version the save was written by.
+ *   < FREE_WARN_SINCE  its warning colour is read as the tone it was drawn in;
+ *   < FREE_ALL_SINCE   so are its accent, text, dim, danger and poison (the poison stock of its
+ *                      build becomes today's poison, see OLD_POISONS), and a save that is exactly
+ *                      an old stock palette becomes today's stock.
+ * The fields that may be none chosen (money and its rows) accept '' and otherwise a colour;
+ * anything unreadable is ''. A save that predates the circles' own colour and the talking colour
+ * gets its text colour for both -- they were drawn in it.
  */
-function readTheme(raw: unknown, base: Theme, legacy = false): Theme {
+function readTheme(raw: unknown, base: Theme, ver = SETTINGS_VERSION): Theme {
   if (!raw || typeof raw !== 'object') return base;
   const src = raw as Record<string, unknown>;
 
@@ -572,8 +684,23 @@ function readTheme(raw: unknown, base: Theme, legacy = false): Theme {
     const value = src[field.key];
     if (value != null) base[field.key] = normHex(value, base[field.key]);
   }
-  if (OLD_STOCKS.some((old) => THEME_FIELDS.every((f) => String(base[f.key]).toUpperCase() === old[f.key]))) Object.assign(base, DEFAULT_THEME);
-  if (legacy) base.warn = toTone(base.warn);
+
+  if (ver < FREE_ALL_SINCE) {
+    if (OLD_STOCKS.some((old) => OLD_KEYS.every((k) => String(base[k]).toUpperCase() === old[k]))) {
+      return Object.assign(base, DEFAULT_THEME);
+    }
+    if (ver < FREE_WARN_SINCE) base.warn = toTone(base.warn);
+    base.accent = toTone(base.accent);
+    base.text = toTone(base.text);
+    base.dim = toTone(base.dim);
+    base.danger = toTone(base.danger, { red: true });
+    base.poison = OLD_POISONS.includes(base.poison.toUpperCase()) ? DEFAULT_THEME.poison : toTone(base.poison);
+  }
+
+  /* Split out of the text colour, which drew the circles and the speaking disc until they had
+     fields of their own (and after the tone reading above, so it is the colour they were drawn in). */
+  if (src.core == null) base.core = base.text;
+  if (src.talk == null) base.talk = base.text;
   return base;
 }
 
@@ -585,10 +712,12 @@ function readShape(raw: unknown, base: ShapeCfg): ShapeCfg {
   base.disc = num(src.disc, base.disc, 0, 1);
   base.icon = num(src.icon, base.icon, 0.4, 0.85);
   base.motion = bool(src.motion, base.motion);
+  base.dangerWins = bool(src.dangerWins, base.dangerWins);
   return base;
 }
 
-function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>): Record<WidgetId, WidgetCfg> {
+/** `ver` < FREE_ALL_SINCE: each element's own colour is read as the tone it was drawn in. */
+function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>, ver = SETTINGS_VERSION): Record<WidgetId, WidgetCfg> {
   const saved = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
 
   for (const meta of WIDGETS) {
@@ -618,7 +747,8 @@ function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>): Record<Wi
     cfg.opacity = num(w.opacity, 1, 0.15, 1);
     cfg.show = bool(w.show, true);
     cfg.locked = bool(w.locked, false);
-    cfg.color = w.color == null ? null : normHex(w.color, '#F2F2F2');
+    cfg.color = w.color == null ? null
+      : ver < FREE_ALL_SINCE ? toTone(normHex(w.color, '#F2F2F2')) : normHex(w.color, '#F2F2F2');
     cfg.visibility = pick(w.visibility, VISIBILITY, 'auto');
     cfg.showBelow = num(w.showBelow, 50, 1, 100);
     cfg.warn = w.warn == null ? null : num(w.warn, 40, 1, 100);
@@ -645,7 +775,7 @@ function readMedia(raw: unknown, base: Record<MediaId, MediaCfg>): Record<MediaI
   return base;
 }
 
-function readProfile(raw: unknown, index: number, legacy = false): Profile | null {
+function readProfile(raw: unknown, index: number, ver = SETTINGS_VERSION): Profile | null {
   if (!raw || typeof raw !== 'object') return null;
   const src = raw as Record<string, unknown>;
 
@@ -657,10 +787,10 @@ function readProfile(raw: unknown, index: number, legacy = false): Profile | nul
     name: typeof src.name === 'string' && src.name.trim() !== ''
       ? src.name.trim().slice(0, 24)
       : `#${index + 1}`,
-    theme: readTheme(src.theme, { ...DEFAULT_THEME }, legacy),
+    theme: readTheme(src.theme, { ...DEFAULT_THEME }, ver),
     scale: num(src.scale, 1, 0.6, 1.8),
     shape: readShape(src.shape, { ...DEFAULT_SHAPE }),
-    widgets: readWidgets(src.widgets, widgets),
+    widgets: readWidgets(src.widgets, widgets, ver),
     media: readMedia(src.media, defaultMedia()),
   };
 }
@@ -671,11 +801,11 @@ export function mergeSettings(raw: unknown): HudSettings {
 
   const src = raw as Record<string, unknown>;
   /* The version the save was written by; the profiles inside it were written by the same build. */
-  const legacy = isLegacy(src.v);
+  const ver = versionOf(src.v);
 
-  readTheme(src.theme, base.theme, legacy);
+  readTheme(src.theme, base.theme, ver);
   readShape(src.shape, base.shape);
-  readWidgets(src.widgets, base.widgets);
+  readWidgets(src.widgets, base.widgets, ver);
   readMedia(src.media, base.media);
 
   base.scale = num(src.scale, 1, 0.6, 1.8);
@@ -700,7 +830,7 @@ export function mergeSettings(raw: unknown): HudSettings {
   }
 
   if (Array.isArray(src.profiles)) {
-    for (let i = 0; i < PROFILE_SLOTS; i += 1) base.profiles[i] = readProfile(src.profiles[i], i, legacy);
+    for (let i = 0; i < PROFILE_SLOTS; i += 1) base.profiles[i] = readProfile(src.profiles[i], i, ver);
   }
 
   return base;
@@ -982,7 +1112,7 @@ const CODE_PREFIX = 'WHUD1:';
 
 export function encodeShare(p: Profile): string {
   try {
-    /* v: which build wrote it -- a code from before FREE_WARN_SINCE has its warning read as a tone. */
+    /* v: which build wrote it -- a code from before FREE_ALL_SINCE has its colours read as the tones it showed. */
     const json = JSON.stringify({ v: SETTINGS_VERSION, n: p.name, t: p.theme, s: p.scale, h: p.shape, w: p.widgets, m: p.media });
     return CODE_PREFIX + btoa(encodeURIComponent(json));
   } catch {
@@ -1003,7 +1133,7 @@ export function decodeShare(code: string): Profile | null {
     return readProfile(
       { name: raw.n, theme: raw.t, scale: raw.s, shape: raw.h, widgets: raw.w, media: raw.m },
       0,
-      isLegacy(raw.v),
+      versionOf(raw.v),
     );
   } catch {
     return null;
