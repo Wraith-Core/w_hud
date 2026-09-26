@@ -21,6 +21,11 @@ local function finish(src, p, effects, reason)
     TriggerClientEvent('w_hud:client:useFinished', src, p.token, effects and p.item or false, p.target)
     if reason then notify(src, reason) end
 end
+--- The reset for a token the server does not hold (any more): the client drops that use and its
+--- hudConsuming. It acts only while it still waits on this very token, so an extra one is harmless.
+local function reset(src, token)
+    if type(token) == 'number' then TriggerClientEvent('w_hud:client:useFinished', src, token, false) end
+end
 -- ! Not GetEntityHealth: this RedM build answers 0 for a live player's ped on the server
 --   (w_pets logged "hp=0" for a player buying a pet), so this gate refused every use before
 --   it began, with no notice -- food and drink simply did nothing. The downed state the server
@@ -92,7 +97,13 @@ local function guarded(src, item, data)
 end
 local function current(src, token, stage)
     local p = pending[src]
-    if not p or p.token ~= token or p.stage ~= stage then return nil end
+    -- ! A token the server no longer holds (finished, timed out, never ours) used to return nil
+    --   here with no answer, and a client still waiting on it kept hudConsuming up for good:
+    --   w_stables' E-mount and care rows and w_pets' follow refuse while it is up. It gets the reset.
+    if not p or p.token ~= token then reset(src, token); return nil end
+    -- the live use's own token at another stage is a replay: that use ends through its own path
+    -- (its next stage, the timeout thread below, or the commit's finish)
+    if p.stage ~= stage then return nil end
     if GetGameTimer() > p.expires or not alive(src) or
         p.character ~= exports.w_lib:FwGetCharacterIdentifier(src) then
         finish(src, p, false, 'needs.useCancelled'); return nil
@@ -101,11 +112,13 @@ local function current(src, token, stage)
 end
 local function onUseEvent(name, callback)
     RegisterNetEvent(name, function(...)
-        local src = source
+        local src, token = source, ...
         local ok, reason = xpcall(callback, debug.traceback, src, ...)
         if not ok then
             local p = pending[src]
             if p then finish(src, p, false, 'needs.useFailed') end
+            -- this event's own token is answered too when the error left another use (or none)
+            if not p or p.token ~= token then reset(src, token) end
             w.print.error(('consumable event %s failed for %s: %s'):format(name, src, reason))
         end
     end)
@@ -151,7 +164,7 @@ onUseEvent('w_hud:server:completeUse', function(src, token, success)
         return finish(src, p, false, 'needs.targetUnavailable')
     end
     -- Close the replay window before exports that might yield.
-    p.stage = 'commit'
+    p.stage, p.committed = 'commit', GetGameTimer()
     local entry = Config.Consumables[p.item]
     if entry.pack and exports.w_lib:InvCanCarry(src, entry.pack.item, entry.pack.count) ~= true then
         return finish(src, p, false, 'needs.packNoSpace')
@@ -187,10 +200,25 @@ AddEventHandler('playerDropped', function() pending[source] = nil end)
 CreateThread(function()
     while true do
         Wait(1000)
+        local now = GetGameTimer()
         for src, p in pairs(pending) do
-            if p.stage ~= 'commit' and GetGameTimer() > p.expires then finish(src, p, false, 'needs.useCancelled') end
+            -- ★ A commit waits on inventory / stables exports and used to be exempt for good: one that
+            --   never returned held the use (every later one answered 'busy') and the client's
+            --   hudConsuming. Past Config.Use.CommitTimeout it is ended; a late finish finds it gone.
+            local hung = p.stage == 'commit' and now - (p.committed or now) > (Config.Use.CommitTimeout or 60000)
+            if hung or (p.stage ~= 'commit' and now > p.expires) then
+                if hung then w.print.error(('consumable commit hung: player %s item %s'):format(src, p.item)) end
+                -- ! pcall: one notice that threw used to end this thread, and every timeout after it
+                local ok, problem = pcall(finish, src, p, false, hung and 'needs.useFailed' or 'needs.useCancelled')
+                if not ok then w.print.error(('consumable timeout for %s: %s'):format(src, tostring(problem))) end
+            end
         end
     end
+end)
+-- the clients' half stops with us and releases by itself; this answers any use still waiting
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    for src, p in pairs(pending) do pending[src] = nil; reset(src, p.token) end
 end)
 
 local function registerAll(why)

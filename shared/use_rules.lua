@@ -1,6 +1,8 @@
 -- Behavioral corrections applied after the generated catalog.
 -- Nutrition remains the server's RP balance, not a claim about Rockstar values.
-Config.Use = { Timeout = 30000, CancelControl = 0x156F7119 }
+-- Timeout: each stage of a use (choose a target, animate). CommitTimeout: the server's charge and
+-- effect. The client releases its hudConsuming by itself a margin after either, should no answer come.
+Config.Use = { Timeout = 30000, CommitTimeout = 60000, CancelControl = 0x156F7119 }
 
 -- Native Dead Eye is optional (Config.Focus). A focus item works either way: it keeps the
 -- stamina it was catalogued with, and only its Dead Eye part waits for the integration.

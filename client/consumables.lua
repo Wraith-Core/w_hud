@@ -572,11 +572,20 @@ local function cleanupAction()
     if active and active.stage == 'select' then pcall(w.closeInputDialog) end
     if active and active.stage ~= 'select' then ClearPedTasks(cache.ped) end
 end
+-- ★ The client's own bound on a use. The server answers each stage within Config.Use.Timeout and
+--   a commit within Config.Use.CommitTimeout; an answer lost past that (plus a margin) used to leave
+--   hudConsuming up for good -- w_stables' E-mount and care rows and w_pets' follow refuse while it
+--   is. Every server message for the use restarts it; the watchdog at the end enforces it.
+local ANSWER_MARGIN = 15000
+local function stageDeadline() return GetGameTimer() + Config.Use.Timeout + ANSWER_MARGIN end
+local function commitDeadline() return GetGameTimer() + (Config.Use.CommitTimeout or 60000) + ANSWER_MARGIN end
 local function release()
     if active then active.cancelled = true end
-    cleanupAction()
+    -- ! pcall: release is the only way hudConsuming comes down, and a cleanup that threw skipped it
+    local cleaned, problem = pcall(cleanupAction)
     active, busy = nil, false
     LocalPlayer.state:set('hudConsuming', false, false)
+    if not cleaned then w.print.error(('consumable cleanup failed: %s'):format(tostring(problem))) end
 end
 
 -- Ask the engine to run the actual inventory item's interaction and create its prop.
@@ -629,10 +638,17 @@ end
 
 RegisterNetEvent('w_hud:client:prepareUse', function(item, token, forcedAnimal)
     if source ~= 65535 then return end
+    -- ★ The server holds one use per player and offers a new one only after it answered the last:
+    --   a use still active under another token is one whose answer never landed. Released here,
+    --   instead of refusing every use after it with hudConsuming up.
+    if active and active.token ~= token then
+        w.print.warn(('consumable token %s was never answered: released'):format(tostring(active.token)))
+        release()
+    end
     if busy or LocalPlayer.state.stableCaring or IsEntityDead(cache.ped) or not Config.Consumables[item] then
         return TriggerServerEvent('w_hud:server:selectUse', token, false)
     end
-    busy, active = true, { item = item, token = token, stage = 'select' }
+    busy, active = true, { item = item, token = token, stage = 'select', deadline = stageDeadline() }
     LocalPlayer.state:set('hudConsuming', true, false)
     -- Let the inventory bridge close its own NUI before the target chooser takes focus.
     Wait(100)
@@ -657,6 +673,7 @@ end)
 RegisterNetEvent('w_hud:client:playUse', function(item, token, target, netId)
     if source ~= 65535 or not active or active.token ~= token or active.stage ~= 'waiting' then return end
     active.stage, active.target, active.netId = 'animate', target, netId
+    active.deadline = stageDeadline()
     active.coroutine = coroutine.running()
     local operation = active
     local ok, done = xpcall(function()
@@ -687,8 +704,11 @@ RegisterNetEvent('w_hud:client:playUse', function(item, token, target, netId)
         return play(entry.prop, item) == true
     end, debug.traceback)
     if active ~= operation then return end
-    cleanupAction()
-    active.stage = 'commit'
+    -- ! pcall: a cleanup that threw here never sent completeUse
+    local cleaned, problem = pcall(cleanupAction)
+    if not cleaned then w.print.error(('consumable cleanup failed: %s'):format(tostring(problem))) end
+    if active ~= operation then return end
+    active.stage, active.deadline = 'commit', commitDeadline()
     if not ok then w.print.debug(tostring(done)) end
     TriggerServerEvent('w_hud:server:completeUse', token, ok and done == true)
 end)
@@ -723,3 +743,30 @@ end)
 AddEventHandler('playerSpawned', release)
 RegisterNetEvent('vorp:SelectedCharacter', release)
 RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', release)
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ★ The safety net for hudConsuming
+--
+--   The server answers every use: a result, a failure, a timeout, or a reset for a token it no
+--   longer holds. Should that answer still not land, the use is released here once its deadline
+--   passes; and the flag left up with no use behind it (the last instance of this resource, a stop
+--   that failed) comes down. Its readers: w_stables (E-mount, care rows), w_pets (follow).
+-- ════════════════════════════════════════════════════════════════════════════
+if LocalPlayer.state.hudConsuming then LocalPlayer.state:set('hudConsuming', false, false) end
+CreateThread(function()
+    while true do
+        Wait(1000)
+        local ok, problem = pcall(function()
+            if active then
+                if active.deadline and GetGameTimer() > active.deadline then
+                    w.print.warn(('consumable %s (token %s, stage %s) got no answer from the server: released')
+                        :format(tostring(active.item), tostring(active.token), tostring(active.stage)))
+                    release()
+                end
+            elseif LocalPlayer.state.hudConsuming then
+                LocalPlayer.state:set('hudConsuming', false, false)
+            end
+        end)
+        if not ok then w.print.error(('consumable watchdog: %s'):format(tostring(problem))) end
+    end
+end)
