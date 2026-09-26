@@ -115,7 +115,9 @@ export interface WidgetCfg {
   show: boolean;
   /** Locked widgets are skipped by dragging -- so a finished layout is not nudged by accident. */
   locked: boolean;
-  /** null = follow the theme accent. */
+  /** null = follow the theme: a circle the circles' colour, the wallet the money colour (or its
+      stock tones), the compass the accent, the rest the text. Its own colour is the normal look
+      only -- every state (warning, danger, poison, booster) paints over it. */
   color: string | null;
   visibility: Visibility;
   /** Only read when visibility is 'below'. */
@@ -672,8 +674,9 @@ const MAP_MODES = ['server', 'off', 'map', 'compass'] as const;
  * `ver`: the version the save was written by.
  *   < FREE_WARN_SINCE  its warning colour is read as the tone it was drawn in;
  *   < FREE_ALL_SINCE   so are its accent, text, dim, danger and poison (the poison stock of its
- *                      build becomes today's poison, see OLD_POISONS), and a save that is exactly
- *                      an old stock palette becomes today's stock.
+ *                      build becomes today's poison, see OLD_POISONS, and so does a poison that
+ *                      would be drawn in the circles' or the warning's colour), and a save that is
+ *                      exactly an old stock palette becomes today's stock.
  * The fields that may be none chosen (money and its rows) accept '' and otherwise a colour;
  * anything unreadable is ''. A save that predates the circles' own colour and the talking colour
  * gets its text colour for both -- they were drawn in it.
@@ -705,6 +708,12 @@ function readTheme(raw: unknown, base: Theme, ver = SETTINGS_VERSION): Theme {
      fields of their own (and after the tone reading above, so it is the colour they were drawn in). */
   if (src.core == null) base.core = base.text;
   if (src.talk == null) base.talk = base.text;
+
+  /* ⚠️ An older poison that is the circles' own colour, or the warning's, would leave the poisoned
+     health circle looking healthy, or merely low: those builds told the poison by its fumes (gone
+     now), never by this colour alone -- so no save ever chose a poison nobody can see. It takes
+     today's poison. (From FREE_ALL_SINCE on, a poison equal to them is the player's own pick.) */
+  if (ver < FREE_ALL_SINCE && (base.poison === base.core || base.poison === base.warn)) base.poison = DEFAULT_THEME.poison;
   return base;
 }
 
