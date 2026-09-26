@@ -714,6 +714,7 @@
       "clarity": "الوضوح",
       "colour": "اللون",
       "inheritColour": "يتبع اللون العام",
+      "inheritMoney": "يتبع لون الأموال",
       "position": "الموقع",
       "resetOne": "استعادة هذا العنصر",
       "whenVisible": "متى يظهر",

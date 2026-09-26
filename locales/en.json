@@ -714,6 +714,7 @@
       "clarity": "Solidity",
       "colour": "Colour",
       "inheritColour": "Follow the accent",
+      "inheritMoney": "Follow the money colour",
       "position": "Position",
       "resetOne": "Reset this element",
       "whenVisible": "When it shows",

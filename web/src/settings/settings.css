@@ -158,6 +158,14 @@
      uses the same classes and is left as it is. */
 .hw[style*='--w-color'] .wallet .plate-val,
 .hw[style*='--w-color'] .wallet .plate-ic { color: var(--w-color); }
+/* Player Info (.plate.ident): the same fix. The PvP word and shield, the server id and its card,
+   the level number take the element's colour (five classes here, against four at most on its
+   rules in hud.css). The level's medal is w_level's own art in fixed fills and stays as it is.
+   PvP keeps its on/off reading under a colour: off is the same colour, faded -- the way the stock
+   look has it dim against paper. With no element colour nothing here applies. */
+.hw[style*='--w-color'] .plate.ident .plate-val,
+.hw[style*='--w-color'] .plate.ident .plate-ic { color: var(--w-color); }
+.hw[style*='--w-color'] .plate.ident .plate-row.is-pvp:not(.is-on) { opacity: 0.62; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    2 · the control panel

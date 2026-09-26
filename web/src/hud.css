@@ -189,7 +189,8 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .plate-row.is-pvp .plate-ic, .plate-row.is-pvp .plate-val { color: var(--dim); }
 .plate-row.is-pvp.is-on .plate-ic, .plate-row.is-pvp.is-on .plate-val { color: var(--cream); }
 .plate-row.is-level .plate-val { color: var(--cream); }
-/* the identity plate is a short one: its rows sit side by side */
+/* the identity plate is a short one: its rows sit side by side
+   (its element colour, when a player sets one, is applied in settings/settings.css -- per-widget tint) */
 .plate.ident { flex-direction: row; align-items: center; gap: 1.6rem; min-width: 0; padding: 1.1rem 2.3rem 1.1rem 2.6rem; }
 .plate.ident .plate-row { min-height: 3rem; }
 

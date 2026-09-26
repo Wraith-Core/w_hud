@@ -486,7 +486,9 @@ export function SettingsPanel(p: PanelProps) {
                           onChange={(hex) => p.patch(meta.id, { color: hex })}
                           inherit={{
                             active: cfg.color === null,
-                            label: t(S('inheritColour')),
+                            /* The wallet with no colour of its own follows the theme's money colour
+                               (and that, when unset, the stock tones) -- not the accent. */
+                            label: t(S(meta.id === 'money' ? 'inheritMoney' : 'inheritColour')),
                             onPick: () => p.patch(meta.id, { color: null }),
                           }}
                         />
