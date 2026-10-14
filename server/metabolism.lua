@@ -560,12 +560,12 @@ end)
 RegisterNetEvent('w_hud:server:respawn', function()
     local src = source
     if not State[src] then return end
-    -- ⚠️ With w_ambulancejob running the request is dropped, quietly. That resource refills hunger
+    -- ⚠️ With w_medic (or w_ambulancejob) running the request is dropped, quietly. That resource refills hunger
     --   and thirst itself, on the server, with every revive and heal it grants (its refillNeeds ->
     --   SetNeed), so the refill has already come. And the "went down" this gate reads is only the
     --   client's own word (hospital:server:SetDeathStatus / vorp:ImDead are net events): a cheat
     --   menu sent "dead", then this, then "alive" and had both needs full whenever it liked.
-    if not clientsTrusted() and GetResourceState('w_ambulancejob') == 'started' then
+    if not clientsTrusted() and (GetResourceState('w_medic') == 'started' or GetResourceState('w_ambulancejob') == 'started') then
         Downed[src] = nil
         return
     end
