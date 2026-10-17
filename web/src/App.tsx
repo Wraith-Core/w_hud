@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VORP_CURRENCY_ICONS } from './vorpCurrencyIcons';
 import WeaponWheel from './wheel/WeaponWheel';
+import Announcement from './Announcement';
 import { post, setSoundBase } from './wheel/nui';
 import { applyLocale, useI18n } from './i18n';
 import { EditGrid, HudLayoutProvider, HudWidget, useNudge } from './settings/layout';
@@ -992,6 +993,8 @@ function App() {
     {/* ★ Outside .hud-root deliberately: that container is pointer-events:none and its opacity
         is tied to the HUD state, while the wheel needs a mouse and shows even if the HUD is hidden. */}
     <WeaponWheel />
+    {/* 2.1.0: the server's announcement under the compass -- outside .hud-root for the same reason */}
+    <Announcement />
 
     <div className={`hud-root ${visible || editing ? 'visible' : ''}${editing ? ' editing' : ''}`}>
       {/* A shared paper gradient for the circles (the theme's paper, dimmed to lit) */}

@@ -581,6 +581,9 @@
       "demoLocation": "VALENTINE",
       "identityTag": "Server identity - admin"
     },
+    "announce": {
+      "title": "Announcement"
+    },
     "compass": {
       "n": "N",
       "ne": "NE",

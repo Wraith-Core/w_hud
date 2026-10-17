@@ -581,6 +581,9 @@
       "demoLocation": "فالنتاين",
       "identityTag": "هويّة السيرفر — للإدارة"
     },
+    "announce": {
+      "title": "إعلان"
+    },
     "compass": {
       "n": "ش",
       "ne": "ش ق",

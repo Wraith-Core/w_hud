@@ -176,3 +176,18 @@ Config.HiddenCoords  = vector3(-1000.0, -3000.0, 100.0) -- temporary hide coordi
 Config.AutoScope               = true
 -- (AutoScopeRetryMs is gone: the scope key is pressed once per aim, and only repeated -- at most
 --  twice -- while the camera's field of view says the scope has not opened. See client/scope.lua.)
+
+----------------------------------
+-- Announcements (server/announce.lua, client/announce.lua, web/src/Announcement.tsx)
+--   2.1.0: the admin's message to everyone, drawn at the top centre under the compass in the
+--   look of the game's own white shard. Drawn by the HUD page, not by the game's feed natives:
+--   the RDR2 text engine has no Arabic glyphs (w_kingdom_v2/shared/util.lua), so a native shard
+--   would show an Arabic announcement as empty boxes.
+----------------------------------
+Config.Announce = {
+    DefaultSeconds = 10,   -- seconds on screen when the sender gives no duration
+    MinSeconds     = 3,    -- the shortest an admin may ask for (seconds)
+    MaxSeconds     = 1800, -- the longest: 30 minutes (seconds)
+    MaxText        = 300,  -- characters (letters, not bytes) in the message
+    MaxTitle       = 60,   -- characters in the optional title line
+}
