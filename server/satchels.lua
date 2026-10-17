@@ -101,7 +101,13 @@ local function load(src)
     end)
 end
 
-RegisterNetEvent('w_hud:server:load', function() load(source) end)
+-- Audit (2026-10-18): the same character asking again only re-applies its bonus (no database read per ask).
+RegisterNetEvent('w_hud:server:load', function()
+    local src = source
+    local b = Bonus[src]
+    if b and b.cid == cidOf(src) then return apply(src) end
+    load(src)
+end)
 AddEventHandler('playerDropped', function() Bonus[source] = nil end)
 
 -- A deleted character's upgrade leaves memory with its row (server/purge.lua): a player still

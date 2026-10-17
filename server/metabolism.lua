@@ -157,7 +157,8 @@ local function load(src)
 end
 
 local function save(src)
-    local s, cid = State[src], cidOf(src)
+    -- the character these values belong to (a character switch changes cidOf before the new load)
+    local s, cid = State[src], Owner[src] or cidOf(src)
     if not s or not cid then return end
 
     MySQL.update([[
@@ -407,7 +408,25 @@ end)
 -- ════════════════════════════════════════════════════════════════════════════
 -- Lifecycle
 -- ════════════════════════════════════════════════════════════════════════════
-RegisterNetEvent('w_hud:server:load', function() load(source) end)
+-- Audit (2026-10-18): asking again for the SAME character only resends the live values -- re-reading the database
+-- on every ask let a player put back the last saved (fuller) hunger / thirst at will. Another character: the old
+-- one's live values are written under ITS id first, then the new one is read.
+RegisterNetEvent('w_hud:server:load', function()
+    local src = source
+    local cid = cidOf(src)
+    if not cid then return end
+    local s, owner = State[src], Owner[src]
+    if s and owner == cid then return broadcast(src) end
+    if s and owner then
+        MySQL.update([[
+            INSERT INTO w_hud_needs (cid, hunger, thirst)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                hunger = VALUES(hunger), thirst = VALUES(thirst)
+        ]], { owner, s.hunger, s.thirst })
+    end
+    load(src)
+end)
 
 -- The RSG-style client events (client/event.lua hud:client:UpdateHunger / UpdateThirst) and
 -- w_inventory's RSG bridge (an item's `status`) send the new absolute value from the client:
