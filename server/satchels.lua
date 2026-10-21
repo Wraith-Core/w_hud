@@ -20,12 +20,26 @@
 --    SetMaxWeight on a missing inventory silently does nothing. We wait for it to exist.
 -- ════════════════════════════════════════════════════════════════════════════
 
-local Bonus = {}   -- src -> { bonus = number, rank = number, cid = the character it was read for }
+local Bonus = {}   -- src -> { bonus = number, rank = number, cid = the character it was read for, vip = grams applied }
 
 --- The base capacity, from the same convar the inventory reads.
 ---@return number
 local function baseWeight()
     return GetConvarInt('inventory:weight', 30000)
+end
+
+--- 2.1.2: the VIP carry bonus (w_vip perk `bag_weight_extra`, kg) in grams; 0 without w_vip.
+---
+--- ★ Never stored: it follows the membership, which w_vip refreshes every minute, so it is
+---   read again at every apply and checked by the watch below.
+---@param src number
+---@return integer grams
+local function vipExtra(src)
+    if GetResourceState('w_vip') ~= 'started' then return 0 end
+    local ok, kg = pcall(function() return exports.w_vip:Perk(src, 'bag_weight_extra', 0) end)
+    kg = ok and tonumber(kg) or 0
+    if not kg or kg ~= kg or kg <= 0 or kg > 1000 then return 0 end
+    return math.floor(kg * 1000)
 end
 
 local function cidOf(src)
@@ -60,10 +74,12 @@ local function apply(src)
     local b = Bonus[src]
     if not b then return end
 
+    b.vip = vipExtra(src)
+
     -- ⚠️ pcall: the inventory may be restarting, and a HUD must never take a login
     --    down with it.
     pcall(function()
-        exports.w_inventory:SetMaxWeight(src, baseWeight() + (b.bonus or 0))
+        exports.w_inventory:SetMaxWeight(src, baseWeight() + (b.bonus or 0) + b.vip)
     end)
 end
 
@@ -80,9 +96,9 @@ local function load(src)
     local row = MySQL.single.await(
         'SELECT bonus, `rank` FROM w_hud_satchels WHERE cid = ?', { cid })
 
-    Bonus[src] = { bonus = (row and row.bonus) or 0, rank = (row and row.rank) or 0, cid = cid }
+    Bonus[src] = { bonus = (row and row.bonus) or 0, rank = (row and row.rank) or 0, cid = cid, vip = 0 }
 
-    if Bonus[src].bonus <= 0 then return end
+    if Bonus[src].bonus <= 0 and vipExtra(src) <= 0 then return end
 
     CreateThread(function()
         -- w.waitFor yields until the inventory has built the player (errors after 15s);
@@ -142,6 +158,17 @@ AddEventHandler('onResourceStart', function(resource)
     end)
 end)
 
+-- 2.1.2: a VIP bought, renewed to another tier or ended while the player is online (or w_vip
+-- started after his login): his capacity follows within a minute, without a relog.
+CreateThread(function()
+    while true do
+        Wait(60000)
+        for src, b in pairs(Bonus) do
+            if vipExtra(src) ~= (b.vip or 0) then apply(src) end
+        end
+    end
+end)
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- Using a satchel
 -- ════════════════════════════════════════════════════════════════════════════
@@ -191,7 +218,7 @@ local function useSatchel(src, item)
     -- The new capacity travels as a format argument; the client formats the notice in
     -- the player's own language.
     WNeeds.notify(src, 'satchel.upgraded', '#F2F2F2', 'tick', 5000,
-        { math.floor((baseWeight() + state.bonus) / 1000) })
+        { math.floor((baseWeight() + state.bonus + (state.vip or 0)) / 1000) })
 
     return true
 end
@@ -242,7 +269,10 @@ end)
 -- Public interface + admin command
 -- ════════════════════════════════════════════════════════════════════════════
 exports('GetSatchelBonus', function(src) return (Bonus[src] or {}).bonus or 0 end)
-exports('GetCarryWeight', function(src) return baseWeight() + ((Bonus[src] or {}).bonus or 0) end)
+exports('GetCarryWeight', function(src)
+    local b = Bonus[src] or {}
+    return baseWeight() + (b.bonus or 0) + (b.vip or 0)
+end)
 
 --- /satchel <citizen id> <tier|reset>  -- grant or clear an upgrade without an item.
 ---
