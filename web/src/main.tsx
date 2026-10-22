@@ -35,7 +35,11 @@ try {
   //   They are injected as a **mask**, not an image: the mask takes the image's shape and
   //   is coloured by background-color, so the icon stays colourable (white/yellow/red) and
   //   the two-layer system works with it exactly as with SVG icons. A plain image cannot be coloured.
-  for (const n of ['player_health', 'player_health_broken', 'player_stamina', 'horse_health', 'food', 'drink'] as const) {
+  // The wallet's money icons are the game's own too (2026-10-22, the owner's picks): money_moneystack
+  // (inventory_items), blip_robbery_bank (blips), blip_gold (blips_mp), log_gang_bag (menu_textures) --
+  // white ink, their dark lines made see-through, so the row colour tints them like the cores.
+  for (const n of ['player_health', 'player_health_broken', 'player_stamina', 'horse_health', 'food', 'drink',
+    'money_cash', 'money_bank', 'money_gold', 'money_dirty'] as const) {
     root.setProperty(`--ic-${n}`, `url("${ABS_BASE}png/${n}.png")`);
   }
 

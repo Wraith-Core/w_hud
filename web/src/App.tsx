@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { VORP_CURRENCY_ICONS } from './vorpCurrencyIcons';
 import WeaponWheel from './wheel/WeaponWheel';
 import Announcement from './Announcement';
@@ -68,18 +69,13 @@ const HorseShoeIcon = () => (
 const CurrencyIcon = ({ type }: { type: keyof typeof VORP_CURRENCY_ICONS }) => (
   <img src={VORP_CURRENCY_ICONS[type]} alt="" aria-hidden="true" draggable={false} />
 );
-/* The bank. Drawn rather than bundled: neither vorp_core nor vorp_banking ships an
-   icon for it, and a tinted copy of the cash note would read as cash twice over. */
-const BankIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l10 5v2H2V7l10-5zm0 2.3L6.5 7h11L12 4.3zM4 10h2.5v7H4v-7zm5.2 0h2.5v7H9.2v-7zm5.3 0H17v7h-2.5v-7zM2 18h20v3H2v-3z"/></svg>);
+/* The wallet's four icons: the game's own textures as masks (main.tsx sets --ic-money_*), tinted by the
+   row colour. Cash = a stack of bills, bank = the bank front, gold = gold bars, dirty = a money sack. */
+const MoneyIcon = ({ kind }: { kind: 'cash' | 'bank' | 'gold' | 'dirty' }) => (
+  <i className="tex-ic money-ic" style={{ '--ic': `var(--ic-money_${kind})` } as CSSProperties} aria-hidden="true" />
+);
 const IdIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm4.5 3A2.5 2.5 0 1 0 8.5 13 2.5 2.5 0 0 0 8.5 8zM4.6 17c.3-2 2-3.2 3.9-3.2s3.6 1.2 3.9 3.2H4.6zM14 8.5h6V10h-6V8.5zm0 3.5h6v1.5h-6V12zm0 3.5h4V17h-4v-1.5z"/></svg>);
 const LevelIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6 6.6.6-5 4.4 1.5 6.4L12 16.6 6 19.4 7.5 13l-5-4.4L9.1 8z"/></svg>);
-/* ★ The wallet's icons are drawn in one colour, like every other icon on this HUD. The
-   coloured vorp PNGs (a green coin, a red bag, yellow bars) were the one thing in the
-   top-right column that spoke another language; they stay bundled in vorpCurrencyIcons
-   for the inventory, which still uses them. */
-const CashIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 6h20v12H2V6zm2 2v8h16V8H4zm8 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 1.6a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zM5 9.5h2v5H5v-5zm12 0h2v5h-2v-5z"/></svg>);
-const DirtyIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6l-1.2 2.4L15 6H9l1.2-1.6L9 2zm0 5h6c3.3 2.2 5 5.1 5 8.4 0 3.9-2.8 6.6-8 6.6s-8-2.7-8-6.6C4 12.1 5.7 9.2 9 7zm3 3.2c-1.9 0-3.1 1-3.1 2.4 0 1.2.8 1.9 2.5 2.2l.9.2c.9.2 1.2.4 1.2.8 0 .5-.5.8-1.4.8-1 0-1.6-.4-1.7-1H8.5c.1 1.5 1.2 2.5 3 2.7V19h1.2v-1.4c1.8-.2 2.9-1.2 2.9-2.6 0-1.3-.8-2-2.6-2.4l-.9-.2c-.8-.2-1.1-.4-1.1-.8 0-.4.4-.7 1.2-.7.8 0 1.3.3 1.4.9h1.9c-.1-1.4-1.1-2.3-2.8-2.5V8.9H12v1.3z"/></svg>);
-const GoldIcon = () => (<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.2 4h9.6l2.2 5H5l2.2-5zm-4 7h8.6l2.2 5H1l2.2-5zm9.8 0h8.6l2.2 5H10.8l2.2-5zM3.2 18h8.6l2.2 5H1l2.2-5zm9.8 0h8.6l2.2 5H10.8l2.2-5z" transform="scale(.9) translate(1.3 -1)"/></svg>);
 /* The level's medallion -- w_level's, small: a paper-silver ring, an ink disc, a star (the theme's neutral ink and paper). */
 const LevelMedal = () => (
   <svg viewBox="0 0 40 40" aria-hidden="true">
@@ -1076,20 +1072,20 @@ function App() {
           <div className="plate wallet">
             <div className="plate-row is-cash">
               <span className="plate-val">{fmtMoney(cash)}</span>
-              <span className="plate-ic"><CashIcon /></span>
+              <span className="plate-ic"><MoneyIcon kind="cash" /></span>
             </div>
             <span className="plate-rule" aria-hidden="true" />
             <div className="plate-row is-bank">
               <span className="plate-val">{fmtMoney(bank)}</span>
-              <span className="plate-ic"><BankIcon /></span>
+              <span className="plate-ic"><MoneyIcon kind="bank" /></span>
             </div>
             <div className="plate-row is-dirty">
               <span className="plate-val">{fmtMoney(dirty)}</span>
-              <span className="plate-ic"><DirtyIcon /></span>
+              <span className="plate-ic"><MoneyIcon kind="dirty" /></span>
             </div>
             <div className="plate-row is-gold">
               <span className="plate-val">{fmtMoney(gold)}</span>
-              <span className="plate-ic"><GoldIcon /></span>
+              <span className="plate-ic"><MoneyIcon kind="gold" /></span>
             </div>
           </div>
         </HudWidget>
