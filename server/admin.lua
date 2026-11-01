@@ -300,3 +300,18 @@ exports('SaveServerHudCfg', function(cfg, adminSrc)
     w.print.info(('server settings saved by %s (export)'):format(GetPlayerName(src) or src))
     return true, WHudSrv
 end)
+
+-- 2.1.4: the live settings for the website console (w_connector 2.2.0, which replaces w_admin).
+-- w_lib's WSettingsApply answers only w_admin, w_lib or this resource, and w_lib is not ours to
+-- change here, so the connector comes in through this door: only a caller named w_connector, and
+-- the change still runs through w_lib's own apply (handle.apply) -- the same checks (the actor
+-- passes IsHudAdmin, types, ranges, compare-and-set, rate limit), save, audit and push.
+exports('WSettingsApplyConnector', function(changes, actor)
+    if GetInvokingResource() ~= 'w_connector' then
+        return { ok = false, applied = {}, rejected = { { key = '', reason = 'no_access' } } }
+    end
+    if type(WHudLive) ~= 'table' or type(WHudLive.apply) ~= 'function' then
+        return { ok = false, applied = {}, rejected = { { key = '', reason = 'not_ready' } } }
+    end
+    return WHudLive.apply(changes, actor)
+end)
