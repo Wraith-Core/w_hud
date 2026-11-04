@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+// Every px in the CSS follows the screen (720p .. 8K, ultrawide by height): ui-scale.cjs.
+import uiScale from './ui-scale.cjs';
 
 // Strip crossorigin from the injected <script>/<link> tags -- inside RedM CEF a module
 // request can fail in CORS mode over nui:// (the most common cause of a black screen).
@@ -24,6 +26,7 @@ const storeThemeLast = () => ({
 export default defineConfig({
   plugins: [react(), stripCrossorigin(), storeThemeLast()],
   base: './',
+  css: { postcss: { plugins: [uiScale()] } },
   build: {
     outDir: 'build',
     // build/ also holds the static textures, fonts and pngs the HUD loads by path (no public/

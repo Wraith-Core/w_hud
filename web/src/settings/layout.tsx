@@ -37,8 +37,10 @@ import {
 } from 'react';
 import { WIDGET_BY_ID, type HudSettings, type WidgetCfg, type WidgetId } from './types';
 import { useI18n } from '../i18n';
+import { pxToX, xToCss, xToPx, xUnitsVh } from './frame';
+import { wsScale } from '../wsScale';
 
-/* ── how close two edges must be, in screen pixels, before they snap together ── */
+/* ── how close two edges must be, in design pixels (1080p), before they snap together ── */
 const SNAP_PX = 7;
 
 export interface Guides { x: number | null; y: number | null }
@@ -113,7 +115,7 @@ function nearest(probes: number[], lines: number[]): { delta: number; line: numb
   for (const probe of probes) {
     for (const line of lines) {
       const delta = line - probe;
-      if (Math.abs(delta) > SNAP_PX) continue;
+      if (Math.abs(delta) > SNAP_PX * wsScale()) continue;
       if (!best || Math.abs(delta) < Math.abs(best.delta)) best = { delta, line };
     }
   }
@@ -161,7 +163,8 @@ export function HudWidget({ id, children, className, override }: WidgetProps) {
   const scale = cfg.scale * settings.scale;
 
   const style: CSSProperties = {
-    left: `${cfg.x}%`,
+    /* x is a share of the 16:9 frame, anchored to the nearest edge (frame.ts) */
+    left: xToCss(cfg.x),
     top: `${cfg.y}%`,
     transformOrigin: `${ox * 100}% ${oy * 100}%`,
     transform: `translate(${-ox * 100}%, ${-oy * 100}%) scale(${scale})`,
@@ -192,7 +195,7 @@ export function HudWidget({ id, children, className, override }: WidgetProps) {
 
     /* The gap between the anchor and the drawn box. Constant for the whole drag (nothing
        resizes mid-drag), so the widget's future rect is a single addition away. */
-    const anchorX = (cfg.x / 100) * vw;
+    const anchorX = xToPx(cfg.x, vw, vh);
     const anchorY = (cfg.y / 100) * vh;
     const offX = rect.left - anchorX;
     const offY = rect.top - anchorY;
@@ -224,7 +227,7 @@ export function HudWidget({ id, children, className, override }: WidgetProps) {
         if (vhit) { py += vhit.delta; guideY = vhit.line; }
       }
 
-      let nx = (px / vw) * 100;
+      let nx = pxToX(px, vw, vh);
       let ny = (py / vh) * 100;
 
       if (!free && settings.grid.snap) {
@@ -359,6 +362,6 @@ export const EditGrid = ({ step }: { step: number }) => (
   <div
     className="hw-grid"
     aria-hidden="true"
-    style={{ backgroundSize: `${step}% ${(step * window.innerWidth) / window.innerHeight}%` }}
+    style={{ backgroundSize: `${xUnitsVh(step)}vh ${xUnitsVh(step)}vh` }}
   />
 );

@@ -28,6 +28,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { play } from '../wheel/nui';
 import { useI18n, type TFn } from '../i18n';
 import { ColorField } from './ColorField';
+import { wsFontScale, wsGutter } from '../wsScale';
 import {
   DEFAULT_THEME, FEATURES, FEATURE_WIDGETS, GROUP_LABEL, PROFILE_SLOTS, THEME_FIELDS, THEME_PRESETS,
   WIDGETS, WIDGET_BY_ID, deathMinutes, drainMinutes, encodeShare, moneyRowColour, profileFrom, safeUrl,
@@ -371,12 +372,13 @@ export function SettingsPanel(p: PanelProps) {
     const sx = e.clientX, sy = e.clientY;
     const root = e.currentTarget.closest('.hs-root') as HTMLElement;
     const bounds = root.getBoundingClientRect();
-    const gap = 16 * Math.max(1, Math.min(2, vh / 1080));
+    const gap = 16 * wsFontScale(); /* --hs-safe-gap: 16 panel units (--ws-fpx) */
     const ox = bounds.left, oy = bounds.top;
 
     const move = (ev: PointerEvent) => {
+      /* x as a share of the centred 16:9 frame (the panel is a menu: on 21:9 / 32:9 it stays in front) */
       p.setPanelPos(
-        Math.max(gap, Math.min(vw - bounds.width - gap, ox + ev.clientX - sx)) / vw * 100,
+        (Math.max(gap, Math.min(vw - bounds.width - gap, ox + ev.clientX - sx)) - wsGutter()) / (vh * 16 / 9) * 100,
         Math.max(gap, Math.min(vh - bounds.height - gap, oy + ev.clientY - sy)) / vh * 100,
       );
     };
@@ -455,7 +457,7 @@ export function SettingsPanel(p: PanelProps) {
 
   return (
     <div className="hs-root wst-root" style={{
-      left: `clamp(var(--hs-safe-gap), ${pos.x}vw, calc(100vw - var(--hs-panel-width) - var(--hs-safe-gap)))`,
+      left: `clamp(var(--hs-safe-gap), calc(var(--ws-gutter) + ${+(pos.x * 16 / 9).toFixed(4)}vh), calc(100vw - var(--hs-panel-width) - var(--hs-safe-gap)))`,
       top: `clamp(var(--hs-safe-gap), ${pos.y}vh, calc(100vh - var(--hs-panel-height) - var(--hs-safe-gap)))`,
     }}>
       <aside className="hs-panel wst-panel">

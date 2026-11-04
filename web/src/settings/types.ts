@@ -17,6 +17,7 @@
 
 import { normHex } from './color';
 import { toTone } from './palette';
+import { fromWidthPct } from './frame';
 
 export type WidgetId =
   | 'server' | 'ammo' | 'money' | 'identity'
@@ -427,9 +428,13 @@ export function aspect(): number {
   return window.innerHeight / window.innerWidth;
 }
 
-/** A widget's default x for the screen it is actually being drawn on. */
-export function homeX(meta: WidgetMeta, a = aspect()): number {
-  const x = meta.xUnit === 'vh' ? meta.home.x * a : meta.home.x;
+/**
+ * A widget's default x. Since v6 x is a share of the 16:9 frame (frame.ts): a vh figure is
+ * x * 9/16 on every screen, so the circles hug the minimap on 4:3 and 32:9 alike.
+ * (`a` is kept for the old call sites; the frame no longer depends on the aspect.)
+ */
+export function homeX(meta: WidgetMeta, _a = aspect()): number {
+  const x = meta.xUnit === 'vh' ? meta.home.x * (9 / 16) : meta.home.x;
   return Math.round(x * 100) / 100;
 }
 
@@ -503,8 +508,9 @@ export const DEFAULT_WORLD: WorldCfg = { onFoot: 'server', mounted: 'server' };
 
 /** v3 replaces the companion card with three independently editable cores.
     v4 paints the warning colour exactly as chosen (see FREE_WARN_SINCE).
-    v5 paints every colour exactly as chosen and adds the state and wallet-row fields (FREE_ALL_SINCE). */
-export const SETTINGS_VERSION = 5;
+    v5 paints every colour exactly as chosen and adds the state and wallet-row fields (FREE_ALL_SINCE).
+    v6 reads x as a share of the 16:9 frame, anchored to the nearest edge (FRAME_X_SINCE, frame.ts). */
+export const SETTINGS_VERSION = 6;
 
 /**
  * The first version whose warning colour is painted as it is stored.
@@ -527,6 +533,12 @@ const FREE_WARN_SINCE = 4;
  *   as it did; a colour picked from this version on is exact.
  */
 const FREE_ALL_SINCE = 5;
+/**
+ * The first version whose x is a share of the 16:9 frame (settings/frame.ts) rather than of the
+ * screen's width. An older save is converted against the screen it is read on -- the one it was
+ * almost always made on -- so every widget stays on the pixel it was on; on 16:9 nothing changes.
+ */
+const FRAME_X_SINCE = 6;
 /** The version a save (or profile, or share code) was written by; 0 when it does not say. */
 const versionOf = (v: unknown): number => { const n = Number(v); return isFinite(n) ? n : 0; };
 
@@ -742,7 +754,7 @@ function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>, ver = SETT
       const legacy = saved.companion;
       entry = {
         ...(legacy && typeof legacy === 'object' ? legacy : {}),
-        x: base.health.x + petIndex * 4.5 * aspect(),
+        x: base.health.x + petIndex * 4.5 * (9 / 16),   /* 4.5vh in frame units (already v6) */
         y: base.health.y - 7.2,
       };
     }
@@ -754,7 +766,9 @@ function readWidgets(raw: unknown, base: Record<WidgetId, WidgetCfg>, ver = SETT
     /* ★ -20..120 rather than 0..100: an anchor may legitimately sit slightly off-screen
        (a right-anchored column has its origin at 98.2 and its body to the left of it),
        and a hard 0..100 would drag such widgets inward on every load. */
-    cfg.x = num(w.x, cfg.x, -20, 120);
+    /* a pre-v6 x is "% of the width": convert it (a synthesised companion entry already is v6) */
+    const ownX = entry === saved[meta.id] && ver < FRAME_X_SINCE && w.x != null && isFinite(Number(w.x));
+    cfg.x = num(ownX ? fromWidthPct(Number(w.x)) : w.x, cfg.x, -20, 120);
     cfg.y = num(w.y, cfg.y, -20, 120);
     cfg.scale = num(w.scale, 1, 0.5, 2);
     cfg.opacity = num(w.opacity, 1, 0.15, 1);

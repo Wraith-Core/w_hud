@@ -32,6 +32,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { hexToHsv, hsvToHex, normHex, readableInk } from './color';
+import { wsFontScale } from '../wsScale';
 import { PAPER, RED, TONES } from './palette';
 
 /* Ready colours: ones that read over a dark, moving game -- a warning yellow and orange, a red,
@@ -174,7 +175,7 @@ export function ColorField({ value, onChange, inherit, reset, title, red = false
     if (!el) return;
 
     const r = el.getBoundingClientRect();
-    const unit = Math.max(1, Math.min(2, window.innerHeight / 1080));
+    const unit = wsFontScale(); /* the panel's unit (--hs-unit = --ws-fpx, ui-scale) */
     const bounds = pop.current?.getBoundingClientRect();
     const w = bounds?.width ?? 288 * unit;
     const h = bounds?.height ?? 460 * unit;
