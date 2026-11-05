@@ -52,7 +52,7 @@
 
   --ww-glass:
     radial-gradient(85% 40% at 50% 0%, var(--ww-glow), rgba(0, 0, 0, 0) 72%),
-    radial-gradient(130% 90% at 50% 0%, rgba(25, 25, 25, 0.97) 0%, rgba(17, 17, 17, 0.98) 42%, rgba(10, 10, 10, 0.99) 100%);
+    radial-gradient(130% 90% at 50% 0%, rgba(28, 25, 25, 0.97) 0%, rgba(21, 19, 19, 0.98) 42%, rgba(11, 10, 10, 0.99) 100%);
 
   /* faces by role, from the Wraith theme (w_lib/nui/theme, @imported by the store-theme.css link) */
   --ww-f-display: var(--w-f-title);
@@ -139,11 +139,11 @@
   inset-block: 0;
   inset-inline-start: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--ww-accent), rgba(0, 0, 0, 0.18));
+  background: linear-gradient(180deg, var(--w-red-deep, #8F0B0E), rgba(0, 0, 0, 0.18)); /* 2026-11-05: the site's look, bars fill red */
   transition: width 0.25s linear;
 }
 
-.ww-bar-fill.is-bright { background: linear-gradient(180deg, #F2F2F2, #B4B4B4); }
+.ww-bar-fill.is-bright { background: linear-gradient(180deg, var(--w-mark-lit, #E01A1F), var(--w-red, #D0161B)); }
 .ww-bar.muted .ww-bar-fill { display: none; }
 
 /* ═══════════════ the header: R + the tabs ═══════════════ */
@@ -233,7 +233,7 @@
   right: -4%;
   bottom: -6px;
   height: 3px;
-  background-color: var(--ww-line-strong);
+  background-color: var(--w-mark, #D0161B); /* 2026-11-05: the active tab's rule is the red mark */
   -webkit-mask: var(--ww-tex-divider_line) center / 100% 100% no-repeat;
   mask: var(--ww-tex-divider_line) center / 100% 100% no-repeat;
 }
@@ -290,7 +290,7 @@
   place-items: center;
   border-radius: 50%;
   background:
-    radial-gradient(120% 120% at 50% 12%, rgba(34, 34, 34, 0.97), rgba(10, 10, 10, 0.98) 70%);
+    radial-gradient(120% 120% at 50% 12%, rgba(36, 32, 32, 0.97), rgba(11, 10, 10, 0.98) 70%);
   box-shadow:
     inset 0 0 0 1px rgba(242, 242, 242, 0.16),
     0 6px 16px rgba(0, 0, 0, 0.75);
@@ -320,10 +320,11 @@
 }
 
 .ww-bubble.selected .ww-bubble-face {
-  background: radial-gradient(120% 120% at 50% 12%, rgba(51, 51, 51, 0.98), rgba(10, 10, 10, 0.99) 70%);
+  /* 2026-11-05: the chosen disc is the red mark (the site's look), the weapon stays white on it */
+  background: radial-gradient(120% 120% at 50% 12%, var(--w-mark-lit, #E01A1F), var(--w-mark, #D0161B) 45%, var(--w-mark-deep, #8F0B0E) 100%);
   box-shadow:
-    inset 0 0 0 2px #F2F2F2,
-    0 0 14px rgba(242, 242, 242, 0.28),
+    inset 0 0 0 2px var(--w-mark, #D0161B),
+    0 0 14px rgba(208, 22, 27, 0.28),
     0 8px 22px rgba(0, 0, 0, 0.85);
 }
 
@@ -367,7 +368,7 @@
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
 }
 
-.ww-bubble.selected .ww-dual { color: var(--ww-ink); filter: none; }
+.ww-bubble.selected .ww-dual { color: var(--w-mark-ink, #F2F2F2); filter: none; }
 
 /* ⚠️ stroke: currentColor is required -- the icon's paths declare fill="none" and leave the
    stroke to CSS. It was lost in a rewrite of the file and the two arrows were drawn with
@@ -411,7 +412,7 @@
   min-width: 1.7em;
   padding: 1px 5px;
   border-radius: 999px;
-  background: rgba(10, 10, 10, 0.94);
+  background: rgba(11, 10, 10, 0.94);
   box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.22);
   color: #F2F2F2;
   font: 700 clamp(9px, 1.15vh, 13px) / 1.35 var(--ww-f-num);
@@ -428,7 +429,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(10, 10, 10, 0.94);
+  background: rgba(11, 10, 10, 0.94);
   box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.22);
   font-size: clamp(9px, 1.15vh, 13px);
 }
@@ -443,7 +444,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(10, 10, 10, 0.94);
+  background: rgba(11, 10, 10, 0.94);
   box-shadow: inset 0 0 0 1px var(--ww-gold);
   color: var(--ww-gold-lit);
   font-size: clamp(9px, 1.15vh, 13px);
@@ -463,7 +464,7 @@
 .ww-more {
   padding: 1px 4px;
   border-radius: 999px;
-  background: rgba(10, 10, 10, 0.9);
+  background: rgba(11, 10, 10, 0.9);
   box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.14);
   color: rgba(242, 242, 242, 0.8);
   font: 700 clamp(7px, 0.9vh, 10px) / 1.4 var(--ww-f-num);
@@ -788,7 +789,7 @@
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: linear-gradient(180deg, rgba(25, 25, 25, 0.95), rgba(10, 10, 10, 0.95));
+  background: linear-gradient(180deg, rgba(28, 25, 25, 0.95), rgba(11, 10, 10, 0.95));
 }
 
 .ww-panel-title::after {
@@ -815,7 +816,7 @@
   gap: clamp(6px, 0.8vw, 11px);
   min-height: clamp(28px, 3.9vh, 48px);   /* 46px of 881 = 5.2vh at full height */
   padding: 0 clamp(9px, 0.8vw, 15px);
-  background: linear-gradient(180deg, rgba(25, 25, 25, 0.94), rgba(10, 10, 10, 0.94));
+  background: linear-gradient(180deg, rgba(28, 25, 25, 0.94), rgba(11, 10, 10, 0.94));
   box-shadow:
     inset 0 1px 0 rgba(242, 242, 242, 0.10),
     inset 0 0 0 1px rgba(242, 242, 242, 0.08);
@@ -853,7 +854,7 @@
   inset-block: 0;
   inset-inline-start: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, #F2F2F2, #BCBCBC);
+  background: linear-gradient(180deg, var(--w-mark-lit, #E01A1F), var(--w-red, #D0161B)); /* 2026-11-05: red fill */
   transition: width 0.2s ease-out;
 }
 
@@ -887,7 +888,7 @@
   gap: 12px;
   min-height: clamp(24px, 3.2vh, 40px);
   padding: 0 clamp(9px, 0.8vw, 15px);
-  background: linear-gradient(180deg, rgba(17, 17, 17, 0.92), rgba(10, 10, 10, 0.92));
+  background: linear-gradient(180deg, rgba(21, 19, 19, 0.92), rgba(11, 10, 10, 0.92));
   box-shadow: inset 0 1px 0 rgba(242, 242, 242, 0.08);
   color: var(--ww-text-dim);
   font-size: clamp(8px, 1.05vh, 12px);
