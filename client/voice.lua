@@ -77,6 +77,23 @@ CreateThread(function()
     apply((saved and saved > 0) and saved or (Cfg.Default or 2))
 end)
 
+-- ★ 2.1.7: pma-voice sets its own default range (3 m) every time voice (re)connects and when it
+--   restarts, so after a slow join, a server hitch or a reconnect the player was heard only up close
+--   while the HUD still showed his level (with voice_useSendingRangeOnly: one-way voice). Put the
+--   chosen level back each time.
+local function reapply(delay)
+    if not Cfg.Enabled then return end
+    SetTimeout(delay, function()
+        local saved = GetResourceKvpInt(KVP)
+        apply(voiceLevel or ((saved and saved > 0) and saved) or Cfg.Default or 2)
+    end)
+end
+
+AddEventHandler('mumbleConnected', function() reapply(1500) end)
+AddEventHandler('onClientResourceStart', function(res)
+    if res == 'pma-voice' then reapply(3000) end
+end)
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- Mouse wheel -- through a named keybind, not by polling controls
 --
