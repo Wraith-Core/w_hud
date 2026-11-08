@@ -1,0 +1,415 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   w_hud · settings/board.css (2.2.0)
+   The control panel on the board kit (../kit.css, the same file as every other board): a masthead,
+   a head card, the page card with its text tabs, and the actions strip -- torn ink cards, the paper
+   band under the cursor, the red mark band on what is chosen.
+
+   ⚠️ Sizes are in the kit's rem (20 design px). The HUD keeps its own small root size (hud.css), so
+      vite.config.ts writes every rem of this file and of kit.css as design px before ui-scale; never
+      use rem here for anything but that unit.
+
+   ★ The HUD stays visible and clickable behind it: the panel is the editor of what is behind it, so
+     there is no scrim and the stage lets the clicks through everywhere but on the board itself.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── the stage: the kit's .wf, but it covers nothing ─────────────────────────── */
+.wf.hs-stage { z-index: 60; pointer-events: none; }
+/* the HUD's palette never reaches the panel (a dark accent must not hide the one place to undo it),
+   and the kit's motion, not the HUD's */
+.hs-stage, .hs-picker {
+  --gold-1: #F2F2F2;
+  --cream: #F2F2F2;
+  --dim: #B4B4B4;
+  --line: rgba(242, 242, 242, 0.28);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ── the board ───────────────────────────────────────────────────────────────
+   Docked like every board (inline start, inside the centred 16:9 frame) until the player drags it
+   by its masthead; a dragged board stays where it was left (settings.panel, App.tsx). */
+.hs-root {
+  --hs-safe-gap: 0.8rem;
+  --hs-panel-width: 44rem;
+  --hs-panel-height: min(50rem, calc(100vh - 1.6rem));
+  position: absolute;
+  width: var(--hs-panel-width);
+  height: var(--hs-panel-height);
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  pointer-events: auto;
+  color: var(--paper);
+  font-family: var(--f-serif);
+  transition: opacity 180ms var(--ease), filter 180ms var(--ease);
+}
+.hs-root.is-docked {
+  /* from the top, ending above the row of circles (the bottom edge of the HUD), so what is
+     being edited stays in sight */
+  --hs-panel-height: min(46rem, calc(100vh - 11rem));
+  inset-inline-start: calc(5.4rem + var(--ws-gutter));
+  top: 1.2rem;
+}
+.hs-root.is-dim > :not(.wf-note) { opacity: 0.32; filter: saturate(0.6); }
+.hs-root :focus { outline: none; }
+
+/* the masthead is the handle */
+.hs-root .wf-mast { cursor: grab; }
+.hs-root .wf-mast:active { cursor: grabbing; }
+.hs-close { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--paper-dim); transition: color 120ms var(--ease); }
+.hs-close:hover { color: var(--paper); }
+.hs-close .wf-glyph { width: 1rem; height: 1rem; }
+
+/* the head card */
+.hs-head-wrap { flex: none; height: 6.4rem; }
+
+/* the page card: the tabs on top, the page scrolls under them */
+.hs-page-wrap { flex: 1; min-height: 0; }
+.hs-page-wrap .wf-card-body { padding-bottom: 0.9rem; }
+.hs-tabs { flex-wrap: wrap; row-gap: 0.2rem; }
+.hs-tabs .wf-tab { padding: 0 0.5rem; }
+.wf:not(.is-rtl) .hs-tabs .wf-tab { letter-spacing: 0.06em; }
+.hs-root .wf-page.is-scroll { padding-top: 0.2rem; overscroll-behavior: contain; }
+/* ⚠️ the picks are positioned (the band plate under each); a page scrolled down let the ones
+   scrolled out of sight still catch the clicks meant for the tabs above it. The page is its own
+   stacking context (it clips them for the pointer as well) and the tabs sit above it. */
+.hs-root .wf-page.is-scroll { position: relative; z-index: 0; }
+.hs-root .hs-tabs { position: relative; z-index: 1; }
+
+/* the cursor with a mouse: hover draws what the kit's .is-here draws */
+.hs-root .wf-tab:not(.is-active):hover { color: var(--ink); }
+.hs-root .wf-tab:not(.is-active):hover::before { opacity: 1; }
+.hs-root .wf-tab.is-active:hover::before { background: var(--mark-lit); }
+.hs-root .wf-switch-row:hover { color: var(--paper); }
+.hs-root .wf-switch-row:hover .wf-switch { border-color: var(--paper); box-shadow: inset 0 -0.14rem 0 var(--red); }
+.hs-root .wf-switch-row:hover .wf-switch[data-on='true'] { border-color: var(--mark-lit); background: var(--mark-lit); box-shadow: none; }
+.hs-root .wf-stepper:hover { background: var(--ink-3); box-shadow: inset 0 -2px 0 var(--paper); }
+.hs-root .wf-input:hover { background: var(--ink-3); }
+.hs-root .wf-row:not(.is-static):hover { color: var(--ink); border-bottom-color: transparent; }
+.hs-root .wf-row:not(.is-static):hover::before { opacity: 1; }
+.hs-root .wf-row:not(.is-static):hover .wf-row-meta { color: rgba(17, 17, 17, 0.62); }
+
+/* a section of a page */
+.hs-block:first-child > .wf-sec:first-child { margin-top: 0.5rem; }
+.hs-block .wf-note-line { margin: 0.55rem 0 0; font-size: 0.92rem; }
+.hs-block .wf-note-line.is-good { color: var(--green); }
+.hs-block .wf-error { margin-top: 0.4rem; }
+
+/* ── the chosen thing: the red mark band (a tab, a picked element, a slot, an on switch) ── */
+.hs-root .wf-btn.is-chosen { color: var(--mark-ink); }
+.hs-root .wf-btn.is-chosen::before { background: var(--mark); }
+.hs-root .wf-btn.is-chosen:hover::before { background: var(--mark-lit); }
+.hs-root .wf-btn.is-chosen:hover { color: var(--mark-ink); }
+.hs-root .wf-btn[aria-disabled='true'] { cursor: default; }
+.hs-root .wf-btn[aria-disabled='true']:hover { color: var(--paper-dim); }
+.hs-root .wf-btn[aria-disabled='true']:hover::before { background: var(--ink-3); }
+.hs-root .wf-btn.is-danger { box-shadow: inset 0 -0.14rem 0 var(--red); }
+.hs-root .wf-btn .wf-glyph { width: 0.9rem; height: 0.9rem; }
+
+/* the elements to pick: three across, grouped */
+.hs-picks { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.3rem; }
+.hs-pick-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.hs-pick-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem 0.45rem; }
+.hs-pick::before { background: var(--ink); }
+.hs-pick { justify-content: center; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hs-pick > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hs-pick.is-off:not(.is-chosen) { color: var(--paper-faint); }
+.hs-pick-mark { flex: none; font-style: normal; opacity: 0.75; font-size: 0.85em; }
+
+/* the switches: one column inside a page, two for the server's features */
+.hs-root .hs-switches { margin-top: 0.5rem; }
+.hs-root .wf-switches.is-one { grid-template-columns: minmax(0, 1fr); }
+.hs-root .wf-switch-row { width: 100%; }
+
+/* ── a value along a line: the kit's stepper with a thin track between the arrows ──
+   The track is the gauge rule: a rule-2 line, paper up to the value. */
+.hs-slide { display: flex; flex-direction: column; gap: 0.32rem; margin-top: 0.75rem; }
+.hs-slide-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.hs-slide-val { flex: none; font: 500 1rem/1.1 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums tabular-nums; color: var(--paper); direction: ltr; unicode-bidi: isolate; }
+.hs-slide .wf-stepper { gap: 0.5rem; }
+.hs-range {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 1.6rem;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.hs-range::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--paper) 0 var(--v, 0%), var(--rule-2) var(--v, 0%) 100%);
+}
+[dir='rtl'] .hs-range::-webkit-slider-runnable-track {
+  background: linear-gradient(to left, var(--paper) 0 var(--v, 0%), var(--rule-2) var(--v, 0%) 100%);
+}
+.hs-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.42rem;
+  height: 1.15rem;
+  margin-top: calc(1px - 0.575rem);
+  background: var(--paper);
+  box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.7);
+}
+.hs-range:hover::-webkit-slider-thumb, .hs-range:active::-webkit-slider-thumb { box-shadow: 0 0 0 0.12rem var(--ink), 0 0 0 0.24rem var(--paper); }
+
+/* a choice among a few: label over the stepper */
+.hs-choice { margin-top: 0.75rem; }
+
+/* a value with its own button beside it (position + reset, a code + copy) */
+.hs-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.75rem;
+  min-height: 2.3rem;
+}
+.hs-inline .wf-label { flex: none; }
+.hs-pos { flex: 1; min-width: 0; font: 500 1.02rem/1.2 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums tabular-nums; color: var(--paper); direction: ltr; unicode-bidi: isolate; text-align: start; }
+[dir='rtl'] .hs-pos { text-align: end; }
+.hs-code-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.45rem; }
+.hs-code-row .wf-input { flex: 1; min-width: 0; }
+.hs-code { font-family: 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums tabular-nums; direction: ltr; text-align: left; letter-spacing: 0.02em; }
+.hs-field-block { margin-top: 0.75rem; }
+.hs-wide { width: 100%; justify-content: center; margin-top: 0.9rem; }
+
+/* ── colour fields: a row each, the swatch at the end ── */
+.hs-fields { display: flex; flex-direction: column; }
+.hs-field {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 2.95rem;
+  padding: 0.35rem 0.1rem;
+  border-bottom: 1px solid var(--rule);
+}
+.hs-field-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
+.hs-field-text b { font: 500 1.06rem/1.2 var(--f-serif); color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-field-text em { font: 500 0.82rem/1.25 var(--f-label); font-style: normal; color: var(--paper-faint); }
+.is-rtl .hs-field-text b { font-size: 1.12rem; line-height: 1.3; }
+.is-rtl .hs-field-text em { font-weight: 700; font-size: 0.8rem; }
+.hs-fields.is-compact .hs-field { min-height: 2.6rem; }
+.hs-fieldrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; }
+
+/* the swatch: the colour itself (the player's content), the kit's field edge around it */
+.hs-color { position: relative; flex: none; }
+.hs-swatch {
+  display: block;
+  min-width: 7.6rem;
+  max-width: 11rem;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.32), inset 0 -2px 0 rgba(11, 10, 10, 0.35);
+  font: 500 0.92rem/2.1rem 'EB Garamond', Georgia, serif;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 120ms var(--ease);
+}
+.is-rtl .hs-swatch span:not([dir='ltr']) { font-family: var(--f-label); font-weight: 700; letter-spacing: 0; }
+.hs-swatch:hover, .hs-swatch.is-open { box-shadow: inset 0 0 0 1px var(--paper), inset 0 -2px 0 var(--paper); }
+
+/* the palettes: a band each with its four tones */
+.hs-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; margin-top: 0.3rem; }
+.hs-preset { flex-direction: column; align-items: stretch; gap: 0.3rem; height: auto; padding: 0.55rem 0.7rem 0.6rem; }
+.hs-preset-strip { display: flex; height: 0.55rem; box-shadow: 0 0 0 1px rgba(11, 10, 10, 0.5); }
+.hs-preset-strip i { flex: 1; display: block; }
+.hs-preset-name { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── the saved layouts: rows; the chosen slot is the red mark band ── */
+.hs-slots { flex: none; margin-top: 0.3rem; }
+.hs-slot-num { flex: none; width: 1.4rem; font: 500 1rem/1 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums tabular-nums; color: var(--paper-faint); text-align: center; }
+.wf-row.hs-slot.is-empty .wf-row-name { color: var(--paper-faint); font-style: italic; }
+.is-rtl .wf-row.hs-slot.is-empty .wf-row-name { font-style: normal; }
+.hs-root .wf-row.hs-slot:hover .hs-slot-num, .hs-root .wf-row.hs-slot:hover .wf-row-name { color: var(--ink); }
+.hs-root .wf-row.is-chosen { color: var(--mark-ink); border-bottom-color: transparent; }
+.hs-root .wf-row.is-chosen::before { opacity: 1; background: var(--mark); }
+.hs-root .wf-row.is-chosen:hover::before { background: var(--mark-lit); }
+.hs-root .wf-row.is-chosen .hs-slot-num, .hs-root .wf-row.is-chosen .wf-row-name { color: var(--mark-ink); }
+
+/* ── the admin's figures: what a rate means, as lines ── */
+.hs-facts { margin-top: 0.75rem; }
+.hs-facts .wf-line { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; padding: 0.45rem 0; }
+.hs-facts .wf-line span { font: 400 1rem/1.35 var(--f-serif); color: var(--paper-dim); }
+.hs-facts .wf-line b { font: 500 1.02rem/1.2 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums tabular-nums; color: var(--paper); white-space: nowrap; }
+.hs-warnline { padding: 0.55rem 0.8rem; margin-top: 0.4rem; background: var(--ink-3); box-shadow: inset 0.16rem 0 0 var(--paper-dim); color: var(--paper); font: 400 0.98rem/1.45 var(--f-serif); }
+[dir='rtl'] .hs-warnline { box-shadow: inset -0.16rem 0 0 var(--paper-dim); }
+
+/* ── the actions strip: band buttons, the main one is the red mark band (as the crafting bench) ── */
+.hs-actions-wrap { flex: none; }
+.hs-actbar { flex-direction: row; align-items: center; justify-content: flex-start; gap: 0.7rem; padding: 0.95rem 1.6rem; }
+.hs-btn {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-width: 8.5rem;
+  height: 2.9rem;
+  padding: 0 1.15rem;
+  color: var(--paper);
+  font: 600 1.08rem/1 var(--f-label);
+  white-space: nowrap;
+  transition: color 120ms var(--ease), opacity 120ms var(--ease);
+}
+.hs-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ink-4);
+  -webkit-mask: var(--tex-band-sm) center / 100% 100% no-repeat;
+  transition: background-color 120ms var(--ease);
+}
+.wf:not(.is-rtl) .hs-btn { font-variant-caps: all-small-caps; letter-spacing: 0.09em; font-size: 1.18rem; }
+.is-rtl .hs-btn { font-weight: 700; font-size: 1.02rem; }
+.hs-btn:hover:not(:disabled) { color: var(--ink); }
+.hs-btn:hover:not(:disabled)::before { background: var(--paper); }
+.hs-btn.is-main { color: var(--mark-ink); min-width: 11rem; }
+.hs-btn.is-main::before { background: var(--mark); }
+.hs-btn.is-main:hover:not(:disabled) { color: var(--mark-ink); }
+.hs-btn.is-main:hover:not(:disabled)::before { background: var(--mark-lit); }
+.hs-btn.is-main:active:not(:disabled)::before { background: var(--mark-deep); }
+/* saved: the soft green says it, the label too */
+.hs-btn.is-main.is-done { color: var(--ink); }
+.hs-btn.is-main.is-done::before, .hs-btn.is-main.is-done:hover::before { background: var(--green); }
+.hs-btn.is-main.is-done:hover { color: var(--ink); }
+.hs-btn:disabled { opacity: 0.38; cursor: default; }
+.hs-btn.is-wide { width: 100%; margin-top: 0.9rem; }
+
+/* the confirm note's choices: hover = the kit's .is-here */
+.hs-root .wf-choice:hover { color: var(--ink); }
+.hs-root .wf-choice:hover::after { opacity: 1; }
+.hs-root .wf-note-plate { width: 26rem; }
+
+/* ══════════════════ the colour chooser (ColorField, portalled to <body>) ══════════════════
+   A small torn ink card. Its own selectors: it is outside the board, so none of the .wf rules reach it. */
+.hs-picker {
+  position: fixed;
+  z-index: 80;
+  width: 17rem;
+  max-width: calc(100vw - 1.6rem);
+  max-height: calc(100vh - 1.6rem);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem 1.05rem;
+  color: var(--paper);
+  font-family: var(--f-serif);
+  background-color: var(--ink-2);
+  background-image: linear-gradient(160deg, rgba(242, 242, 242, 0.035), rgba(242, 242, 242, 0) 55%);
+  box-shadow: inset 0 0 1.25rem rgba(242, 242, 242, 0.11), inset 0 0 0.45rem rgba(242, 242, 242, 0.1);
+  -webkit-mask-box-image: var(--tex-tear) 64 fill / 0.9rem round;
+  animation: wf-rise 200ms var(--ease) both;
+}
+.hs-pick-cap { font: 500 0.88rem/1.1 var(--f-label); color: var(--paper-dim); font-variant-caps: all-small-caps; letter-spacing: 0.1em; margin-bottom: -0.2rem; }
+[dir='rtl'] .hs-pick-cap { font-weight: 700; font-size: 0.82rem; font-variant-caps: normal; letter-spacing: 0; }
+.hs-shelf { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0.3rem; }
+.hs-shelf.has-red { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 0.25rem; }
+.hs-chip {
+  position: relative;
+  height: 1.4rem;
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.2);
+  cursor: pointer;
+}
+.hs-chip:hover { box-shadow: inset 0 0 0 1px var(--paper); }
+/* the chosen tone: a paper edge and a tick in the ink or paper that reads on it (the chip's own color) */
+.hs-chip.is-on { box-shadow: inset 0 0 0 2px var(--paper); }
+.hs-chip.is-on::after {
+  content: '';
+  position: absolute;
+  inset: 24%;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 8.5l3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.hs-sv {
+  position: relative;
+  height: 7.5rem;
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 242, 0.22);
+  cursor: crosshair;
+  touch-action: none;
+}
+.hs-sv-dot {
+  position: absolute;
+  width: 0.7rem;
+  height: 0.7rem;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  box-shadow: 0 0 0.3rem rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.hs-hue {
+  position: relative;
+  height: 0.8rem;
+  cursor: pointer;
+  touch-action: none;
+  background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00);
+}
+.hs-hue-dot {
+  position: absolute;
+  top: -0.15rem;
+  bottom: -0.15rem;
+  width: 0.25rem;
+  transform: translateX(-50%);
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--ink);
+  pointer-events: none;
+}
+.hs-hexrow { display: flex; align-items: center; gap: 0.4rem; }
+.hs-hex {
+  flex: 1;
+  min-width: 0;
+  height: 2.1rem;
+  padding: 0 0.6rem;
+  border: 0;
+  outline: none;
+  background: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--rule-2);
+  color: var(--paper);
+  font: 500 0.98rem/1.2 'EB Garamond', Georgia, serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  caret-color: var(--paper);
+}
+.hs-hex:focus { background: var(--ink-3); box-shadow: inset 0 -2px 0 var(--paper); }
+.hs-hex::placeholder { color: var(--paper-faint); opacity: 1; }
+/* "Default" / "follow": small band buttons; the one in force is the red mark band */
+.hs-mini {
+  position: relative;
+  isolation: isolate;
+  flex: none;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+  color: var(--paper-dim);
+  font: 500 0.95rem/1 var(--f-label);
+  white-space: nowrap;
+  transition: color 120ms var(--ease);
+}
+.hs-mini::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ink-3);
+  -webkit-mask: var(--tex-band-sm) center / 100% 100% no-repeat;
+  transition: background-color 120ms var(--ease);
+}
+[dir='rtl'] .hs-mini { font-weight: 700; font-size: 0.9rem; }
+.hs-mini:hover { color: var(--ink); }
+.hs-mini:hover::before { background: var(--paper); }
+.hs-mini.is-on, .hs-mini.is-on:hover { color: var(--mark-ink); }
+.hs-mini.is-on::before { background: var(--mark); }
+.hs-mini.is-on:hover::before { background: var(--mark-lit); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hs-picker { animation: none; }
+}

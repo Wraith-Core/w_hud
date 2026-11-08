@@ -16,10 +16,19 @@
   --cream:  #F2F2F2;   /* text: paper */
   --dim:    #B4B4B4;   /* labels: paper-dim */
   --line:   rgba(242, 242, 242, 0.28);
-  /* faces by role, from the theme's tokens (they follow <html dir>) */
-  --f-title: var(--w-f-display);  /* the server's name: RDR Lino / Lalezar */
-  --f-label: var(--w-f-label);    /* captions, the compass, the place, the effects: Hapna Slab caps / Tajawal */
-  --f-num:   var(--w-f-num);      /* figures: RDR Catalogue, Western digits */
+  /* faces by role (2.2.0: the board kit's faces, no longer w_lib's store theme). The label face is the
+     kit's own --f-label (kit.css: EB Garamond, Lalezar under dir=rtl); main.tsx injects the files.
+     Small numbers are EB Garamond lining figures; the big figures (the wallet, the ammo) RDR Catalogue. */
+  --f-title: 'RDR Lino', 'Lalezar', Georgia, serif;          /* the server's name: the wordmark */
+  --f-head:  'EB Garamond', 'Lalezar', Georgia, serif;       /* the announcement's title */
+  --f-num:   'EB Garamond', 'Lalezar', Georgia, serif;       /* small figures: id, level, positions */
+  --f-fig:   'RDR Catalogue', 'EB Garamond', Georgia, sans-serif; /* big figures: money, the ammo readout */
+  /* the label tokens the rules below read (they came from w_lib's theme before 2.2.0) */
+  --w-wt-label: 600;
+  --w-k-label: 1.14;
+  --w-label-track: 0.1em;
+  --w-label-case: uppercase;
+  --w-paper: #F2F2F2;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ── the state colours ──────────────────────────────────────────────────────
@@ -75,6 +84,15 @@
 :root.no-motion .hud-root *,
 :root.no-motion .hud-root *::before,
 :root.no-motion .hud-root *::after { animation: none !important; }
+
+/* Arabic: Lalezar, never letter-spaced or uppercased */
+[dir='rtl'] {
+  --f-head: 'Lalezar', 'EB Garamond', Georgia, serif;
+  --w-wt-label: 700;
+  --w-k-label: 1.12;
+  --w-label-track: 0em;
+  --w-label-case: none;
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { font-size: calc(6.912 * var(--ws-fpx)); } /* small -- close to the size of the game's cores (= .64vh at 1080p; ui-scale) */
@@ -163,7 +181,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .plate-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.9rem; min-height: 2.9rem; }
 .plate-val {
   font-family: var(--f-num); font-size: 2.55rem; line-height: 1; color: var(--cream);
-  font-variant-numeric: tabular-nums; letter-spacing: 0.025em;
+  font-variant-numeric: lining-nums tabular-nums; letter-spacing: 0.025em;
   text-shadow: 0 0.1rem 0.15rem #000, 0 0.16rem 0.5rem rgba(0, 0, 0, 0.95), 0 0 1.2rem rgba(0, 0, 0, 0.7);
 }
 .plate-val.is-word { font-family: var(--f-label); font-weight: var(--w-wt-label, 400); font-size: calc(1.9rem * var(--w-k-label, 1)); line-height: 1.3; letter-spacing: calc(var(--w-label-track, 0em) * 0.4); }
@@ -196,7 +214,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .wallet .plate-row.is-bank  { --row: var(--money-bank,  var(--w-color, var(--money))); }
 .wallet .plate-row.is-dirty { --row: var(--money-dirty, var(--w-color, var(--money))); }
 .wallet .plate-row.is-gold  { --row: var(--money-gold,  var(--w-color, var(--money))); }
-.wallet .plate-val { color: var(--row, var(--cream)); }
+.wallet .plate-val { color: var(--row, var(--cream)); font-family: var(--f-fig); } /* 2.2.0: money = the big figures */
 .wallet .plate-ic { color: var(--row, var(--gold-2)); }
 .plate-row.is-cash .plate-val { font-size: 3rem; }
 .wallet .plate-row.is-cash .plate-ic { color: var(--row, var(--gold-1)); }
@@ -371,7 +389,7 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 /* The numbers: the same numeral font used across the HUD, with a dark stroke separating them
    from any background -- exactly as the game's readout does. */
 .ammo-clip {
-  font-family: var(--f-num); font-size: 2.8rem; line-height: 1;
+  font-family: var(--f-fig); font-size: 2.8rem; line-height: 1;
   color: var(--cream); letter-spacing: 0.02em;
   text-shadow:
     0 0 0.25rem rgba(0,0,0,0.95),
@@ -391,9 +409,9 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 
 /* The reserve after the clip -- the game's own "6 | 94": smaller, a little dimmer */
 .ammo-reserve { display: inline-flex; align-items: baseline; gap: 0.35rem; margin-left: 0.35rem; }
-.ammo-sep { font-family: var(--f-num); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.45;
+.ammo-sep { font-family: var(--f-fig); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.45;
   text-shadow: 0 0 0.25rem rgba(0,0,0,0.95), 0 0.2rem 0.55rem rgba(0,0,0,0.9); }
-.ammo-total { font-family: var(--f-num); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.85; letter-spacing: 0.02em;
+.ammo-total { font-family: var(--f-fig); font-size: 2rem; line-height: 1; color: var(--cream); opacity: 0.85; letter-spacing: 0.02em;
   text-shadow: 0 0 0.25rem rgba(0,0,0,0.95), 0 0.2rem 0.55rem rgba(0,0,0,0.9), 0.1rem 0 0 rgba(0,0,0,0.55), -0.1rem 0 0 rgba(0,0,0,0.55); }
 
 .ammo-cart { display: block; width: 2.8rem; height: 2.8rem; margin-left: 0.45rem; }

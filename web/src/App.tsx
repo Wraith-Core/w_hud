@@ -736,6 +736,8 @@ function App() {
          so the picker cannot defend itself here and the check has to be on this side.
          Without it, reaching for Escape to dismiss a picker closed the whole panel. */
       if (document.querySelector('.hs-picker')) return;
+      /* 2.2.0: the same for the panel's paper note (are you sure?): Escape answers "no" there. */
+      if (document.querySelector('.hs-root .wf-note')) return;
 
       e.preventDefault();
       e.stopPropagation();

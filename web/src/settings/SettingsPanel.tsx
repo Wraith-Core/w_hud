@@ -9,22 +9,22 @@
  *   a footer -- in one column the width of a phone. Every part of it was defensible and
  *   the whole was unreadable.
  *
- *   Three changes fixed that, and they are the shape of this file:
+ *   ★ 2.2.0: the panel is a board of the kit (../kit.css), like every other board on the
+ *     server: a masthead (the handle), a head card naming the open section, the page card
+ *     with the sections as text tabs on one line, and the actions strip. The rail of icon
+ *     tabs, the framed window and the two footer plates are gone; what each section holds
+ *     and does is unchanged.
  *
- *   ★ A rail down the side instead of tabs across the top. Six sections do not fit in a
- *     row without shrinking the words to nothing, and a rail grows to a seventh without
- *     any of them getting smaller.
- *
- *   ★ The element list is a grid of chips, not rows. Fourteen rows with two buttons each
+ *   ★ The element list is a grid of picks, not rows. Fourteen rows with two buttons each
  *     is twenty-eight controls competing for attention before you have chosen anything.
- *     Fourteen chips is one control: pick a thing. Its buttons appear once it is picked.
+ *     Fourteen picks is one control: pick a thing. Its controls appear once it is picked.
  *
- *   ★ One place shows properties -- the section itself, not a permanent strip underneath.
- *     The pinned inspector meant two things were always current at once (a tab and an
- *     element), and the panel never looked settled.
+ *   ★ The cursor and the choice: the paper band under the pointer, the red mark band on what
+ *     is chosen (the open section, the picked element, a switch that is on, the chosen slot,
+ *     the main action). Hover only highlights; a click chooses.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { play } from '../wheel/nui';
 import { useI18n, type TFn } from '../i18n';
 import { ColorField } from './ColorField';
@@ -86,74 +86,98 @@ export interface PanelProps {
  * ════════════════════════════════════════════════════════════════════════════ */
 const S = (key: string) => `settings.${key}`;
 
-/* ── icons ──────────────────────────────────────────────────────────────────── */
-const I = {
-  elements: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M12 3 3 7.5 12 12l9-4.5L12 3z" /><path d="m3 12 9 4.5L21 12" /><path d="m3 16.5 9 4.5 9-4.5" /></svg>),
-  colours: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M12 3s6 6.4 6 10.3A6 6 0 0 1 6 13.3C6 9.4 12 3 12 3z" /></svg>),
-  shape: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8.6" /><circle cx="12" cy="12" r="3.4" /></svg>),
-  display: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M9 4.5 3 7v12.5l6-2.5 6 2.5 6-2.5V4.5L15 7 9 4.5z" /><path d="M9 4.5V17M15 7v12.5" /></svg>),
-  layout: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1.6" /><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17" /></svg>),
-  profiles: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4-6.5 4v-16a1 1 0 0 1 1-1z" /></svg>),
-  admin: () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M12 3 5 6v6c0 4.3 2.9 7.7 7 9 4.1-1.3 7-4.7 7-9V6l-7-3z" /><path d="M9.4 12.2l1.9 1.9 3.6-3.8" /></svg>),
-};
+/** The panel's spot when the player never dragged it (types.ts defaults): the board docks
+    at the inline-start edge like every board, inside the 16:9 frame (board.css .is-docked). */
+const HOME = { x: 60, y: 6 };
 
+/* ── glyphs (the kit's: thin strokes in the current colour) ────────────────── */
+const GlyphBack = () => (
+  <svg className="wf-glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3 5 8l5 5" /></svg>
+);
+const GlyphFwd = () => (
+  <svg className="wf-glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m6 3 5 5-5 5" /></svg>
+);
 const ResetIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+  <svg className="wf-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
     <path d="M4 12a8 8 0 1 0 2.6-5.9" /><path d="M4 4v4.4h4.4" />
   </svg>
 );
-
 const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg className="wf-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
 
+const cls = (...p: Array<string | false | null | undefined>) => p.filter(Boolean).join(' ');
+
 /* ── building blocks ────────────────────────────────────────────────────────── */
 
+/**
+ * A value along a line: the kit's stepper (arrows step it) with a thin track between the arrows,
+ * paper up to the value -- the gauge rule. The range input under it keeps dragging and clicking.
+ */
 function Slider({ label, value, min, max, step, format, onChange }: {
   label: string; value: number; min: number; max: number; step: number;
   format?: (v: number) => string; onChange: (v: number) => void;
 }) {
+  const pct = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
+  const nudge = (dir: number) => {
+    const next = Math.max(min, Math.min(max, Math.round((value + dir * step) / step) * step));
+    const tidy = Number(next.toFixed(4));
+    if (tidy !== value) { play('select'); onChange(tidy); }
+  };
   return (
-    <label className="hs-slider">
-      <span className="hs-slider-top">
-        <span className="hs-slider-label">{label}</span>
-        <span className="hs-slider-val">{format ? format(value) : value.toFixed(2)}</span>
+    <div className="hs-slide">
+      <span className="hs-slide-top">
+        <span className="wf-label">{label}</span>
+        <span className="hs-slide-val">{format ? format(value) : value.toFixed(2)}</span>
       </span>
-      <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
+      <div className="wf-stepper">
+        <button type="button" className="wf-stepper-arrow" aria-label="-" onClick={() => nudge(-1)}><GlyphBack /></button>
+        <input type="range" className="hs-range" min={min} max={max} step={step} value={value}
+          style={{ '--v': `${pct}%` } as CSSProperties}
+          onChange={(e) => onChange(Number(e.target.value))} />
+        <button type="button" className="wf-stepper-arrow" aria-label="+" onClick={() => nudge(1)}><GlyphFwd /></button>
+      </div>
+    </div>
   );
 }
 
+/** The kit's on/off row: the word on the switch, the red mark band when it is on. */
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
+  const { t } = useI18n();
   return (
-    <button type="button" className={'hs-toggle' + (on ? ' is-on active' : '')}
+    <button type="button" className="wf-switch-row"
       onClick={() => { play('select'); onChange(!on); }}>
-      <i className="hs-toggle-track"><i className="hs-toggle-knob" /></i>
       <span>{label}</span>
+      <span className="wf-switch" data-on={on ? 'true' : 'false'}>{on ? t(S('on')) : t(S('off'))}</span>
     </button>
   );
 }
 
-/** A row of exclusive choices -- the shape a two-to-four-way switch should take. */
+/** One switch, or a column of them, in the kit's switch list. */
+function Switches({ children, two }: { children: ReactNode; two?: boolean }) {
+  return <div className={cls('wf-switches', 'hs-switches', !two && 'is-one')}>{children}</div>;
+}
+
+/** A choice among a few: the kit's stepper (◀ value ▶), the arrows walk the options. */
 function Segmented<T extends string>({ label, value, options, onChange }: {
   label?: string; value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (v: T) => void;
 }) {
+  const at = Math.max(0, options.findIndex((o) => o.value === value));
+  const step = (dir: number) => {
+    play('select');
+    onChange(options[(at + dir + options.length) % options.length].value);
+  };
   return (
-    <div className="hs-seg-wrap">
-      {label && <span className="hs-seg-label">{label}</span>}
-      <div className="hs-seg">
-        {options.map((o) => (
-          <button key={o.value} type="button"
-            className={'hs-seg-btn wst-tab' + (o.value === value ? ' is-on active' : '')}
-            onClick={() => { play('select'); onChange(o.value); }}>
-            {o.label}
-          </button>
-        ))}
+    <div className="wf-field hs-choice">
+      {label && <span className="wf-label">{label}</span>}
+      <div className="wf-stepper">
+        <button type="button" className="wf-stepper-arrow" aria-label="-" onClick={() => step(-1)}><GlyphBack /></button>
+        <span className="wf-stepper-value">{options[at]?.label}</span>
+        <button type="button" className="wf-stepper-arrow" aria-label="+" onClick={() => step(1)}><GlyphFwd /></button>
       </div>
     </div>
   );
@@ -191,10 +215,10 @@ function MediaFields({ id, cfg, t, onChange }: {
 
   return (
     <>
-      <label className="hs-urlrow">
-        <span>{t(S('imageUrl'))}</span>
+      <label className="wf-field hs-field-block">
+        <span className="wf-label">{t(S('imageUrl'))}</span>
         <input
-          className="hs-code wst-input"
+          className={cls('wf-input', 'hs-code', bad && 'is-invalid')}
           value={draft}
           spellCheck={false}
           placeholder="https://..."
@@ -203,7 +227,7 @@ function MediaFields({ id, cfg, t, onChange }: {
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
         />
       </label>
-      <p className={'hs-note' + (bad ? ' is-bad' : '')}>{bad ? t(S('imageBad')) : t(S('imageHint'))}</p>
+      {bad ? <p className="wf-error">{t(S('imageBad'))}</p> : <p className="wf-note-line">{t(S('imageHint'))}</p>}
 
       {cfg.url !== '' && (
         <>
@@ -213,10 +237,12 @@ function MediaFields({ id, cfg, t, onChange }: {
           <Slider label={t(S('imageH'))} value={cfg.height} min={0} max={160} step={1}
             format={(v) => (v <= 0 ? t(S('imageAuto')) : String(Math.round(v)))}
             onChange={(v) => onChange(id, { height: v })} />
-          <button type="button" className="hs-linkbtn wst-button is-warn danger"
-            onClick={() => { play('select'); onChange(id, { url: '' }); }}>
-            {t(S('imageClear'))}
-          </button>
+          <div className="wf-btns">
+            <button type="button" className="wf-btn is-danger"
+              onClick={() => { play('select'); onChange(id, { url: '' }); }}>
+              {t(S('imageClear'))}
+            </button>
+          </div>
         </>
       )}
     </>
@@ -280,10 +306,10 @@ function ThemeColour({ field, settings, t, setTheme, preview }: {
 
 function Section({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
   return (
-    <section className="hs-section">
-      {title && <h3 className="hs-section-title wst-section-title"><span>{title}</span></h3>}
+    <section className="hs-block">
+      {title && <h3 className="wf-sec">{title}</h3>}
       {children}
-      {note && <p className="hs-note">{note}</p>}
+      {note && <p className="wf-note-line">{note}</p>}
     </section>
   );
 }
@@ -310,11 +336,20 @@ const COLOUR_GROUPS: ThemeGroup[] = ['base', 'states', 'wallet'];
 /** The circles: an element of these with no colour of its own follows the circles' colour. */
 const CORE_GROUPS: WidgetGroup[] = ['status', 'horse', 'pet'];
 
+/** What the paper note asks before a step that cannot be undone. */
+type Ask = { kind: 'resetAll' } | { kind: 'clearSlot'; slot: number };
+
 export function SettingsPanel(p: PanelProps) {
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
+  const rtl = dir === 'rtl';
   const [pane, setPane] = useState<Pane>('elements');
   const [code, setCode] = useState('');
   const [codeNote, setCodeNote] = useState<'' | 'ok' | 'bad' | 'copied'>('');
+  /** Which card the pointer is in -- it carries the red tick ribbon. */
+  const [focus, setFocus] = useState<'head' | 'page' | 'actions'>('page');
+  /** The chosen saved-layout slot; the slot actions act on it only. */
+  const [slotSel, setSlotSel] = useState<number | null>(null);
+  const [ask, setAsk] = useState<Ask | null>(null);
 
   /* The logo link keeps a draft while it is being typed, for the reason MediaFields does:
      checking a half-typed URL fails, and a failed check would wipe it mid-word. */
@@ -336,11 +371,31 @@ export function SettingsPanel(p: PanelProps) {
   const editIdentity = (next: Partial<ServerCfg>) =>
     p.editServer((c) => ({ ...c, ...next }));
   const pos = p.settings.panel;
+  const docked = pos.x === HOME.x && pos.y === HOME.y;
   const shareRef = useRef<HTMLInputElement>(null);
+  /** The picked element's controls sit under the fourteen picks: a pick brings them into sight. */
+  const editRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  /* Each section opens at its top (the page is one scroller shared by all of them). */
+  useLayoutEffect(() => { if (pageRef.current) pageRef.current.scrollTop = 0; }, [pane]);
 
   useEffect(() => { play('open'); }, []);
 
   useEffect(() => { setLogoDraft(p.serverCfg.logo.url); setLogoBad(false); }, [p.serverCfg.logo.url]);
+
+  /* The paper note owns Escape while it is up (App.tsx leaves Escape to it): Escape = no. */
+  useEffect(() => {
+    if (!ask) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      play('close');
+      setAsk(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [ask]);
 
   const commitLogo = () => {
     const value = logoDraft.trim();
@@ -353,7 +408,7 @@ export function SettingsPanel(p: PanelProps) {
   };
 
   const close = () => { play('close'); p.onClose(); };
-  const go = (next: Pane) => { play('select'); setPane(next); };
+  const go = (next: Pane) => { if (next === pane) return; play('select'); setPane(next); };
 
   /* Picking an element from any pane jumps to the pane that can edit it -- otherwise a
      click on the HUD while the colours are open looks like it did nothing. */
@@ -362,7 +417,20 @@ export function SettingsPanel(p: PanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.selected]);
 
-  /* The header is the handle. Percent of the viewport, like everything else here, so a
+  useEffect(() => {
+    if (!p.selected) return;
+    const id = window.requestAnimationFrame(() => {
+      /* only the page scrolls -- scrollIntoView would also move overflow-hidden parents (the HUD) */
+      const el = editRef.current;
+      const page = el?.closest('.wf-page') as HTMLElement | null;
+      if (!el || !page) return;
+      const top = el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
+      page.scrollTo({ top: Math.max(0, top - 12 * wsFontScale()), behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [p.selected]);
+
+  /* The masthead is the handle. Percent of the viewport, like everything else here, so a
      panel left near an edge stays near that edge on another resolution. */
   const onGrab = (e: ReactPointerEvent<HTMLElement>) => {
     if ((e.target as HTMLElement).closest('button')) return;
@@ -372,7 +440,7 @@ export function SettingsPanel(p: PanelProps) {
     const sx = e.clientX, sy = e.clientY;
     const root = e.currentTarget.closest('.hs-root') as HTMLElement;
     const bounds = root.getBoundingClientRect();
-    const gap = 16 * wsFontScale(); /* --hs-safe-gap: 16 panel units (--ws-fpx) */
+    const gap = 16 * wsFontScale(); /* --hs-safe-gap: 0.8 kit rem = 16 design px */
     const ox = bounds.left, oy = bounds.top;
 
     const move = (ev: PointerEvent) => {
@@ -393,7 +461,7 @@ export function SettingsPanel(p: PanelProps) {
 
   const panes: Pane[] = p.isAdmin ? [...PLAYER_PANES, 'admin'] : PLAYER_PANES;
 
-  /* Chips for widgets the server switched off would select something that cannot be
+  /* Picks for widgets the server switched off would select something that cannot be
      drawn -- so they are not offered here either. */
   const gone = new Set<WidgetId>();
   for (const [feature, ids] of Object.entries(FEATURE_WIDGETS)) {
@@ -455,508 +523,569 @@ export function SettingsPanel(p: PanelProps) {
     window.setTimeout(() => setCodeNote(''), 2200);
   };
 
-  return (
-    <div className="hs-root wst-root" style={{
-      left: `clamp(var(--hs-safe-gap), calc(var(--ws-gutter) + ${+(pos.x * 16 / 9).toFixed(4)}vh), calc(100vw - var(--hs-panel-width) - var(--hs-safe-gap)))`,
-      top: `clamp(var(--hs-safe-gap), ${pos.y}vh, calc(100vh - var(--hs-panel-height) - var(--hs-safe-gap)))`,
-    }}>
-      <aside className="hs-panel wst-panel">
-        <div className="wst-frame" aria-hidden="true"><span className="wst-fr-t" /><span className="wst-fr-b" /><span className="wst-fr-l" /><span className="wst-fr-r" /><span className="wst-fr-tl" /><span className="wst-fr-tr" /><span className="wst-fr-bl" /><span className="wst-fr-br" /></div>
+  /* The slot actions act on the chosen slot only. */
+  const chosenSlot = slotSel !== null ? p.settings.profiles[slotSel] : null;
+  const confirmAsk = () => {
+    if (!ask) return;
+    play('select');
+    if (ask.kind === 'resetAll') p.resetAll();
+    else p.clearProfile(ask.slot);
+    setAsk(null);
+  };
 
-        <header className="hs-head wst-header" onPointerDown={onGrab}>
-          <div className="hs-head-text">
-            <h1 className="wst-title">{t(S('title'))}</h1>
-            <p className="wst-sub">{t(S('sub'))}</p>
-          </div>
-          <button type="button" className="hs-icon hs-close wst-close" onClick={close} title={t(S('close'))}>
+  const wrapStyle = (i: number) => ({ '--i': i } as CSSProperties);
+  const rootStyle: CSSProperties | undefined = docked ? undefined : {
+    left: `clamp(var(--hs-safe-gap), calc(var(--ws-gutter) + ${+(pos.x * 16 / 9).toFixed(4)}vh), calc(100vw - var(--hs-panel-width) - var(--hs-safe-gap)))`,
+    top: `clamp(var(--hs-safe-gap), ${pos.y}vh, calc(100vh - var(--hs-panel-height) - var(--hs-safe-gap)))`,
+  };
+
+  return (
+    <div className={cls('wf', 'hs-stage', rtl && 'is-rtl')}>
+      <div className={cls('hs-root', docked && 'is-docked', ask && 'is-dim')} style={rootStyle}>
+        {/* ── the masthead: the name of the board, and the handle ───────────── */}
+        <header className="wf-mast wf-in" onPointerDown={onGrab} style={wrapStyle(0)}>
+          <span className="wf-mark">{t(S('title'))}</span>
+          <span className="wf-mast-rule" />
+          <button type="button" className="hs-close" onClick={close} title={t(S('close'))} aria-label={t(S('close'))}>
             <CloseIcon />
           </button>
         </header>
 
-        <div className="hs-main">
-          {/* ── the rail ──────────────────────────────────────────────────── */}
-          <nav className="hs-rail">
-            {panes.map((key) => {
-              const Icon = I[key];
-              return (
-                <button key={key} type="button"
-                  className={'hs-rail-btn wst-tab' + (pane === key ? ' is-on active' : '')}
+        {/* ── the head card: the open section ───────────────────────────────── */}
+        <div className={cls('wf-wrap', 'wf-head-wrap', 'hs-head-wrap', 'wf-in', focus === 'head' && 'is-focus')}
+          style={wrapStyle(1)} onMouseEnter={() => setFocus('head')}>
+          <div className="wf-tick" />
+          <div className="wf-card wf-head"><div className="wf-card-body">
+            <h2 className="wf-h">{pane === 'elements' && meta ? name(meta.id) : t(S('pane_' + pane))}</h2>
+            <p className="wf-sub">{t(S('sub'))}</p>
+          </div></div>
+        </div>
+
+        {/* ── the page card: the sections as tabs, the open one under them ──── */}
+        <div className={cls('wf-wrap', 'hs-page-wrap', 'wf-in', focus === 'page' && 'is-focus')}
+          style={wrapStyle(2)} onMouseEnter={() => setFocus('page')}>
+          <div className="wf-tick" />
+          <div className="wf-card"><div className="wf-card-body">
+            <div className="wf-tabs hs-tabs" role="tablist">
+              {panes.map((key) => (
+                <button key={key} type="button" role="tab" aria-selected={pane === key}
+                  className={cls('wf-tab', pane === key && 'is-active')}
                   onMouseEnter={() => play('hover')}
                   onClick={() => go(key)}>
-                  <i className="hs-rail-ic"><Icon /></i>
-                  <span>{t(S('pane_' + key))}</span>
+                  {t(S('pane_' + key))}
                 </button>
-              );
-            })}
-          </nav>
+              ))}
+            </div>
 
-          {/* ── the content ───────────────────────────────────────────────── */}
-          <div className="hs-body">
-            {pane === 'elements' && (
-              <>
-                <Section title={t(S('pick'))}>
-                  <div className="hs-chips">
-                    {GROUP_ORDER.map((group) => {
-                      /* ⚠️ The server's name-and-logo block is not in this list on purpose.
-                         What it says and where it sits are the admin's, and both live in
-                         the Admin section -- offering a chip for it here would let a
-                         player move branding they cannot change the content of. */
-                      const rows = WIDGETS.filter((w) =>
-                        w.group === group && !gone.has(w.id) && w.id !== 'server');
-                      if (!rows.length) return null;
+            <div className="wf-page is-scroll" ref={pageRef}>
+              {pane === 'elements' && (
+                <>
+                  <Section title={t(S('pick'))}>
+                    <div className="hs-picks">
+                      {GROUP_ORDER.map((group) => {
+                        /* ⚠️ The server's name-and-logo block is not in this list on purpose.
+                           What it says and where it sits are the admin's, and both live in
+                           the Admin section -- offering a pick for it here would let a
+                           player move branding they cannot change the content of. */
+                        const rows = WIDGETS.filter((w) =>
+                          w.group === group && !gone.has(w.id) && w.id !== 'server');
+                        if (!rows.length) return null;
 
-                      return (
-                        <div className="hs-chip-group" key={group}>
-                          <span className="hs-chip-cap">{t(GROUP_LABEL[group])}</span>
-                          <div className="hs-chip-grid">
-                            {rows.map((w) => {
-                              const c = p.settings.widgets[w.id];
-                              return (
-                                <button key={w.id} type="button"
-                                  className={'hs-chip-btn wst-card'
-                                    + (p.selected === w.id ? ' is-on active' : '')
-                                    + (c.show ? '' : ' is-off')}
-                                  onMouseEnter={() => play('hover')}
-                                  onClick={() => { play('select'); p.select(w.id); }}>
-                                  <span>{name(w.id)}</span>
-                                  {(!c.show || c.locked) && (
-                                    <i className="hs-chip-mark">{c.show ? '⌧' : '◌'}</i>
-                                  )}
-                                </button>
-                              );
-                            })}
+                        return (
+                          <div className="hs-pick-group" key={group}>
+                            <span className="wf-label">{t(GROUP_LABEL[group])}</span>
+                            <div className="hs-pick-grid">
+                              {rows.map((w) => {
+                                const c = p.settings.widgets[w.id];
+                                return (
+                                  <button key={w.id} type="button"
+                                    className={cls('wf-btn', 'hs-pick', p.selected === w.id && 'is-chosen', !c.show && 'is-off')}
+                                    onMouseEnter={() => play('hover')}
+                                    onClick={() => { play('select'); p.select(w.id); }}>
+                                    <span>{name(w.id)}</span>
+                                    {(!c.show || c.locked) && (
+                                      <i className="hs-pick-mark">{c.show ? '⌧' : '◌'}</i>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Section>
-
-                {meta && cfg ? (
-                  <Section title={name(meta.id)}>
-                    <div className="hs-inline">
-                      <Toggle label={t(S('show'))} on={cfg.show} onChange={(v) => p.patch(meta.id, { show: v })} />
-                      <Toggle label={t(S('lock'))} on={cfg.locked} onChange={(v) => p.patch(meta.id, { locked: v })} />
+                        );
+                      })}
                     </div>
+                  </Section>
 
-                    <div className="hs-posrow">
-                      <span>{t(S('position'))} <b>{cfg.x.toFixed(1)}</b> · <b>{cfg.y.toFixed(1)}</b></span>
-                      <button type="button" className="hs-linkbtn wst-button"
-                        onClick={() => { play('select'); p.resetWidget(meta.id); }}>
-                        <ResetIcon />{t(S('resetOne'))}
+                  {meta && cfg ? (
+                    <div ref={editRef} className="hs-edit">
+                    <Section title={name(meta.id)}>
+                      <Switches two>
+                        <Toggle label={t(S('show'))} on={cfg.show} onChange={(v) => p.patch(meta.id, { show: v })} />
+                        <Toggle label={t(S('lock'))} on={cfg.locked} onChange={(v) => p.patch(meta.id, { locked: v })} />
+                      </Switches>
+
+                      <div className="hs-inline">
+                        <span className="wf-label">{t(S('position'))}</span>
+                        <span className="hs-pos">{cfg.x.toFixed(1)} · {cfg.y.toFixed(1)}</span>
+                        <button type="button" className="wf-btn"
+                          onClick={() => { play('select'); p.resetWidget(meta.id); }}>
+                          <ResetIcon />{t(S('resetOne'))}
+                        </button>
+                      </div>
+
+                      <Slider label={t(S('size'))} value={cfg.scale} min={0.5} max={2} step={0.01}
+                        format={(v) => `${Math.round(v * 100)}%`}
+                        onChange={(v) => p.patch(meta.id, { scale: v })} />
+                      <Slider label={t(S('clarity'))} value={cfg.opacity} min={0.15} max={1} step={0.01}
+                        format={(v) => `${Math.round(v * 100)}%`}
+                        onChange={(v) => p.patch(meta.id, { opacity: v })} />
+
+                      {meta.tint && (
+                        <div className="hs-fieldrow">
+                          <span className="wf-label">{t(S('colour'))}</span>
+                          <ColorField
+                            value={cfg.color ?? followColour(meta.id)}
+                            onChange={(hex) => p.patch(meta.id, { color: hex })}
+                            inherit={{
+                              active: cfg.color === null,
+                              label: t(S(followLabel(meta.id))),
+                              onPick: () => p.patch(meta.id, { color: null }),
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* The wallet's rows, each its own colour -- the same fields as the Colours pane,
+                          offered here too because this is where a player looking at the wallet is. */}
+                      {meta.id === 'money' && (
+                        <>
+                          <h4 className="wf-sec">{t(S('rowColours'))}</h4>
+                          <ul className="hs-fields is-compact">
+                            {THEME_FIELDS.filter((f) => f.empty === 'wallet').map((field) => (
+                              <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
+                                setTheme={p.setTheme} preview={p.previewState} />
+                            ))}
+                          </ul>
+                        </>
+                      )}
+
+                      {meta.media && (
+                        <>
+                          <MediaFields
+                            id={meta.id as MediaId}
+                            cfg={p.settings.media[meta.id as MediaId]}
+                            t={t}
+                            onChange={p.setMedia}
+                          />
+                          {meta.id === 'server' && <p className="wf-note-line">{t(S('logoNote'))}</p>}
+                        </>
+                      )}
+
+                      {/* Only a gauge has a value to appear below or warn about. */}
+                      {meta.gauge && (
+                        <>
+                          <Segmented<Visibility>
+                            label={t(S('whenVisible'))}
+                            value={cfg.visibility}
+                            options={[
+                              { value: 'auto', label: t(S('vAuto')) },
+                              { value: 'always', label: t(S('vAlways')) },
+                              { value: 'below', label: t(S('vBelow')) },
+                            ]}
+                            onChange={(v) => p.patch(meta.id, { visibility: v })}
+                          />
+                          {cfg.visibility === 'below' && (
+                            <Slider label={t(S('below'))} value={cfg.showBelow} min={5} max={100} step={1}
+                              format={(v) => `${Math.round(v)}%`}
+                              onChange={(v) => p.patch(meta.id, { showBelow: v })} />
+                          )}
+
+                          <Switches>
+                            <Toggle
+                              label={t(S('ownLimits'))}
+                              on={cfg.warn !== null || cfg.danger !== null}
+                              onChange={(v) => p.patch(meta.id, v
+                                ? { warn: 40, danger: 20 }
+                                : { warn: null, danger: null })}
+                            />
+                          </Switches>
+                          {(cfg.warn !== null || cfg.danger !== null) && (
+                            <>
+                              <Slider label={t(S('warnAt'))} value={cfg.warn ?? 40} min={2} max={99} step={1}
+                                format={(v) => `${Math.round(v)}%`}
+                                onChange={(v) => p.patch(meta.id, { warn: v })} />
+                              <Slider label={t(S('dangerAt'))} value={cfg.danger ?? 20} min={1} max={98} step={1}
+                                format={(v) => `${Math.round(v)}%`}
+                                onChange={(v) => p.patch(meta.id, { danger: v })} />
+                            </>
+                          )}
+                        </>
+                      )}
+                    </Section>
+                    </div>
+                  ) : (
+                    <p className="wf-empty">{t(S('nothing'))}</p>
+                  )}
+                </>
+              )}
+
+              {pane === 'colours' && (
+                <>
+                  <Section title={t(S('palettes'))}>
+                    <div className="hs-presets">
+                      {THEME_PRESETS.map((preset) => (
+                        <button key={preset.id} type="button" className="wf-btn hs-preset"
+                          onMouseEnter={() => play('hover')}
+                          onClick={() => { play('select'); p.setTheme(preset.theme); }}>
+                          <span className="hs-preset-strip">
+                            <i style={{ background: preset.theme.accent }} />
+                            <i style={{ background: preset.theme.text }} />
+                            <i style={{ background: preset.theme.warn }} />
+                            <i style={{ background: preset.theme.danger }} />
+                          </span>
+                          <span className="hs-preset-name">{t(preset.label)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* ★ Three groups: the general colours, the circles and every state they can show
+                      (one field each -- a state is the circle changing colour), and the wallet with a
+                      field per row. */}
+                  {COLOUR_GROUPS.map((group) => (
+                    <Section key={group} title={t(S('colGroup_' + group))}
+                      note={group === 'states'
+                        ? t(S(p.settings.shape.dangerWins ? 'statesOrderDanger' : 'statesOrderEffect'))
+                        : group === 'wallet' ? t(S('walletOrder')) : undefined}>
+                      <ul className="hs-fields">
+                        {THEME_FIELDS.filter((f) => f.group === group).map((field) => (
+                          <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
+                            setTheme={p.setTheme} preview={p.previewState} />
+                        ))}
+                      </ul>
+                      {group === 'states' && (
+                        <Switches>
+                          <Toggle label={t(S('dangerWins'))} on={p.settings.shape.dangerWins}
+                            onChange={(v) => p.setShape({ dangerWins: v })} />
+                        </Switches>
+                      )}
+                    </Section>
+                  ))}
+                </>
+              )}
+
+              {pane === 'shape' && (
+                <Section note={t(S('shapeNote'))}>
+                  <Slider label={t(S('ring'))} value={p.settings.shape.ring} min={3} max={16} step={0.5}
+                    format={(v) => v.toFixed(1)} onChange={(v) => p.setShape({ ring: v })} />
+                  <Slider label={t(S('disc'))} value={p.settings.shape.disc} min={0} max={1} step={0.01}
+                    format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ disc: v })} />
+                  <Slider label={t(S('icon'))} value={p.settings.shape.icon} min={0.4} max={0.85} step={0.01}
+                    format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ icon: v })} />
+                  <Switches>
+                    <Toggle label={t(S('motion'))} on={p.settings.shape.motion}
+                      onChange={(v) => p.setShape({ motion: v })} />
+                  </Switches>
+                </Section>
+              )}
+
+              {pane === 'display' && (
+                <Section>
+                  <Segmented<MapMode> label={t(S('mapFoot'))} value={p.settings.world.onFoot}
+                    options={[
+                      { value: 'server', label: t(S('mServer')) },
+                      { value: 'off', label: t(S('mOff')) },
+                      { value: 'map', label: t(S('mMap')) },
+                      { value: 'compass', label: t(S('mCompass')) },
+                    ]}
+                    onChange={(v) => p.setWorld({ onFoot: v })} />
+
+                  <Segmented<MapMode> label={t(S('mapMount'))} value={p.settings.world.mounted}
+                    options={[
+                      { value: 'server', label: t(S('mServer')) },
+                      { value: 'off', label: t(S('mOff')) },
+                      { value: 'map', label: t(S('mMap')) },
+                      { value: 'compass', label: t(S('mCompass')) },
+                    ]}
+                    onChange={(v) => p.setWorld({ mounted: v })} />
+
+                  <Slider label={t(S('hudSize'))} value={p.settings.scale} min={0.6} max={1.8} step={0.01}
+                    format={(v) => `${Math.round(v * 100)}%`} onChange={p.setScale} />
+                </Section>
+              )}
+
+              {pane === 'layout' && (
+                <>
+                  <Section>
+                    <Switches>
+                      <Toggle label={t(S('snap'))} on={p.settings.grid.snap} onChange={(v) => p.setGrid({ snap: v })} />
+                    </Switches>
+                    <Slider label={t(S('snapSize'))} value={p.settings.grid.size} min={0.1} max={3} step={0.1}
+                      format={(v) => `${v.toFixed(1)}%`} onChange={(v) => p.setGrid({ size: v })} />
+                    <Switches>
+                      <Toggle label={t(S('guides'))} on={p.settings.grid.guides} onChange={(v) => p.setGrid({ guides: v })} />
+                    </Switches>
+                    <p className="wf-note-line">{t(S('tips'))}</p>
+                  </Section>
+
+                  <Section title={t(S('restore'))}>
+                    <div className="wf-btns">
+                      <button type="button" className="wf-btn"
+                        onClick={() => { play('select'); p.resetPositions(); }}>
+                        <ResetIcon />{t(S('resetPos'))}
+                      </button>
+                      <button type="button" className="wf-btn is-danger"
+                        onClick={() => { play('select'); setAsk({ kind: 'resetAll' }); }}>
+                        <ResetIcon />{t(S('resetAll'))}
                       </button>
                     </div>
+                  </Section>
+                </>
+              )}
 
-                    <Slider label={t(S('size'))} value={cfg.scale} min={0.5} max={2} step={0.01}
-                      format={(v) => `${Math.round(v * 100)}%`}
-                      onChange={(v) => p.patch(meta.id, { scale: v })} />
-                    <Slider label={t(S('clarity'))} value={cfg.opacity} min={0.15} max={1} step={0.01}
-                      format={(v) => `${Math.round(v * 100)}%`}
-                      onChange={(v) => p.patch(meta.id, { opacity: v })} />
+              {pane === 'profiles' && (
+                <>
+                  <Section>
+                    <div className="wf-rows hs-slots">
+                      {Array.from({ length: PROFILE_SLOTS }, (_, i) => {
+                        const slot = p.settings.profiles[i];
+                        return (
+                          <div key={i} role="button" tabIndex={0}
+                            className={cls('wf-row', 'hs-slot', slotSel === i && 'is-chosen', !slot && 'is-empty')}
+                            onMouseEnter={() => play('hover')}
+                            onClick={() => { play('select'); setSlotSel(i); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { play('select'); setSlotSel(i); } }}>
+                            <span className="hs-slot-num">{i + 1}</span>
+                            <span className="wf-row-main"><span className="wf-row-name">{slot ? slot.name : t(S('slotEmpty'))}</span></span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="wf-btns">
+                      <button type="button" className="wf-btn" aria-disabled={chosenSlot ? undefined : 'true'}
+                        onClick={() => { if (slotSel === null || !chosenSlot) return; play('select'); p.applyProfile(slotSel); }}>
+                        {t(S('slotApply'))}
+                      </button>
+                      <button type="button" className="wf-btn" aria-disabled={slotSel !== null ? undefined : 'true'}
+                        onClick={() => { if (slotSel === null) return; play('select'); p.saveProfile(slotSel, `${t('profile.layout')} ${slotSel + 1}`); }}>
+                        {t(S('slotSave'))}
+                      </button>
+                      <button type="button" className="wf-btn is-danger" aria-disabled={chosenSlot ? undefined : 'true'}
+                        onClick={() => { if (slotSel === null || !chosenSlot) return; play('select'); setAsk({ kind: 'clearSlot', slot: slotSel }); }}>
+                        {t(S('slotClear'))}
+                      </button>
+                    </div>
+                    {slotSel === null && <p className="wf-note-line">{t(S('pickSlot'))}</p>}
+                  </Section>
 
-                    {meta.tint && (
-                      <div className="hs-fieldrow">
-                        <span>{t(S('colour'))}</span>
-                        <ColorField
-                          value={cfg.color ?? followColour(meta.id)}
-                          onChange={(hex) => p.patch(meta.id, { color: hex })}
-                          inherit={{
-                            active: cfg.color === null,
-                            label: t(S(followLabel(meta.id))),
-                            onPick: () => p.patch(meta.id, { color: null }),
-                          }}
-                        />
+                  <Section title={t(S('shareOut'))}>
+                    <div className="hs-code-row">
+                      <input ref={shareRef} className="wf-input hs-code" readOnly value={shareCode}
+                        onFocus={(e) => e.currentTarget.select()} spellCheck={false} />
+                      <button type="button" className="wf-btn" onClick={copyShare}>
+                        {codeNote === 'copied' ? t(S('shareCopied')) : t(S('shareCopy'))}
+                      </button>
+                    </div>
+                  </Section>
+
+                  <Section title={t(S('shareIn'))}>
+                    <div className="hs-code-row">
+                      <input className={cls('wf-input', 'hs-code', codeNote === 'bad' && 'is-invalid')} value={code} spellCheck={false}
+                        onChange={(e) => { setCode(e.target.value); setCodeNote(''); }} />
+                      <button type="button" className="wf-btn" aria-disabled={code.trim() === '' ? 'true' : undefined}
+                        onClick={() => { if (code.trim() !== '') applyCode(); }}>{t(S('shareApply'))}</button>
+                    </div>
+                    {codeNote === 'bad' && <p className="wf-error">{t(S('shareBad'))}</p>}
+                    {codeNote === 'ok' && <p className="wf-note-line is-good">{t(S('shareOk'))}</p>}
+                  </Section>
+                </>
+              )}
+
+              {pane === 'admin' && p.isAdmin && (
+                <>
+                  <p className="hs-warnline">{t(S('adminOnly'))}</p>
+
+                  <Section title={t(S('srvIdentity'))}>
+                    <label className="wf-field hs-field-block">
+                      <span className="wf-label">{t(S('srvName'))}</span>
+                      <input
+                        className="wf-input"
+                        value={srvDraft.name}
+                        maxLength={48}
+                        spellCheck={false}
+                        placeholder={t(S('srvNamePh'))}
+                        onChange={(e) => editIdentity({ name: e.target.value })}
+                      />
+                    </label>
+
+                    <label className="wf-field hs-field-block">
+                      <span className="wf-label">{t(S('srvLogo'))}</span>
+                      <input
+                        className={cls('wf-input', 'hs-code', logoBad && 'is-invalid')}
+                        value={logoDraft}
+                        spellCheck={false}
+                        placeholder="https://..."
+                        onChange={(e) => setLogoDraft(e.target.value)}
+                        onBlur={commitLogo}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitLogo(); }}
+                      />
+                    </label>
+                    {logoBad ? <p className="wf-error">{t(S('imageBad'))}</p> : <p className="wf-note-line">{t(S('srvLogoNote'))}</p>}
+                    {srvDraft.logo.url !== '' && (
+                      <div className="wf-btns">
+                        <button type="button" className="wf-btn is-danger"
+                          onClick={() => { play('select'); editIdentity({ logo: { ...srvDraft.logo, url: '' } }); }}>
+                          {t(S('imageClear'))}
+                        </button>
                       </div>
                     )}
 
-                    {/* The wallet's rows, each its own colour -- the same fields as the Colours pane,
-                        offered here too because this is where a player looking at the wallet is. */}
-                    {meta.id === 'money' && (
+                    {srvDraft.logo.url !== '' && (
                       <>
-                        <span className="hs-subcap">{t(S('rowColours'))}</span>
-                        <ul className="hs-fields is-compact">
-                          {THEME_FIELDS.filter((f) => f.empty === 'wallet').map((field) => (
-                            <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
-                              setTheme={p.setTheme} preview={p.previewState} />
-                          ))}
+                        <Slider label={t(S('imageW'))} value={srvDraft.logo.width} min={2} max={160} step={1}
+                          format={(v) => String(Math.round(v))}
+                          onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, width: v } })} />
+                        <Slider label={t(S('imageH'))} value={srvDraft.logo.height} min={0} max={160} step={1}
+                          format={(v) => (v <= 0 ? t(S('imageAuto')) : String(Math.round(v)))}
+                          onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, height: v } })} />
+                      </>
+                    )}
+
+                    {/* Placement travels with the branding: the admin drags it once and
+                        every player has it there. */}
+                    <Slider label={t(S('srvIdScale'))} value={srvDraft.identity.scale} min={0.4} max={3} step={0.01}
+                      format={(v) => `${Math.round(v * 100)}%`}
+                      onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, scale: v } })} />
+                    <Slider label={t(S('clarity'))} value={srvDraft.identity.opacity} min={0.15} max={1} step={0.01}
+                      format={(v) => `${Math.round(v * 100)}%`}
+                      onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, opacity: v } })} />
+
+                    <div className="hs-inline">
+                      <span className="wf-label">{t(S('position'))}</span>
+                      <span className="hs-pos">{srvDraft.identity.x.toFixed(1)} · {srvDraft.identity.y.toFixed(1)}</span>
+                      <button type="button" className="wf-btn"
+                        onClick={() => { play('select'); editIdentity({ identity: { x: 98.2, y: 2, scale: 1, opacity: 1 } }); }}>
+                        <ResetIcon />{t(S('restore'))}
+                      </button>
+                    </div>
+                    <p className="wf-note-line">{t(S('srvIdDrag'))}</p>
+                  </Section>
+
+                  {/* ★ Every rate is shown as what it means, not only as what it is. Nobody
+                      can tell from "1 every 90 seconds" that a character starves in two and
+                      a half hours -- and that arithmetic is exactly what went unnoticed for
+                      as long as it did. The consequence is printed under the sliders. */}
+                  <Section title={t(S('srvNeeds'))}>
+                    <Slider label={t(S('srvHungerRate'))} value={srvDraft.needs.hungerRate}
+                      min={0} max={25} step={0.1} format={(v) => v.toFixed(1)}
+                      onChange={(v) => editNeeds({ hungerRate: v })} />
+                    <Slider label={t(S('srvThirstRate'))} value={srvDraft.needs.thirstRate}
+                      min={0} max={25} step={0.1} format={(v) => v.toFixed(1)}
+                      onChange={(v) => editNeeds({ thirstRate: v })} />
+                    <Slider label={t(S('srvInterval'))} value={srvDraft.needs.interval}
+                      min={5} max={600} step={5} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
+                      onChange={(v) => editNeeds({ interval: v })} />
+
+                    <ul className="wf-lines hs-facts">
+                      <li className="wf-line"><span>{t(S('srvEmptyHunger'))}</span>
+                        <b>{duration(drainMinutes(srvDraft.needs.hungerRate, srvDraft.needs.interval), t, t(S('srvNever')))}</b></li>
+                      <li className="wf-line"><span>{t(S('srvEmptyThirst'))}</span>
+                        <b>{duration(drainMinutes(srvDraft.needs.thirstRate, srvDraft.needs.interval), t, t(S('srvNever')))}</b></li>
+                    </ul>
+                  </Section>
+
+                  <Section title={t(S('srvDamage'))}>
+                    <Switches>
+                      <Toggle label={t(S('srvDmgOn'))} on={srvDraft.damage.enabled}
+                        onChange={(v) => editDamage({ enabled: v })} />
+                    </Switches>
+
+                    {srvDraft.damage.enabled && (
+                      <>
+                        <Slider label={t(S('srvHungerAt'))} value={srvDraft.damage.hungerAt}
+                          min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
+                          onChange={(v) => editDamage({ hungerAt: v })} />
+                        <Slider label={t(S('srvThirstAt'))} value={srvDraft.damage.thirstAt}
+                          min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
+                          onChange={(v) => editDamage({ thirstAt: v })} />
+                        <Slider label={t(S('srvAmount'))} value={srvDraft.damage.amount}
+                          min={0.5} max={25} step={0.5} format={(v) => `${v.toFixed(1)}%`}
+                          onChange={(v) => editDamage({ amount: v })} />
+                        <Slider label={t(S('srvDmgInterval'))} value={srvDraft.damage.interval}
+                          min={3} max={300} step={1} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
+                          onChange={(v) => editDamage({ interval: v })} />
+                        <Switches>
+                          <Toggle label={t(S('srvCanKill'))} on={srvDraft.damage.canKill}
+                            onChange={(v) => editDamage({ canKill: v })} />
+                        </Switches>
+                        {!srvDraft.damage.canKill && <p className="wf-note-line">{t(S('srvCanKillOff'))}</p>}
+
+                        <ul className="wf-lines hs-facts">
+                          <li className="wf-line"><span>{t(S('srvDeath'))}</span>
+                            <b>{duration(deathMinutes(srvDraft.damage), t, t(S('srvNever')))}</b></li>
                         </ul>
                       </>
                     )}
-
-                    {meta.media && (
-                      <>
-                        <MediaFields
-                          id={meta.id as MediaId}
-                          cfg={p.settings.media[meta.id as MediaId]}
-                          t={t}
-                          onChange={p.setMedia}
-                        />
-                        {meta.id === 'server' && <p className="hs-note">{t(S('logoNote'))}</p>}
-                      </>
-                    )}
-
-                    {/* Only a gauge has a value to appear below or warn about. */}
-                    {meta.gauge && (
-                      <>
-                        <Segmented<Visibility>
-                          label={t(S('whenVisible'))}
-                          value={cfg.visibility}
-                          options={[
-                            { value: 'auto', label: t(S('vAuto')) },
-                            { value: 'always', label: t(S('vAlways')) },
-                            { value: 'below', label: t(S('vBelow')) },
-                          ]}
-                          onChange={(v) => p.patch(meta.id, { visibility: v })}
-                        />
-                        {cfg.visibility === 'below' && (
-                          <Slider label={t(S('below'))} value={cfg.showBelow} min={5} max={100} step={1}
-                            format={(v) => `${Math.round(v)}%`}
-                            onChange={(v) => p.patch(meta.id, { showBelow: v })} />
-                        )}
-
-                        <Toggle
-                          label={t(S('ownLimits'))}
-                          on={cfg.warn !== null || cfg.danger !== null}
-                          onChange={(v) => p.patch(meta.id, v
-                            ? { warn: 40, danger: 20 }
-                            : { warn: null, danger: null })}
-                        />
-                        {(cfg.warn !== null || cfg.danger !== null) && (
-                          <>
-                            <Slider label={t(S('warnAt'))} value={cfg.warn ?? 40} min={2} max={99} step={1}
-                              format={(v) => `${Math.round(v)}%`}
-                              onChange={(v) => p.patch(meta.id, { warn: v })} />
-                            <Slider label={t(S('dangerAt'))} value={cfg.danger ?? 20} min={1} max={98} step={1}
-                              format={(v) => `${Math.round(v)}%`}
-                              onChange={(v) => p.patch(meta.id, { danger: v })} />
-                          </>
-                        )}
-                      </>
-                    )}
                   </Section>
-                ) : (
-                  <p className="hs-empty">{t(S('nothing'))}</p>
-                )}
-              </>
-            )}
 
-            {pane === 'colours' && (
-              <>
-                <Section title={t(S('palettes'))}>
-                  <div className="hs-presets">
-                    {THEME_PRESETS.map((preset) => (
-                      <button key={preset.id} type="button" className="hs-preset wst-card"
-                        onMouseEnter={() => play('hover')}
-                        onClick={() => { play('select'); p.setTheme(preset.theme); }}>
-                        <span className="hs-preset-strip">
-                          <i style={{ background: preset.theme.accent }} />
-                          <i style={{ background: preset.theme.text }} />
-                          <i style={{ background: preset.theme.warn }} />
-                          <i style={{ background: preset.theme.danger }} />
-                        </span>
-                        <span className="hs-preset-name">{t(preset.label)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </Section>
-
-                {/* ★ Three groups: the general colours, the circles and every state they can show
-                    (one field each -- a state is the circle changing colour), and the wallet with a
-                    field per row. */}
-                {COLOUR_GROUPS.map((group) => (
-                  <Section key={group} title={t(S('colGroup_' + group))}
-                    note={group === 'states'
-                      ? t(S(p.settings.shape.dangerWins ? 'statesOrderDanger' : 'statesOrderEffect'))
-                      : group === 'wallet' ? t(S('walletOrder')) : undefined}>
-                    <ul className="hs-fields">
-                      {THEME_FIELDS.filter((f) => f.group === group).map((field) => (
-                        <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
-                          setTheme={p.setTheme} preview={p.previewState} />
+                  <Section title={t(S('srvFeatures'))} note={t(S('srvFeaturesNote'))}>
+                    <Switches two>
+                      {FEATURES.map((f) => (
+                        <Toggle key={f.id} label={t(f.label)}
+                          on={srvDraft.features[f.id] !== false}
+                          onChange={(v) => editFeature(f.id, v)} />
                       ))}
-                    </ul>
-                    {group === 'states' && (
-                      <Toggle label={t(S('dangerWins'))} on={p.settings.shape.dangerWins}
-                        onChange={(v) => p.setShape({ dangerWins: v })} />
-                    )}
+                    </Switches>
                   </Section>
-                ))}
-              </>
-            )}
 
-            {pane === 'shape' && (
-              <Section note={t(S('shapeNote'))}>
-                <Slider label={t(S('ring'))} value={p.settings.shape.ring} min={3} max={16} step={0.5}
-                  format={(v) => v.toFixed(1)} onChange={(v) => p.setShape({ ring: v })} />
-                <Slider label={t(S('disc'))} value={p.settings.shape.disc} min={0} max={1} step={0.01}
-                  format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ disc: v })} />
-                <Slider label={t(S('icon'))} value={p.settings.shape.icon} min={0.4} max={0.85} step={0.01}
-                  format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ icon: v })} />
-                <Toggle label={t(S('motion'))} on={p.settings.shape.motion}
-                  onChange={(v) => p.setShape({ motion: v })} />
-              </Section>
-            )}
-
-            {pane === 'display' && (
-              <Section>
-                <Segmented<MapMode> label={t(S('mapFoot'))} value={p.settings.world.onFoot}
-                  options={[
-                    { value: 'server', label: t(S('mServer')) },
-                    { value: 'off', label: t(S('mOff')) },
-                    { value: 'map', label: t(S('mMap')) },
-                    { value: 'compass', label: t(S('mCompass')) },
-                  ]}
-                  onChange={(v) => p.setWorld({ onFoot: v })} />
-
-                <Segmented<MapMode> label={t(S('mapMount'))} value={p.settings.world.mounted}
-                  options={[
-                    { value: 'server', label: t(S('mServer')) },
-                    { value: 'off', label: t(S('mOff')) },
-                    { value: 'map', label: t(S('mMap')) },
-                    { value: 'compass', label: t(S('mCompass')) },
-                  ]}
-                  onChange={(v) => p.setWorld({ mounted: v })} />
-
-                <Slider label={t(S('hudSize'))} value={p.settings.scale} min={0.6} max={1.8} step={0.01}
-                  format={(v) => `${Math.round(v * 100)}%`} onChange={p.setScale} />
-              </Section>
-            )}
-
-            {pane === 'layout' && (
-              <>
-                <Section>
-                  <Toggle label={t(S('snap'))} on={p.settings.grid.snap} onChange={(v) => p.setGrid({ snap: v })} />
-                  <Slider label={t(S('snapSize'))} value={p.settings.grid.size} min={0.1} max={3} step={0.1}
-                    format={(v) => `${v.toFixed(1)}%`} onChange={(v) => p.setGrid({ size: v })} />
-                  <Toggle label={t(S('guides'))} on={p.settings.grid.guides} onChange={(v) => p.setGrid({ guides: v })} />
-                  <p className="hs-note">{t(S('tips'))}</p>
-                </Section>
-
-                <Section title={t(S('restore'))}>
-                  <div className="hs-btnrow">
-                    <button type="button" className="hs-btn wst-button"
-                      onClick={() => { play('select'); p.resetPositions(); }}>
-                      <ResetIcon />{t(S('resetPos'))}
+                  <Section>
+                    <button type="button"
+                      className={cls('hs-btn', 'is-main', 'is-wide', p.srvState === 'saved' && 'is-done')}
+                      disabled={p.srvState === 'saving'}
+                      onClick={() => { play('select'); p.publishServer(); }}>
+                      {p.srvState === 'saved' ? t(S('srvSaved'))
+                        : p.srvState === 'saving' ? t(S('saving'))
+                          : p.srvState === 'dirty' ? t(S('srvSending')) : t(S('srvSave'))}
                     </button>
-                    <button type="button" className="hs-btn wst-button is-warn danger"
-                      onClick={() => { play('select'); p.resetAll(); }}>
-                      <ResetIcon />{t(S('resetAll'))}
-                    </button>
-                  </div>
-                </Section>
-              </>
-            )}
-
-            {pane === 'profiles' && (
-              <>
-                <Section>
-                  <ul className="hs-slots">
-                    {Array.from({ length: PROFILE_SLOTS }, (_, i) => {
-                      const slot = p.settings.profiles[i];
-                      return (
-                        <li className={'hs-slot wst-row' + (slot ? '' : ' is-empty')} key={i}>
-                          <span className="hs-slot-name">
-                            <b>{i + 1}</b>{slot ? slot.name : t(S('slotEmpty'))}
-                          </span>
-                          <span className="hs-slot-acts">
-                            {slot && (
-                              <button type="button" className="hs-linkbtn wst-button"
-                                onClick={() => { play('select'); p.applyProfile(i); }}>{t(S('slotApply'))}</button>
-                            )}
-                            <button type="button" className="hs-linkbtn wst-button"
-                              onClick={() => { play('select'); p.saveProfile(i, `${t('profile.layout')} ${i + 1}`); }}>
-                              {t(S('slotSave'))}
-                            </button>
-                            {slot && (
-                              <button type="button" className="hs-linkbtn wst-button is-warn danger"
-                                onClick={() => { play('select'); p.clearProfile(i); }}>{t(S('slotClear'))}</button>
-                            )}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </Section>
-
-                <Section title={t(S('shareOut'))}>
-                  <div className="hs-coderow">
-                    <input ref={shareRef} className="hs-code wst-input" readOnly value={shareCode}
-                      onFocus={(e) => e.currentTarget.select()} spellCheck={false} />
-                    <button type="button" className="hs-btn wst-button hs-btn-tight" onClick={copyShare}>
-                      {codeNote === 'copied' ? t(S('shareCopied')) : t(S('shareCopy'))}
-                    </button>
-                  </div>
-                </Section>
-
-                <Section title={t(S('shareIn'))}>
-                  <div className="hs-coderow">
-                    <input className="hs-code wst-input" value={code} spellCheck={false}
-                      onChange={(e) => { setCode(e.target.value); setCodeNote(''); }} />
-                    <button type="button" className="hs-btn wst-button hs-btn-tight" disabled={code.trim() === ''}
-                      onClick={applyCode}>{t(S('shareApply'))}</button>
-                  </div>
-                  {codeNote === 'bad' && <p className="hs-note is-bad">{t(S('shareBad'))}</p>}
-                  {codeNote === 'ok' && <p className="hs-note is-good">{t(S('shareOk'))}</p>}
-                </Section>
-              </>
-            )}
-            {pane === 'admin' && p.isAdmin && (
-              <>
-                <p className="hs-note is-warn dangerbox">{t(S('adminOnly'))}</p>
-
-                <Section title={t(S('srvIdentity'))}>
-                  <label className="hs-urlrow">
-                    <span>{t(S('srvName'))}</span>
-                    <input
-                      className="hs-code wst-input hs-code-text"
-                      value={srvDraft.name}
-                      maxLength={48}
-                      spellCheck={false}
-                      placeholder={t(S('srvNamePh'))}
-                      onChange={(e) => editIdentity({ name: e.target.value })}
-                    />
-                  </label>
-
-                  <label className="hs-urlrow">
-                    <span>{t(S('srvLogo'))}</span>
-                    <input
-                      className="hs-code wst-input"
-                      value={logoDraft}
-                      spellCheck={false}
-                      placeholder="https://..."
-                      onChange={(e) => setLogoDraft(e.target.value)}
-                      onBlur={commitLogo}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitLogo(); }}
-                    />
-                  </label>
-                  <p className={'hs-note' + (logoBad ? ' is-bad' : '')}>
-                    {logoBad ? t(S('imageBad')) : t(S('srvLogoNote'))}
-                  </p>
-                  {srvDraft.logo.url !== '' && (
-                    <button type="button" className="hs-linkbtn wst-button is-warn danger"
-                      onClick={() => { play('select'); editIdentity({ logo: { ...srvDraft.logo, url: '' } }); }}>
-                      {t(S('imageClear'))}
-                    </button>
-                  )}
-
-                  {srvDraft.logo.url !== '' && (
-                    <>
-                      <Slider label={t(S('imageW'))} value={srvDraft.logo.width} min={2} max={160} step={1}
-                        format={(v) => String(Math.round(v))}
-                        onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, width: v } })} />
-                      <Slider label={t(S('imageH'))} value={srvDraft.logo.height} min={0} max={160} step={1}
-                        format={(v) => (v <= 0 ? t(S('imageAuto')) : String(Math.round(v)))}
-                        onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, height: v } })} />
-                    </>
-                  )}
-
-                  {/* Placement travels with the branding: the admin drags it once and
-                      every player has it there. */}
-                  <Slider label={t(S('srvIdScale'))} value={srvDraft.identity.scale} min={0.4} max={3} step={0.01}
-                    format={(v) => `${Math.round(v * 100)}%`}
-                    onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, scale: v } })} />
-                  <Slider label={t(S('clarity'))} value={srvDraft.identity.opacity} min={0.15} max={1} step={0.01}
-                    format={(v) => `${Math.round(v * 100)}%`}
-                    onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, opacity: v } })} />
-
-                  <div className="hs-posrow">
-                    <span>{t(S('position'))} <b>{srvDraft.identity.x.toFixed(1)}</b> · <b>{srvDraft.identity.y.toFixed(1)}</b></span>
-                    <button type="button" className="hs-linkbtn wst-button"
-                      onClick={() => { play('select'); editIdentity({ identity: { x: 98.2, y: 2, scale: 1, opacity: 1 } }); }}>
-                      <ResetIcon />{t(S('restore'))}
-                    </button>
-                  </div>
-                  <p className="hs-note">{t(S('srvIdDrag'))}</p>
-                </Section>
-
-                {/* ★ Every rate is shown as what it means, not only as what it is. Nobody
-                    can tell from "1 every 90 seconds" that a character starves in two and
-                    a half hours -- and that arithmetic is exactly what went unnoticed for
-                    as long as it did. The consequence is printed under the sliders. */}
-                <Section title={t(S('srvNeeds'))}>
-                  <Slider label={t(S('srvHungerRate'))} value={srvDraft.needs.hungerRate}
-                    min={0} max={25} step={0.1} format={(v) => v.toFixed(1)}
-                    onChange={(v) => editNeeds({ hungerRate: v })} />
-                  <Slider label={t(S('srvThirstRate'))} value={srvDraft.needs.thirstRate}
-                    min={0} max={25} step={0.1} format={(v) => v.toFixed(1)}
-                    onChange={(v) => editNeeds({ thirstRate: v })} />
-                  <Slider label={t(S('srvInterval'))} value={srvDraft.needs.interval}
-                    min={5} max={600} step={5} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
-                    onChange={(v) => editNeeds({ interval: v })} />
-
-                  <ul className="hs-facts">
-                    <li><span>{t(S('srvEmptyHunger'))}</span>
-                      <b>{duration(drainMinutes(srvDraft.needs.hungerRate, srvDraft.needs.interval), t, t(S('srvNever')))}</b></li>
-                    <li><span>{t(S('srvEmptyThirst'))}</span>
-                      <b>{duration(drainMinutes(srvDraft.needs.thirstRate, srvDraft.needs.interval), t, t(S('srvNever')))}</b></li>
-                  </ul>
-                </Section>
-
-                <Section title={t(S('srvDamage'))}>
-                  <Toggle label={t(S('srvDmgOn'))} on={srvDraft.damage.enabled}
-                    onChange={(v) => editDamage({ enabled: v })} />
-
-                  {srvDraft.damage.enabled && (
-                    <>
-                      <Slider label={t(S('srvHungerAt'))} value={srvDraft.damage.hungerAt}
-                        min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
-                        onChange={(v) => editDamage({ hungerAt: v })} />
-                      <Slider label={t(S('srvThirstAt'))} value={srvDraft.damage.thirstAt}
-                        min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
-                        onChange={(v) => editDamage({ thirstAt: v })} />
-                      <Slider label={t(S('srvAmount'))} value={srvDraft.damage.amount}
-                        min={0.5} max={25} step={0.5} format={(v) => `${v.toFixed(1)}%`}
-                        onChange={(v) => editDamage({ amount: v })} />
-                      <Slider label={t(S('srvDmgInterval'))} value={srvDraft.damage.interval}
-                        min={3} max={300} step={1} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
-                        onChange={(v) => editDamage({ interval: v })} />
-                      <Toggle label={t(S('srvCanKill'))} on={srvDraft.damage.canKill}
-                        onChange={(v) => editDamage({ canKill: v })} />
-                      {!srvDraft.damage.canKill && <p className="hs-note">{t(S('srvCanKillOff'))}</p>}
-
-                      <ul className="hs-facts">
-                        <li><span>{t(S('srvDeath'))}</span>
-                          <b>{duration(deathMinutes(srvDraft.damage), t, t(S('srvNever')))}</b></li>
-                      </ul>
-                    </>
-                  )}
-                </Section>
-
-                <Section title={t(S('srvFeatures'))} note={t(S('srvFeaturesNote'))}>
-                  <div className="hs-featgrid">
-                    {FEATURES.map((f) => (
-                      <Toggle key={f.id} label={t(f.label)}
-                        on={srvDraft.features[f.id] !== false}
-                        onChange={(v) => editFeature(f.id, v)} />
-                    ))}
-                  </div>
-                </Section>
-
-                <Section>
-                  <button type="button"
-                    className={'hs-btn wst-button is-primary primary' + (p.srvState === 'saved' ? ' is-done' : '')}
-                    disabled={p.srvState === 'saving'}
-                    onClick={() => { play('select'); p.publishServer(); }}>
-                    {p.srvState === 'saved' ? t(S('srvSaved'))
-                      : p.srvState === 'saving' ? t(S('saving'))
-                        : p.srvState === 'dirty' ? t(S('srvSending')) : t(S('srvSave'))}
-                  </button>
-                  <p className="hs-note">{t(S('srvLiveNote'))}</p>
-                </Section>
-              </>
-            )}
-          </div>
+                    <p className="wf-note-line">{t(S('srvLiveNote'))}</p>
+                  </Section>
+                </>
+              )}
+            </div>
+          </div></div>
         </div>
 
-        <footer className="hs-foot">
-          <button type="button"
-            className={'hs-btn wst-button is-primary primary' + (p.saving === 'saved' ? ' is-done' : '')}
-            disabled={p.saving === 'saving'}
-            onClick={() => { play('select'); p.onSave(); }}>
-            {saveLabel}
-          </button>
-          <button type="button" className="hs-btn wst-button" onClick={close}>{t(S('close'))}</button>
-        </footer>
-      </aside>
+        {/* ── the actions strip: save (the red mark band) and close ──────────── */}
+        <div className={cls('wf-wrap', 'hs-actions-wrap', 'wf-in', focus === 'actions' && 'is-focus')}
+          style={wrapStyle(3)} onMouseEnter={() => setFocus('actions')}>
+          <div className="wf-tick" />
+          <div className="wf-card"><div className="wf-card-body hs-actbar">
+            <button type="button"
+              className={cls('hs-btn', 'is-main', p.saving === 'saved' && 'is-done')}
+              disabled={p.saving === 'saving'}
+              onClick={() => { play('select'); p.onSave(); }}>
+              {saveLabel}
+            </button>
+            <button type="button" className="hs-btn" onClick={close}>{t(S('close'))}</button>
+          </div></div>
+        </div>
+
+        {/* ── are you sure? the paper note, the board dimmed behind it ───────── */}
+        {ask && (
+          <div className="wf-note" role="dialog" aria-modal="true"
+            onMouseDown={(e) => { if (e.target === e.currentTarget) setAsk(null); }}>
+            <div className="wf-note-plate">
+              <p className="wf-note-kicker">{t(S('confirmKicker'))}</p>
+              <p className="wf-note-q">{t(S(ask.kind === 'resetAll' ? 'resetAllQ' : 'clearSlotQ'))}</p>
+              <p className="wf-note-sub">{t(S(ask.kind === 'resetAll' ? 'resetAllSub' : 'clearSlotSub'))}</p>
+              <div className="wf-note-row">
+                <button type="button" className="wf-choice" onClick={confirmAsk}>{t(S('yes'))}</button>
+                <button type="button" className="wf-choice" onClick={() => { play('close'); setAsk(null); }}>{t(S('no'))}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -247,12 +247,10 @@ export function ColorField({ value, onChange, inherit, reset, title, red = false
       {open && createPortal((
         <div
           ref={pop}
-          className="hs-picker wst-root wst-panel is-free"
+          className="hs-picker is-free"
           style={{ left: `${at.left}px`, top: `${at.top}px` }}
           dir={document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'}
         >
-          <span className="wst-frame" aria-hidden="true"><span className="wst-fr-t" /><span className="wst-fr-b" /><span className="wst-fr-l" /><span className="wst-fr-r" /><span className="wst-fr-tl" /><span className="wst-fr-tr" /><span className="wst-fr-bl" /><span className="wst-fr-br" /></span>
-
           <span className="hs-pick-cap">{t('settings.pickTones')}</span>
           <div className={'hs-shelf' + (red ? ' has-red' : '')}>
             {shelf.map((hex) => (
