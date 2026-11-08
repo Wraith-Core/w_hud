@@ -25,8 +25,10 @@
 }
 
 /* ── the board ───────────────────────────────────────────────────────────────
-   Docked like every board (inline start, inside the centred 16:9 frame) until the player drags it
-   by its masthead; a dragged board stays where it was left (settings.panel, App.tsx). */
+   Docked where it always stood (2.2.1, owner): on the right of the screen in BOTH languages, near the
+   top, inside the centred 16:9 frame -- where the panel of 2.1.x stood at its home spot -- until
+   the player drags it by its masthead; a dragged board stays where it was left (settings.panel,
+   App.tsx). Physical right, never inline-start: the content is RTL in Arabic, the window is not moved. */
 .hs-root {
   --hs-safe-gap: 0.8rem;
   --hs-panel-width: 44rem;
@@ -43,11 +45,13 @@
   transition: opacity 180ms var(--ease), filter 180ms var(--ease);
 }
 .hs-root.is-docked {
-  /* from the top, ending above the row of circles (the bottom edge of the HUD), so what is
-     being edited stays in sight */
-  --hs-panel-height: min(46rem, calc(100vh - 11rem));
-  inset-inline-start: calc(5.4rem + var(--ws-gutter));
-  top: 1.2rem;
+  /* the 2.1.x home: its right edge 118 design px from the right of the 16:9 frame, 6 % from the
+     top, at most 88 % of the height (the HUD's circles are at the bottom left, clear of it). The
+     board keeps the kit's width (the 2.1.x 650 px cut the tab and button labels short), so it
+     grows to the left of the old one. */
+  --hs-panel-height: min(46rem, 88vh);
+  right: calc(var(--ws-gutter) + 5.9rem);
+  top: 6vh;
 }
 .hs-root.is-dim > :not(.wf-note) { opacity: 0.32; filter: saturate(0.6); }
 .hs-root :focus { outline: none; }
