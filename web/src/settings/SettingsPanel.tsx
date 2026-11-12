@@ -428,6 +428,12 @@ export function SettingsPanel(p: PanelProps) {
   const [logoBad, setLogoBad] = useState(false);
   /** The admin pane's three «خيارات متقدمة» folds. */
   const [adv, setAdv] = useState({ id: false, needs: false, dmg: false });
+  /** The player panes' «خيارات متقدمة» folds (closed by default; the values stay either way). */
+  const [padv, setPadv] = useState({ el: false, col: false, shape: false, layout: false, share: false });
+  const flip = (k: keyof typeof padv) => setPadv((a) => ({ ...a, [k]: !a[k] }));
+  /** The controls a «ما على شاشتك الآن» sentence opens, by name. */
+  const spot = useRef<Record<string, HTMLElement | null>>({});
+  const at = (k: string) => (el: HTMLElement | null) => { spot.current[k] = el; };
   const logoRef = useRef<HTMLInputElement>(null);
   const idRef = useRef<HTMLDivElement>(null);
   const needsRef = useRef<HTMLDivElement>(null);
@@ -625,6 +631,93 @@ export function SettingsPanel(p: PanelProps) {
       : CORE_GROUPS.includes(WIDGET_BY_ID[id].group) ? 'inheritCore'
         : id === 'money' ? 'inheritMoney' : 'inheritColour';
 
+  /* ── the player panes in words (2026-11-12, the notebook design) ─────────────
+     ★ Each pane opens with what the player's screen shows NOW, in sentences; a sentence
+       opens the control it names. The numbers stay, the rare ones under «خيارات متقدمة». */
+  const say = (k: string) => reveal(spot.current[k] ?? null);
+  const story = (items: Array<[string, string]>) => (
+    <Section title={t(S('nowMine'))}>
+      <ul className="hs-story">
+        {items.map(([k, text]) => (
+          <li key={k + text}><button type="button" className="hs-say" onClick={() => say(k)}>{text}</button></li>
+        ))}
+      </ul>
+    </Section>
+  );
+  const list = (ids: WidgetId[]) => ids.map(name).join(t(S('and')));
+  const pct = (v: number) => String(Math.round(v * 100));
+
+  const offered = WIDGETS.filter((w) => !gone.has(w.id) && w.id !== 'server').map((w) => w.id);
+  const hiddenIds = offered.filter((id) => !p.settings.widgets[id].show);
+  const lockedIds = offered.filter((id) => p.settings.widgets[id].show && p.settings.widgets[id].locked);
+  const elementsStory: Array<[string, string]> = [
+    ['picks', hiddenIds.length === 0
+      ? fill(t(S('nowShownAll')), { n: String(offered.length) })
+      : fill(t(S('nowShown')), { n: String(offered.length - hiddenIds.length), total: String(offered.length) })],
+  ];
+  if (hiddenIds.length) elementsStory.push(['picks', fill(t(S('nowHiddenList')), { list: list(hiddenIds) })]);
+  if (lockedIds.length) elementsStory.push(['picks', fill(t(S('nowLockedList')), { list: list(lockedIds) })]);
+
+  /* the picked element, in words */
+  const ownLimits = !!cfg && (cfg.warn !== null || cfg.danger !== null);
+  const widgetStory: Array<[string, string]> = [];
+  if (meta && cfg) {
+    widgetStory.push(['wShow', cfg.show
+      ? fill(t(S('wNowShown')), { name: name(meta.id), pos: t(S(posKey(cfg.x, cfg.y))), size: pct(cfg.scale), op: pct(cfg.opacity) })
+      : fill(t(S('wNowHidden')), { name: name(meta.id) })]);
+    if (cfg.show && meta.gauge) {
+      widgetStory.push(['wWhen', cfg.visibility === 'always' ? t(S('wNowAlways'))
+        : cfg.visibility === 'below' ? fill(t(S('wNowBelow')), { v: String(Math.round(cfg.showBelow)) })
+          : t(S('wNowAuto'))]);
+      if (ownLimits) {
+        widgetStory.push(['wAdv', fill(t(S('wNowLimits')), {
+          w: String(Math.round(cfg.warn ?? 40)), d: String(Math.round(cfg.danger ?? 20)),
+        })]);
+      }
+    }
+    if (cfg.show) widgetStory.push(['wShow', t(S(cfg.locked ? 'wNowLocked' : 'wNowFree'))]);
+  }
+
+  /* colours: a ready set when every colour matches one, else the player's own mix */
+  const presetNow = THEME_PRESETS.find((pr) => (Object.keys(pr.theme) as ThemeKey[])
+    .every((k) => String(theme[k] ?? '').toUpperCase() === String(pr.theme[k] ?? '').toUpperCase()));
+  const coloursStory: Array<[string, string]> = [
+    ['presets', presetNow ? fill(t(S('nowColPreset')), { name: t(presetNow.label) }) : t(S('nowColOwn'))],
+    ['states', t(S(p.settings.shape.dangerWins ? 'nowDangerWins' : 'nowEffectWins'))],
+  ];
+
+  const shape = p.settings.shape;
+  const shapeStory: Array<[string, string]> = [
+    ['ring', fill(t(S('nowRing')), { w: t(S(shape.ring < 6 ? 'ringThin' : shape.ring > 10 ? 'ringThick' : 'ringMid')) })],
+    ['shapeAdv', fill(t(S('nowDisc')), { v: pct(shape.disc), i: pct(shape.icon) })],
+    ['motion', t(S(shape.motion ? 'nowMotionOn' : 'nowMotionOff'))],
+  ];
+
+  const mw = (m: MapMode) => t(S('mw' + m.charAt(0).toUpperCase() + m.slice(1)));
+  const displayStory: Array<[string, string]> = [
+    ['foot', fill(t(S('nowFoot')), { v: mw(p.settings.world.onFoot) })],
+    ['mount', fill(t(S('nowMount')), { v: mw(p.settings.world.mounted) })],
+    ['scale', fill(t(S('nowScale')), { v: pct(p.settings.scale) })],
+  ];
+
+  const grid = p.settings.grid;
+  const layoutStory: Array<[string, string]> = [
+    ['snap', grid.snap ? fill(t(S('nowSnapOn')), { v: grid.size.toFixed(1) }) : t(S('nowSnapOff'))],
+    ['guides', t(S(grid.guides ? 'nowGuidesOn' : 'nowGuidesOff'))],
+  ];
+
+  const savedSlots = Array.from({ length: PROFILE_SLOTS }, (_, i) => p.settings.profiles[i]).filter(Boolean).length;
+  const profilesStory: Array<[string, string]> = [
+    ['slots', savedSlots === 0 ? t(S('nowSlotsNone'))
+      : fill(t(S('nowSlots')), { n: String(savedSlots), total: String(PROFILE_SLOTS) })],
+  ];
+  if (slotSel !== null) {
+    const s = p.settings.profiles[slotSel];
+    profilesStory.push(['slots', s
+      ? fill(t(S('nowSlotSel')), { i: String(slotSel + 1), name: s.name })
+      : fill(t(S('nowSlotSelEmpty')), { i: String(slotSel + 1) })]);
+  }
+
   const saveLabel =
     p.saving === 'saving' ? t(S('saving'))
       : p.saving === 'saved' ? t(S('saved'))
@@ -716,8 +809,9 @@ export function SettingsPanel(p: PanelProps) {
             <div className="wf-page is-scroll" ref={pageRef}>
               {pane === 'elements' && (
                 <>
+                  {story(elementsStory)}
                   <Section title={t(S('pick'))}>
-                    <div className="hs-picks">
+                    <div className="hs-picks" ref={at('picks')}>
                       {GROUP_ORDER.map((group) => {
                         /* ⚠️ The server's name-and-logo block is not in this list on purpose.
                            What it says and where it sits are the admin's, and both live in
@@ -755,14 +849,24 @@ export function SettingsPanel(p: PanelProps) {
                   {meta && cfg ? (
                     <div ref={editRef} className="hs-edit">
                     <Section title={name(meta.id)}>
-                      <Switches two>
-                        <Toggle label={t(S('show'))} on={cfg.show} onChange={(v) => p.patch(meta.id, { show: v })} />
-                        <Toggle label={t(S('lock'))} on={cfg.locked} onChange={(v) => p.patch(meta.id, { locked: v })} />
-                      </Switches>
+                      <ul className="hs-story">
+                        {widgetStory.map(([k, text]) => (
+                          <li key={k + text}><button type="button" className="hs-say" onClick={() => {
+                            if (k === 'wAdv' && !padv.el) flip('el');
+                            window.requestAnimationFrame(() => say(k));
+                          }}>{text}</button></li>
+                        ))}
+                      </ul>
+                      <div ref={at('wShow')}>
+                        <Switches two>
+                          <Toggle label={t(S('show'))} on={cfg.show} onChange={(v) => p.patch(meta.id, { show: v })} />
+                          <Toggle label={t(S('lock'))} on={cfg.locked} onChange={(v) => p.patch(meta.id, { locked: v })} />
+                        </Switches>
+                      </div>
 
                       <div className="hs-inline">
                         <span className="wf-label">{t(S('position'))}</span>
-                        <span className="hs-pos">{cfg.x.toFixed(1)} · {cfg.y.toFixed(1)}</span>
+                        <span className="hs-pos-words">{t(S(posKey(cfg.x, cfg.y)))}</span>
                         <button type="button" className="wf-btn"
                           onClick={() => { play('select'); p.resetWidget(meta.id); }}>
                           <ResetIcon />{t(S('resetOne'))}
@@ -772,9 +876,6 @@ export function SettingsPanel(p: PanelProps) {
                       <Slider label={t(S('size'))} value={cfg.scale} min={0.5} max={2} step={0.01}
                         format={(v) => `${Math.round(v * 100)}%`}
                         onChange={(v) => p.patch(meta.id, { scale: v })} />
-                      <Slider label={t(S('clarity'))} value={cfg.opacity} min={0.15} max={1} step={0.01}
-                        format={(v) => `${Math.round(v * 100)}%`}
-                        onChange={(v) => p.patch(meta.id, { opacity: v })} />
 
                       {meta.tint && (
                         <div className="hs-fieldrow">
@@ -819,7 +920,7 @@ export function SettingsPanel(p: PanelProps) {
 
                       {/* Only a gauge has a value to appear below or warn about. */}
                       {meta.gauge && (
-                        <>
+                        <div ref={at('wWhen')}>
                           <Segmented<Visibility>
                             label={t(S('whenVisible'))}
                             value={cfg.visibility}
@@ -835,28 +936,45 @@ export function SettingsPanel(p: PanelProps) {
                               format={(v) => `${Math.round(v)}%`}
                               onChange={(v) => p.patch(meta.id, { showBelow: v })} />
                           )}
+                        </div>
+                      )}
 
-                          <Switches>
-                            <Toggle
-                              label={t(S('ownLimits'))}
-                              on={cfg.warn !== null || cfg.danger !== null}
-                              onChange={(v) => p.patch(meta.id, v
-                                ? { warn: 40, danger: 20 }
-                                : { warn: null, danger: null })}
-                            />
-                          </Switches>
-                          {(cfg.warn !== null || cfg.danger !== null) && (
+                      {/* ★ The rare ones: solidity, own warning limits and the exact numbers. */}
+                      <div ref={at('wAdv')}>
+                        <Fold open={padv.el} onToggle={() => flip('el')}
+                          label={t(S('advanced'))} note={t(S('advancedNote'))}>
+                          <Slider label={t(S('clarity'))} value={cfg.opacity} min={0.15} max={1} step={0.01}
+                            format={(v) => `${Math.round(v * 100)}%`}
+                            onChange={(v) => p.patch(meta.id, { opacity: v })} />
+                          {meta.gauge && (
                             <>
-                              <Slider label={t(S('warnAt'))} value={cfg.warn ?? 40} min={2} max={99} step={1}
-                                format={(v) => `${Math.round(v)}%`}
-                                onChange={(v) => p.patch(meta.id, { warn: v })} />
-                              <Slider label={t(S('dangerAt'))} value={cfg.danger ?? 20} min={1} max={98} step={1}
-                                format={(v) => `${Math.round(v)}%`}
-                                onChange={(v) => p.patch(meta.id, { danger: v })} />
+                              <Switches>
+                                <Toggle
+                                  label={t(S('ownLimits'))}
+                                  on={ownLimits}
+                                  onChange={(v) => p.patch(meta.id, v
+                                    ? { warn: 40, danger: 20 }
+                                    : { warn: null, danger: null })}
+                                />
+                              </Switches>
+                              {ownLimits && (
+                                <>
+                                  <Slider label={t(S('warnAt'))} value={cfg.warn ?? 40} min={2} max={99} step={1}
+                                    format={(v) => `${Math.round(v)}%`}
+                                    onChange={(v) => p.patch(meta.id, { warn: v })} />
+                                  <Slider label={t(S('dangerAt'))} value={cfg.danger ?? 20} min={1} max={98} step={1}
+                                    format={(v) => `${Math.round(v)}%`}
+                                    onChange={(v) => p.patch(meta.id, { danger: v })} />
+                                </>
+                              )}
                             </>
                           )}
-                        </>
-                      )}
+                          <div className="hs-inline">
+                            <span className="wf-label">{t(S('posExact'))}</span>
+                            <span className="hs-pos">{cfg.x.toFixed(1)} · {cfg.y.toFixed(1)}</span>
+                          </div>
+                        </Fold>
+                      </div>
                     </Section>
                     </div>
                   ) : (
@@ -867,10 +985,12 @@ export function SettingsPanel(p: PanelProps) {
 
               {pane === 'colours' && (
                 <>
+                  {story(coloursStory)}
                   <Section title={t(S('palettes'))}>
-                    <div className="hs-presets">
+                    <div className="hs-presets" ref={at('presets')}>
                       {THEME_PRESETS.map((preset) => (
-                        <button key={preset.id} type="button" className="wf-btn hs-preset"
+                        <button key={preset.id} type="button"
+                          className={cls('wf-btn', 'hs-preset', presetNow?.id === preset.id && 'is-chosen')}
                           onMouseEnter={() => play('hover')}
                           onClick={() => { play('select'); p.setTheme(preset.theme); }}>
                           <span className="hs-preset-strip">
@@ -888,80 +1008,119 @@ export function SettingsPanel(p: PanelProps) {
                   {/* ★ Three groups: the general colours, the circles and every state they can show
                       (one field each -- a state is the circle changing colour), and the wallet with a
                       field per row. */}
-                  {COLOUR_GROUPS.map((group) => (
-                    <Section key={group} title={t(S('colGroup_' + group))}
-                      note={group === 'states'
-                        ? t(S(p.settings.shape.dangerWins ? 'statesOrderDanger' : 'statesOrderEffect'))
-                        : group === 'wallet' ? t(S('walletOrder')) : undefined}>
-                      <ul className="hs-fields">
-                        {THEME_FIELDS.filter((f) => f.group === group).map((field) => (
-                          <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
-                            setTheme={p.setTheme} preview={p.previewState} />
-                        ))}
-                      </ul>
-                      {group === 'states' && (
-                        <Switches>
-                          <Toggle label={t(S('dangerWins'))} on={p.settings.shape.dangerWins}
-                            onChange={(v) => p.setShape({ dangerWins: v })} />
-                        </Switches>
-                      )}
-                    </Section>
-                  ))}
+                  {COLOUR_GROUPS.map((group) => {
+                    const block = (
+                      <Section key={group} title={t(S('colGroup_' + group))}
+                        note={group === 'states'
+                          ? t(S(p.settings.shape.dangerWins ? 'statesOrderDanger' : 'statesOrderEffect'))
+                          : group === 'wallet' ? t(S('walletOrder')) : undefined}>
+                        <ul className="hs-fields">
+                          {THEME_FIELDS.filter((f) => f.group === group).map((field) => (
+                            <ThemeColour key={field.key} field={field} settings={p.settings} t={t}
+                              setTheme={p.setTheme} preview={p.previewState} />
+                          ))}
+                        </ul>
+                        {group === 'states' && (
+                          <div ref={at('states')}>
+                            <Switches>
+                              <Toggle label={t(S('dangerWins'))} on={p.settings.shape.dangerWins}
+                                onChange={(v) => p.setShape({ dangerWins: v })} />
+                            </Switches>
+                          </div>
+                        )}
+                      </Section>
+                    );
+                    /* The wallet rows are also offered on the wallet itself (Elements): rare here. */
+                    return group !== 'wallet' ? block : (
+                      <Fold key={group} open={padv.col} onToggle={() => flip('col')}
+                        label={t(S('advanced'))} note={t(S('walletAdvNote'))}>
+                        {block}
+                      </Fold>
+                    );
+                  })}
                 </>
               )}
 
               {pane === 'shape' && (
-                <Section note={t(S('shapeNote'))}>
-                  <Slider label={t(S('ring'))} value={p.settings.shape.ring} min={3} max={16} step={0.5}
-                    format={(v) => v.toFixed(1)} onChange={(v) => p.setShape({ ring: v })} />
-                  <Slider label={t(S('disc'))} value={p.settings.shape.disc} min={0} max={1} step={0.01}
-                    format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ disc: v })} />
-                  <Slider label={t(S('icon'))} value={p.settings.shape.icon} min={0.4} max={0.85} step={0.01}
-                    format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ icon: v })} />
-                  <Switches>
-                    <Toggle label={t(S('motion'))} on={p.settings.shape.motion}
-                      onChange={(v) => p.setShape({ motion: v })} />
-                  </Switches>
-                </Section>
+                <>
+                  {story(shapeStory)}
+                  <Section note={t(S('shapeNote'))}>
+                    <div ref={at('ring')}>
+                      <Slider label={t(S('ring'))} value={shape.ring} min={3} max={16} step={0.5}
+                        format={(v) => v.toFixed(1)} onChange={(v) => p.setShape({ ring: v })} />
+                    </div>
+                    <div ref={at('motion')}>
+                      <Switches>
+                        <Toggle label={t(S('motion'))} on={shape.motion}
+                          onChange={(v) => p.setShape({ motion: v })} />
+                      </Switches>
+                    </div>
+                    <div ref={at('shapeAdv')}>
+                      <Fold open={padv.shape} onToggle={() => flip('shape')}
+                        label={t(S('advanced'))} note={t(S('advancedNote'))}>
+                        <Slider label={t(S('disc'))} value={shape.disc} min={0} max={1} step={0.01}
+                          format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ disc: v })} />
+                        <Slider label={t(S('icon'))} value={shape.icon} min={0.4} max={0.85} step={0.01}
+                          format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.setShape({ icon: v })} />
+                      </Fold>
+                    </div>
+                  </Section>
+                </>
               )}
 
               {pane === 'display' && (
-                <Section>
-                  <Segmented<MapMode> label={t(S('mapFoot'))} value={p.settings.world.onFoot}
-                    options={[
-                      { value: 'server', label: t(S('mServer')) },
-                      { value: 'off', label: t(S('mOff')) },
-                      { value: 'map', label: t(S('mMap')) },
-                      { value: 'compass', label: t(S('mCompass')) },
-                    ]}
-                    onChange={(v) => p.setWorld({ onFoot: v })} />
+                <>
+                  {story(displayStory)}
+                  <Section>
+                    <div ref={at('foot')}>
+                      <Segmented<MapMode> label={t(S('mapFoot'))} value={p.settings.world.onFoot}
+                        options={[
+                          { value: 'server', label: t(S('mServer')) },
+                          { value: 'off', label: t(S('mOff')) },
+                          { value: 'map', label: t(S('mMap')) },
+                          { value: 'compass', label: t(S('mCompass')) },
+                        ]}
+                        onChange={(v) => p.setWorld({ onFoot: v })} />
+                    </div>
 
-                  <Segmented<MapMode> label={t(S('mapMount'))} value={p.settings.world.mounted}
-                    options={[
-                      { value: 'server', label: t(S('mServer')) },
-                      { value: 'off', label: t(S('mOff')) },
-                      { value: 'map', label: t(S('mMap')) },
-                      { value: 'compass', label: t(S('mCompass')) },
-                    ]}
-                    onChange={(v) => p.setWorld({ mounted: v })} />
+                    <div ref={at('mount')}>
+                      <Segmented<MapMode> label={t(S('mapMount'))} value={p.settings.world.mounted}
+                        options={[
+                          { value: 'server', label: t(S('mServer')) },
+                          { value: 'off', label: t(S('mOff')) },
+                          { value: 'map', label: t(S('mMap')) },
+                          { value: 'compass', label: t(S('mCompass')) },
+                        ]}
+                        onChange={(v) => p.setWorld({ mounted: v })} />
+                    </div>
 
-                  <Slider label={t(S('hudSize'))} value={p.settings.scale} min={0.6} max={1.8} step={0.01}
-                    format={(v) => `${Math.round(v * 100)}%`} onChange={p.setScale} />
-                </Section>
+                    <div ref={at('scale')}>
+                      <Slider label={t(S('hudSize'))} value={p.settings.scale} min={0.6} max={1.8} step={0.01}
+                        format={(v) => `${Math.round(v * 100)}%`} onChange={p.setScale} />
+                    </div>
+                  </Section>
+                </>
               )}
 
               {pane === 'layout' && (
                 <>
+                  {story(layoutStory)}
                   <Section>
-                    <Switches>
-                      <Toggle label={t(S('snap'))} on={p.settings.grid.snap} onChange={(v) => p.setGrid({ snap: v })} />
-                    </Switches>
-                    <Slider label={t(S('snapSize'))} value={p.settings.grid.size} min={0.1} max={3} step={0.1}
-                      format={(v) => `${v.toFixed(1)}%`} onChange={(v) => p.setGrid({ size: v })} />
-                    <Switches>
-                      <Toggle label={t(S('guides'))} on={p.settings.grid.guides} onChange={(v) => p.setGrid({ guides: v })} />
-                    </Switches>
-                    <p className="wf-note-line">{t(S('tips'))}</p>
+                    <div ref={at('snap')}>
+                      <Switches>
+                        <Toggle label={t(S('snap'))} on={grid.snap} onChange={(v) => p.setGrid({ snap: v })} />
+                      </Switches>
+                    </div>
+                    <div ref={at('guides')}>
+                      <Switches>
+                        <Toggle label={t(S('guides'))} on={grid.guides} onChange={(v) => p.setGrid({ guides: v })} />
+                      </Switches>
+                    </div>
+                    <Fold open={padv.layout} onToggle={() => flip('layout')}
+                      label={t(S('advanced'))} note={t(S('advancedNote'))}>
+                      <Slider label={t(S('snapSize'))} value={grid.size} min={0.1} max={3} step={0.1}
+                        format={(v) => `${v.toFixed(1)}%`} onChange={(v) => p.setGrid({ size: v })} />
+                    </Fold>
                   </Section>
 
                   <Section title={t(S('restore'))}>
@@ -981,8 +1140,9 @@ export function SettingsPanel(p: PanelProps) {
 
               {pane === 'profiles' && (
                 <>
+                  {story(profilesStory)}
                   <Section>
-                    <div className="wf-rows hs-slots">
+                    <div className="wf-rows hs-slots" ref={at('slots')}>
                       {Array.from({ length: PROFILE_SLOTS }, (_, i) => {
                         const slot = p.settings.profiles[i];
                         return (
@@ -1014,6 +1174,9 @@ export function SettingsPanel(p: PanelProps) {
                     {slotSel === null && <p className="wf-note-line">{t(S('pickSlot'))}</p>}
                   </Section>
 
+                  {/* ★ Sharing a layout by code: rare, folded. */}
+                  <Fold open={padv.share} onToggle={() => flip('share')}
+                    label={t(S('advanced'))} note={t(S('shareAdvNote'))}>
                   <Section title={t(S('shareOut'))}>
                     <div className="hs-code-row">
                       <input ref={shareRef} className="wf-input hs-code" readOnly value={shareCode}
@@ -1034,6 +1197,7 @@ export function SettingsPanel(p: PanelProps) {
                     {codeNote === 'bad' && <p className="wf-error">{t(S('shareBad'))}</p>}
                     {codeNote === 'ok' && <p className="wf-note-line is-good">{t(S('shareOk'))}</p>}
                   </Section>
+                  </Fold>
                 </>
               )}
 
@@ -1234,6 +1398,15 @@ export function SettingsPanel(p: PanelProps) {
                 </>
               )}
             </div>
+
+            {/* ★ The keys row of the player panes (the admin pane carries its own). */}
+            {pane !== 'admin' && (
+              <div className="hs-keys is-foot">
+                <span><kbd className="hs-key">Esc</kbd>{t(S('keyClose'))}</span>
+                <span><kbd className="hs-key">← → ↑ ↓</kbd>{t(S('keyArrows'))}</span>
+                <span><kbd className="hs-key">Shift</kbd>{t(S('keyFast'))} · {t(S('keyFree'))}</span>
+              </div>
+            )}
           </div></div>
         </div>
 

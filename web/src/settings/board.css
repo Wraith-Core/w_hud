@@ -464,3 +464,7 @@
   display: inline-block; min-width: 1.6rem; padding: 0.12rem 0.4rem; background: var(--paper); color: var(--ink);
   font: 600 0.82rem/1.2 'EB Garamond', Georgia, serif; text-align: center; direction: ltr; unicode-bidi: isolate;
 }
+/* the player panes' keys row: under the page, always in sight (2026-11-12) */
+.hs-keys.is-foot { flex: none; margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--rule); }
+/* a section inside a fold sits close under the fold's note */
+.hs-fold-body > .hs-block:first-of-type { margin-top: 0.2rem; }
