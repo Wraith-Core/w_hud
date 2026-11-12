@@ -329,7 +329,78 @@ function duration(mins: number, t: TFn, never: string): string {
   const m = Math.round(mins % 60);
 
   if (h <= 0) return `${m} ${t(S('minute'))}`;
+  if (m === 0) return `${h} ${t(S('hour'))}`;
   return `${h} ${t(S('hour'))} ${m} ${t(S('minute'))}`;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The admin pane in words (2026-11-12, the notebook design)
+ *
+ * ★ The server's numbers are rates -- "1.4 every 90 seconds" -- and nobody reads a rate as
+ *   a time. So the pane leads with what every player has NOW, in sentences, and the main
+ *   controls are times ("hunger runs out in 4 hours"). Each choice is turned back into the
+ *   same rate the server stores, so the saved shape and server/admin.lua's clamps are
+ *   untouched; the exact sliders sit under «خيارات متقدمة» for whoever wants a number.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** "{name}" placeholders, filled with a replacer (a `$` in a name must stay a `$`). */
+const fill = (s: string, vars: Record<string, string>) =>
+  s.replace(/\{(\w+)\}/g, (m: string, k: string) => (k in vars ? vars[k] : m));
+
+/** A spot in percent of the screen -> the dictionary key of its words (posTR = top right). */
+function posKey(x: number, y: number): string {
+  const v = y < 34 ? 'T' : y > 66 ? 'B' : 'M';
+  const h = x < 34 ? 'L' : x > 66 ? 'R' : 'C';
+  return `pos${v}${h}`;
+}
+
+const DRAIN_STEPS = [30, 60, 90, 120, 150, 180, 240, 360, 480, 720];
+const DEATH_STEPS = [10, 15, 30, 60, 120, 240];
+const AT_STEPS = [5, 10, 15, 20, 25, 30, 50];
+const round3 = (n: number) => Number(n.toFixed(3));
+const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.02);
+
+type Opt = { value: string; label: string };
+
+/**
+ * The time choices for a value stored as a rate. `feasible` drops the times the server's
+ * clamps could not hold; a value that matches no step shows as «مخصَّص: …» and stays
+ * chosen until another step is picked.
+ */
+function timeChoices(current: number, steps: number[], feasible: (mins: number) => boolean,
+  t: TFn, never?: string): { value: string; options: Opt[] } {
+  const options: Opt[] = steps.filter(feasible).map((m) => ({ value: String(m), label: duration(m, t, '') }));
+  if (never) options.push({ value: 'never', label: never });
+
+  if (!isFinite(current)) {
+    if (never) return { value: 'never', options };
+  } else {
+    const hit = options.find((o) => o.value !== 'never' && near(current, Number(o.value)));
+    if (hit) return { value: hit.value, options };
+  }
+  const label = fill(t(S('srvCustom')), { v: duration(current, t, never ?? t(S('srvNever'))) });
+  return { value: 'custom', options: [{ value: 'custom', label }, ...options] };
+}
+
+/** «خيارات متقدمة»: closed by default; the values inside are kept either way. */
+function Fold({ open, onToggle, label, note, children }: {
+  open: boolean; onToggle: () => void; label: string; note: string; children: ReactNode;
+}) {
+  return (
+    <div className={cls('hs-fold', open && 'is-open')}>
+      <button type="button" className="hs-fold-btn" aria-expanded={open}
+        onClick={() => { play('select'); onToggle(); }}>
+        <span>{label}</span>
+        <svg className="wf-glyph hs-fold-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m4 6 4 4 4-4" /></svg>
+      </button>
+      {open && (
+        <div className="hs-fold-body">
+          <p className="wf-note-line">{note}</p>
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 const GROUP_ORDER: WidgetGroup[] = ['status', 'horse', 'pet', 'info', 'nav', 'media'];
 const COLOUR_GROUPS: ThemeGroup[] = ['base', 'states', 'wallet'];
@@ -355,6 +426,13 @@ export function SettingsPanel(p: PanelProps) {
      checking a half-typed URL fails, and a failed check would wipe it mid-word. */
   const [logoDraft, setLogoDraft] = useState(p.serverCfg.logo.url);
   const [logoBad, setLogoBad] = useState(false);
+  /** The admin pane's three «خيارات متقدمة» folds. */
+  const [adv, setAdv] = useState({ id: false, needs: false, dmg: false });
+  const logoRef = useRef<HTMLInputElement>(null);
+  const idRef = useRef<HTMLDivElement>(null);
+  const needsRef = useRef<HTMLDivElement>(null);
+  const dmgRef = useRef<HTMLDivElement>(null);
+  const featRef = useRef<HTMLDivElement>(null);
 
   /* ★ Live, not a draft. Every one of these applies on this screen the moment it is
      touched -- an admin sizing a logo has to watch it -- and App.tsx sends the result to
@@ -405,6 +483,16 @@ export function SettingsPanel(p: PanelProps) {
     const ok = safeUrl(value) !== '';
     setLogoBad(!ok);
     if (ok) p.editServer((c) => ({ ...c, logo: { ...c.logo, url: value } }));
+  };
+
+  /** A sentence of «ما يحدث الآن» opens what it names: the page scrolls to that section. */
+  const reveal = (el: HTMLElement | null, focusEl?: HTMLElement | null) => {
+    const page = el?.closest('.wf-page') as HTMLElement | null;
+    if (!el || !page) return;
+    play('select');
+    const top = el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
+    page.scrollTo({ top: Math.max(0, top - 12 * wsFontScale()), behavior: 'smooth' });
+    if (focusEl) window.setTimeout(() => focusEl.focus(), 250);
   };
 
   const close = () => { play('close'); p.onClose(); };
@@ -460,6 +548,54 @@ export function SettingsPanel(p: PanelProps) {
   };
 
   const panes: Pane[] = p.isAdmin ? [...PLAYER_PANES, 'admin'] : PLAYER_PANES;
+
+  /* ── the admin pane's words: what every player has now, and the time choices ── */
+  const srvNever = t(S('srvNever'));
+  const needs = srvDraft.needs;
+  const dmg = srvDraft.damage;
+  const hungerMins = drainMinutes(needs.hungerRate, needs.interval);
+  const thirstMins = drainMinutes(needs.thirstRate, needs.interval);
+  const deathMins = deathMinutes(dmg);
+  const rateFor = (mins: number) => round3((100 * needs.interval) / 60 / mins);
+  const drainOk = (mins: number) => { const r = rateFor(mins); return r > 0 && r <= 25; };
+  const amountFor = (mins: number) => round3((100 * dmg.interval) / 60 / mins);
+  const deathOk = (mins: number) => { const a = amountFor(mins); return a >= 0.5 && a <= 25; };
+  const noDrain = t(S('srvNowNoDrain'));
+  const hungerPick = timeChoices(hungerMins, DRAIN_STEPS, drainOk, t, noDrain);
+  const thirstPick = timeChoices(thirstMins, DRAIN_STEPS, drainOk, t, noDrain);
+  const deathPick = timeChoices(deathMins, DEATH_STEPS, deathOk, t);
+  const atPick = (v: number): { value: string; options: Opt[] } => {
+    const options = AT_STEPS.map((n) => ({ value: String(n), label: fill(t(S('srvAt')), { v: String(n) }) }));
+    const hit = options.find((o) => Number(o.value) === Math.round(v));
+    if (hit) return { value: hit.value, options };
+    const label = fill(t(S('srvCustom')), { v: `${Math.round(v)}%` });
+    return { value: 'custom', options: [{ value: 'custom', label }, ...options] };
+  };
+  const hungerAtPick = atPick(dmg.hungerAt);
+  const thirstAtPick = atPick(dmg.thirstAt);
+  const placeWords = t(S(posKey(srvDraft.identity.x, srvDraft.identity.y)));
+  const offFeatures = FEATURES.filter((f) => srvDraft.features[f.id] === false);
+  const nowIdentity = srvDraft.features.identity === false ? t(S('srvNowHidden'))
+    : srvDraft.logo.url !== '' ? fill(t(S('srvNowLogo')), { pos: placeWords })
+      : srvDraft.name.trim() !== '' ? fill(t(S('srvNowName')), { name: srvDraft.name.trim(), pos: placeWords })
+        : fill(t(S('srvNowDefault')), { pos: placeWords });
+  const nowNeeds = fill(t(S('srvNowNeeds')), {
+    hunger: duration(hungerMins, t, noDrain), thirst: duration(thirstMins, t, noDrain),
+  });
+  const nowDamage = !dmg.enabled ? t(S('srvNowDmgOff'))
+    : fill(t(S(dmg.canKill ? 'srvNowDmgKill' : 'srvNowDmgSafe')), {
+      h: String(Math.round(dmg.hungerAt)), t: String(Math.round(dmg.thirstAt)), death: duration(deathMins, t, srvNever),
+    });
+  const nowFeatures = offFeatures.length === 0 ? t(S('srvNowAllOn'))
+    : fill(t(S('srvNowOff')), { list: offFeatures.map((f) => t(f.label)).join(t(S('and'))) });
+  /** A starving character dying within half an hour is allowed, but it is said out loud. */
+  const deathFast = dmg.enabled && dmg.canKill && isFinite(deathMins) && deathMins < 30;
+  const ready: { kind: 'is-bad' | 'is-good' | 'is-wait' | ''; text: string } = logoBad
+    ? { kind: 'is-bad', text: t(S('srvReadyMissing')) }
+    : p.srvState === 'saved' ? { kind: 'is-good', text: t(S('srvReadySaved')) }
+      : p.srvState === 'dirty' || p.srvState === 'saving' ? { kind: 'is-wait', text: t(S('srvReadyDirty')) }
+        : { kind: '', text: t(S('srvReadyIdle')) };
+  const fixLogo = () => reveal(idRef.current, logoRef.current);
 
   /* Picks for widgets the server switched off would select something that cannot be
      drawn -- so they are not offered here either. */
@@ -905,140 +1041,182 @@ export function SettingsPanel(p: PanelProps) {
                 <>
                   <p className="hs-warnline">{t(S('adminOnly'))}</p>
 
-                  <Section title={t(S('srvIdentity'))}>
-                    <label className="wf-field hs-field-block">
-                      <span className="wf-label">{t(S('srvName'))}</span>
-                      <input
-                        className="wf-input"
-                        value={srvDraft.name}
-                        maxLength={48}
-                        spellCheck={false}
-                        placeholder={t(S('srvNamePh'))}
-                        onChange={(e) => editIdentity({ name: e.target.value })}
-                      />
-                    </label>
-
-                    <label className="wf-field hs-field-block">
-                      <span className="wf-label">{t(S('srvLogo'))}</span>
-                      <input
-                        className={cls('wf-input', 'hs-code', logoBad && 'is-invalid')}
-                        value={logoDraft}
-                        spellCheck={false}
-                        placeholder="https://..."
-                        onChange={(e) => setLogoDraft(e.target.value)}
-                        onBlur={commitLogo}
-                        onKeyDown={(e) => { if (e.key === 'Enter') commitLogo(); }}
-                      />
-                    </label>
-                    {logoBad ? <p className="wf-error">{t(S('imageBad'))}</p> : <p className="wf-note-line">{t(S('srvLogoNote'))}</p>}
-                    {srvDraft.logo.url !== '' && (
-                      <div className="wf-btns">
-                        <button type="button" className="wf-btn is-danger"
-                          onClick={() => { play('select'); editIdentity({ logo: { ...srvDraft.logo, url: '' } }); }}>
-                          {t(S('imageClear'))}
-                        </button>
-                      </div>
-                    )}
-
-                    {srvDraft.logo.url !== '' && (
-                      <>
-                        <Slider label={t(S('imageW'))} value={srvDraft.logo.width} min={2} max={160} step={1}
-                          format={(v) => String(Math.round(v))}
-                          onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, width: v } })} />
-                        <Slider label={t(S('imageH'))} value={srvDraft.logo.height} min={0} max={160} step={1}
-                          format={(v) => (v <= 0 ? t(S('imageAuto')) : String(Math.round(v)))}
-                          onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, height: v } })} />
-                      </>
-                    )}
-
-                    {/* Placement travels with the branding: the admin drags it once and
-                        every player has it there. */}
-                    <Slider label={t(S('srvIdScale'))} value={srvDraft.identity.scale} min={0.4} max={3} step={0.01}
-                      format={(v) => `${Math.round(v * 100)}%`}
-                      onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, scale: v } })} />
-                    <Slider label={t(S('clarity'))} value={srvDraft.identity.opacity} min={0.15} max={1} step={0.01}
-                      format={(v) => `${Math.round(v * 100)}%`}
-                      onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, opacity: v } })} />
-
-                    <div className="hs-inline">
-                      <span className="wf-label">{t(S('position'))}</span>
-                      <span className="hs-pos">{srvDraft.identity.x.toFixed(1)} · {srvDraft.identity.y.toFixed(1)}</span>
-                      <button type="button" className="wf-btn"
-                        onClick={() => { play('select'); editIdentity({ identity: { x: 98.2, y: 2, scale: 1, opacity: 1 } }); }}>
-                        <ResetIcon />{t(S('restore'))}
-                      </button>
-                    </div>
-                    <p className="wf-note-line">{t(S('srvIdDrag'))}</p>
-                  </Section>
-
-                  {/* ★ Every rate is shown as what it means, not only as what it is. Nobody
-                      can tell from "1 every 90 seconds" that a character starves in two and
-                      a half hours -- and that arithmetic is exactly what went unnoticed for
-                      as long as it did. The consequence is printed under the sliders. */}
-                  <Section title={t(S('srvNeeds'))}>
-                    <Slider label={t(S('srvHungerRate'))} value={srvDraft.needs.hungerRate}
-                      min={0} max={25} step={0.1} format={(v) => v.toFixed(1)}
-                      onChange={(v) => editNeeds({ hungerRate: v })} />
-                    <Slider label={t(S('srvThirstRate'))} value={srvDraft.needs.thirstRate}
-                      min={0} max={25} step={0.1} format={(v) => v.toFixed(1)}
-                      onChange={(v) => editNeeds({ thirstRate: v })} />
-                    <Slider label={t(S('srvInterval'))} value={srvDraft.needs.interval}
-                      min={5} max={600} step={5} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
-                      onChange={(v) => editNeeds({ interval: v })} />
-
-                    <ul className="wf-lines hs-facts">
-                      <li className="wf-line"><span>{t(S('srvEmptyHunger'))}</span>
-                        <b>{duration(drainMinutes(srvDraft.needs.hungerRate, srvDraft.needs.interval), t, t(S('srvNever')))}</b></li>
-                      <li className="wf-line"><span>{t(S('srvEmptyThirst'))}</span>
-                        <b>{duration(drainMinutes(srvDraft.needs.thirstRate, srvDraft.needs.interval), t, t(S('srvNever')))}</b></li>
+                  {/* ★ What every player has now, in sentences. Each one opens the section
+                      it names -- the words are the way in, the controls follow them. */}
+                  <Section title={t(S('srvNow'))}>
+                    <ul className="hs-story">
+                      <li><button type="button" className="hs-say" onClick={() => reveal(idRef.current)}>{nowIdentity}</button></li>
+                      <li><button type="button" className="hs-say" onClick={() => reveal(needsRef.current)}>{nowNeeds}</button></li>
+                      <li><button type="button" className="hs-say" onClick={() => reveal(dmgRef.current)}>{nowDamage}</button></li>
+                      <li><button type="button" className="hs-say" onClick={() => reveal(featRef.current)}>{nowFeatures}</button></li>
                     </ul>
                   </Section>
 
-                  <Section title={t(S('srvDamage'))}>
-                    <Switches>
-                      <Toggle label={t(S('srvDmgOn'))} on={srvDraft.damage.enabled}
-                        onChange={(v) => editDamage({ enabled: v })} />
-                    </Switches>
+                  <div ref={idRef}>
+                    <Section title={t(S('srvIdentity'))}>
+                      <label className="wf-field hs-field-block">
+                        <span className="wf-label">{t(S('srvName'))}</span>
+                        <input
+                          className="wf-input"
+                          value={srvDraft.name}
+                          maxLength={48}
+                          spellCheck={false}
+                          placeholder={t(S('srvNamePh'))}
+                          onChange={(e) => editIdentity({ name: e.target.value })}
+                        />
+                      </label>
 
-                    {srvDraft.damage.enabled && (
-                      <>
-                        <Slider label={t(S('srvHungerAt'))} value={srvDraft.damage.hungerAt}
-                          min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
-                          onChange={(v) => editDamage({ hungerAt: v })} />
-                        <Slider label={t(S('srvThirstAt'))} value={srvDraft.damage.thirstAt}
-                          min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
-                          onChange={(v) => editDamage({ thirstAt: v })} />
-                        <Slider label={t(S('srvAmount'))} value={srvDraft.damage.amount}
-                          min={0.5} max={25} step={0.5} format={(v) => `${v.toFixed(1)}%`}
-                          onChange={(v) => editDamage({ amount: v })} />
-                        <Slider label={t(S('srvDmgInterval'))} value={srvDraft.damage.interval}
-                          min={3} max={300} step={1} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
-                          onChange={(v) => editDamage({ interval: v })} />
-                        <Switches>
-                          <Toggle label={t(S('srvCanKill'))} on={srvDraft.damage.canKill}
-                            onChange={(v) => editDamage({ canKill: v })} />
-                        </Switches>
-                        {!srvDraft.damage.canKill && <p className="wf-note-line">{t(S('srvCanKillOff'))}</p>}
+                      <label className="wf-field hs-field-block">
+                        <span className="wf-label">{t(S('srvLogo'))}</span>
+                        <input
+                          ref={logoRef}
+                          className={cls('wf-input', 'hs-code', logoBad && 'is-invalid')}
+                          value={logoDraft}
+                          spellCheck={false}
+                          placeholder="https://..."
+                          onChange={(e) => setLogoDraft(e.target.value)}
+                          onBlur={commitLogo}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitLogo(); }}
+                        />
+                      </label>
+                      {logoBad ? <p className="wf-error">{t(S('imageBad'))}</p> : <p className="wf-note-line">{t(S('srvLogoNote'))}</p>}
+                      {srvDraft.logo.url !== '' && (
+                        <div className="wf-btns">
+                          <button type="button" className="wf-btn is-danger"
+                            onClick={() => { play('select'); editIdentity({ logo: { ...srvDraft.logo, url: '' } }); }}>
+                            {t(S('imageClear'))}
+                          </button>
+                        </div>
+                      )}
 
-                        <ul className="wf-lines hs-facts">
-                          <li className="wf-line"><span>{t(S('srvDeath'))}</span>
-                            <b>{duration(deathMinutes(srvDraft.damage), t, t(S('srvNever')))}</b></li>
-                        </ul>
-                      </>
-                    )}
-                  </Section>
+                      {/* Placement travels with the branding: the admin drags it once and
+                          every player has it there. Said as a place; the numbers are in the fold. */}
+                      <div className="hs-inline">
+                        <span className="wf-label">{t(S('srvPlace'))}</span>
+                        <span className="hs-pos hs-pos-words">{placeWords}</span>
+                        <button type="button" className="wf-btn"
+                          onClick={() => { play('select'); editIdentity({ identity: { x: 98.2, y: 2, scale: 1, opacity: 1 } }); }}>
+                          <ResetIcon />{t(S('restore'))}
+                        </button>
+                      </div>
+                      <p className="wf-note-line">{t(S('srvIdDrag'))}</p>
 
-                  <Section title={t(S('srvFeatures'))} note={t(S('srvFeaturesNote'))}>
-                    <Switches two>
-                      {FEATURES.map((f) => (
-                        <Toggle key={f.id} label={t(f.label)}
-                          on={srvDraft.features[f.id] !== false}
-                          onChange={(v) => editFeature(f.id, v)} />
-                      ))}
-                    </Switches>
-                  </Section>
+                      <Fold open={adv.id} onToggle={() => setAdv((a) => ({ ...a, id: !a.id }))}
+                        label={t(S('advanced'))} note={t(S('advancedNote'))}>
+                        {srvDraft.logo.url !== '' && (
+                          <>
+                            <Slider label={t(S('imageW'))} value={srvDraft.logo.width} min={2} max={160} step={1}
+                              format={(v) => String(Math.round(v))}
+                              onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, width: v } })} />
+                            <Slider label={t(S('imageH'))} value={srvDraft.logo.height} min={0} max={160} step={1}
+                              format={(v) => (v <= 0 ? t(S('imageAuto')) : String(Math.round(v)))}
+                              onChange={(v) => editIdentity({ logo: { ...srvDraft.logo, height: v } })} />
+                          </>
+                        )}
+                        <Slider label={t(S('srvIdScale'))} value={srvDraft.identity.scale} min={0.4} max={3} step={0.01}
+                          format={(v) => `${Math.round(v * 100)}%`}
+                          onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, scale: v } })} />
+                        <Slider label={t(S('clarity'))} value={srvDraft.identity.opacity} min={0.15} max={1} step={0.01}
+                          format={(v) => `${Math.round(v * 100)}%`}
+                          onChange={(v) => editIdentity({ identity: { ...srvDraft.identity, opacity: v } })} />
+                        <div className="hs-inline">
+                          <span className="wf-label">{t(S('position'))}</span>
+                          <span className="hs-pos">{srvDraft.identity.x.toFixed(1)} · {srvDraft.identity.y.toFixed(1)}</span>
+                        </div>
+                      </Fold>
+                    </Section>
+                  </div>
 
+                  {/* ★ Every rate is chosen as what it means: the time from full to empty. The
+                      choice is turned back into the stored rate (rateFor), so the server keeps
+                      the same numbers and the same clamps. */}
+                  <div ref={needsRef}>
+                    <Section title={t(S('srvNeeds'))}>
+                      <Segmented label={t(S('srvHungerEmpty'))} value={hungerPick.value} options={hungerPick.options}
+                        onChange={(v) => { if (v !== 'custom') editNeeds({ hungerRate: v === 'never' ? 0 : rateFor(Number(v)) }); }} />
+                      <Segmented label={t(S('srvThirstEmpty'))} value={thirstPick.value} options={thirstPick.options}
+                        onChange={(v) => { if (v !== 'custom') editNeeds({ thirstRate: v === 'never' ? 0 : rateFor(Number(v)) }); }} />
+
+                      <Fold open={adv.needs} onToggle={() => setAdv((a) => ({ ...a, needs: !a.needs }))}
+                        label={t(S('advanced'))} note={t(S('advancedNote'))}>
+                        <Slider label={t(S('srvHungerRate'))} value={needs.hungerRate}
+                          min={0} max={25} step={0.1} format={(v) => v.toFixed(2)}
+                          onChange={(v) => editNeeds({ hungerRate: v })} />
+                        <Slider label={t(S('srvThirstRate'))} value={needs.thirstRate}
+                          min={0} max={25} step={0.1} format={(v) => v.toFixed(2)}
+                          onChange={(v) => editNeeds({ thirstRate: v })} />
+                        <Slider label={t(S('srvInterval'))} value={needs.interval}
+                          min={5} max={600} step={5} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
+                          onChange={(v) => editNeeds({ interval: v })} />
+                      </Fold>
+                    </Section>
+                  </div>
+
+                  <div ref={dmgRef}>
+                    <Section title={t(S('srvDamage'))}>
+                      <Switches>
+                        <Toggle label={t(S('srvDmgOn'))} on={dmg.enabled}
+                          onChange={(v) => editDamage({ enabled: v })} />
+                      </Switches>
+
+                      {dmg.enabled && (
+                        <>
+                          <Segmented label={t(S('srvHungerAt'))} value={hungerAtPick.value} options={hungerAtPick.options}
+                            onChange={(v) => { if (v !== 'custom') editDamage({ hungerAt: Number(v) }); }} />
+                          <Segmented label={t(S('srvThirstAt'))} value={thirstAtPick.value} options={thirstAtPick.options}
+                            onChange={(v) => { if (v !== 'custom') editDamage({ thirstAt: Number(v) }); }} />
+                          <Switches>
+                            <Toggle label={t(S('srvCanKill'))} on={dmg.canKill}
+                              onChange={(v) => editDamage({ canKill: v })} />
+                          </Switches>
+                          {dmg.canKill
+                            ? <Segmented label={t(S('srvDeathAfter'))} value={deathPick.value} options={deathPick.options}
+                                onChange={(v) => { if (v !== 'custom') editDamage({ amount: amountFor(Number(v)) }); }} />
+                            : <p className="wf-note-line">{t(S('srvCanKillOff'))}</p>}
+
+                          <Fold open={adv.dmg} onToggle={() => setAdv((a) => ({ ...a, dmg: !a.dmg }))}
+                            label={t(S('advanced'))} note={t(S('advancedNote'))}>
+                            <Slider label={t(S('srvHungerAt'))} value={dmg.hungerAt}
+                              min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
+                              onChange={(v) => editDamage({ hungerAt: v })} />
+                            <Slider label={t(S('srvThirstAt'))} value={dmg.thirstAt}
+                              min={0} max={99} step={1} format={(v) => `${Math.round(v)}%`}
+                              onChange={(v) => editDamage({ thirstAt: v })} />
+                            <Slider label={t(S('srvAmount'))} value={dmg.amount}
+                              min={0.5} max={25} step={0.5} format={(v) => `${v.toFixed(1)}%`}
+                              onChange={(v) => editDamage({ amount: v })} />
+                            <Slider label={t(S('srvDmgInterval'))} value={dmg.interval}
+                              min={3} max={300} step={1} format={(v) => `${Math.round(v)} ${t(S('perSec'))}`}
+                              onChange={(v) => editDamage({ interval: v })} />
+                          </Fold>
+                        </>
+                      )}
+                    </Section>
+                  </div>
+
+                  <div ref={featRef}>
+                    <Section title={t(S('srvFeatures'))} note={t(S('srvFeaturesNote'))}>
+                      <Switches two>
+                        {FEATURES.map((f) => (
+                          <Toggle key={f.id} label={t(f.label)}
+                            on={srvDraft.features[f.id] !== false}
+                            onChange={(v) => editFeature(f.id, v)} />
+                        ))}
+                      </Switches>
+                    </Section>
+                  </div>
+
+                  {/* ★ The readiness line: what the send will do, or what stops it, with «أصلحه»
+                      taking the admin to the field. Red only for the one thing that is wrong. */}
                   <Section>
+                    <div className={cls('hs-ready', ready.kind)}>
+                      <i className="hs-ready-dot" />
+                      <span className="hs-ready-text">{ready.text}</span>
+                      {logoBad && (
+                        <button type="button" className="wf-btn hs-ready-fix" onClick={fixLogo}>{t(S('fixIt'))}</button>
+                      )}
+                    </div>
+                    {deathFast && <p className="wf-note-line">{fill(t(S('srvReadyFast')), { death: duration(deathMins, t, srvNever) })}</p>}
                     <button type="button"
                       className={cls('hs-btn', 'is-main', 'is-wide', p.srvState === 'saved' && 'is-done')}
                       disabled={p.srvState === 'saving'}
@@ -1048,6 +1226,10 @@ export function SettingsPanel(p: PanelProps) {
                           : p.srvState === 'dirty' ? t(S('srvSending')) : t(S('srvSave'))}
                     </button>
                     <p className="wf-note-line">{t(S('srvLiveNote'))}</p>
+                    <div className="hs-keys">
+                      <span><kbd className="hs-key">Esc</kbd>{t(S('keyClose'))}</span>
+                      <span><kbd className="hs-key">Enter</kbd>{t(S('keyCommit'))}</span>
+                    </div>
                   </Section>
                 </>
               )}
