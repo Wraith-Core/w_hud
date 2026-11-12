@@ -84,6 +84,10 @@ local Anims = {}
 --- The held styles: attach the prop to a bone, play a clip (with an optional intro
 --- such as uncorking), wait it out, tidy up. PH_R_HAND is the game's own prop-hand
 --- helper bone and resolves like any skeleton bone.
+-- 2026-11-12 (owner: "drinking stops me; it should walk and drink like eating"): every bottle style plays the
+-- game's walking drink, mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8@quick / use_quick_right_hand
+-- (5.5 s, its own dictionary, read with CodeX), the same kind of quick clip as the bite; the old chug_a / uncork
+-- clips are standing clips and held the player in place.
 local HELD = {
     bite = {
         dict = 'mech_inventory@eating@multi_bite@sphere_d8-2_sandwich', clip = 'quick_left_hand',
@@ -96,31 +100,29 @@ local HELD = {
         ms = 4500, prop = 's_canrigbeans01x',
     },
     bottle = {
-        dict = 'mech_inventory@drinking@bottle_cylinder_d1-3_h30-5_neck_a13_b2-5',
-        intro = 'uncork', introMs = 500, clip = 'chug_a',
+        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8@quick', clip = 'use_quick_right_hand',
         bone = 'PH_R_HAND', offset = { 0.0, 0.0, 0.04 }, rot = { 0.0, 0.0, 0.0 },
-        ms = 5000, prop = 'p_bottlejd01x',
+        ms = 5500, prop = 'p_bottlejd01x',
     },
     bottle_small = {
-        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8',
-        intro = 'uncork', introMs = 500, clip = 'chug_a',
+        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8@quick', clip = 'use_quick_right_hand',
         bone = 'PH_R_HAND', offset = { 0.0, 0.0, 0.04 }, rot = { 0.0, 0.0, 0.0 },
-        ms = 4500, prop = 'p_bottlebeer01a',
+        ms = 5500, prop = 'p_bottlebeer01a',
     },
     jar = {
-        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8', clip = 'chug_a',
+        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8@quick', clip = 'use_quick_right_hand',
         bone = 'PH_R_HAND', offset = { 0.0, 0.0, 0.04 }, rot = { 0.0, 0.0, 0.0 },
-        ms = 4500, prop = 'p_masonjarmoonshine01x',
+        ms = 5500, prop = 'p_masonjarmoonshine01x',
     },
     glass = {
-        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8', clip = 'chug_a',
+        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8@quick', clip = 'use_quick_right_hand',
         bone = 'PH_R_HAND', offset = { 0.0, 0.0, 0.04 }, rot = { 0.0, 0.0, 0.0 },
-        ms = 4000, prop = 'p_whiskeyglass01x',
+        ms = 5500, prop = 'p_whiskeyglass01x',
     },
     canteen = {
-        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8', clip = 'chug_a',
+        dict = 'mech_inventory@drinking@bottle_cylinder_d1-55_h18_neck_a8_b1-8@quick', clip = 'use_quick_right_hand',
         bone = 'PH_R_HAND', offset = { 0.0, 0.0, 0.04 }, rot = { 0.0, 0.0, 0.0 },
-        ms = 4500, prop = 'p_canteen01x',
+        ms = 5500, prop = 'p_canteen01x',
     },
     tonic = {
         dict = 'mech_inventory@item@fallbacks@tonic@unarmed', clip = 'quick_consume_drink_small_cork',
