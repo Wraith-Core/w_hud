@@ -62,10 +62,12 @@ Config.Consumables.consumable_antidote = {
 -- Keep the pipe; charge its tobacco only on completed use.
 Config.Consumables.rdr_tobacco_pipe.consume = false
 Config.Consumables.rdr_tobacco_pipe.requirement = { item = 'consumable_herb_indian_tobacco', count = 1 }
-Config.Consumables.rdr_water_flask.scenario = 'WORLD_HUMAN_DRINK_FLASK'
-Config.Consumables.rdr_champagne.scenario = 'WORLD_HUMAN_DRINK_CHAMPAGNE'
+-- 2026-11-15 (owner: "when I drink the player stops in place until the drink ends; he should walk while drinking"):
+-- no drink plays a scenario any more. WORLD_HUMAN_DRINK_FLASK / _DRINK_CHAMPAGNE / _DRINKING_MOONSHINE are standing
+-- scenarios and ran BEFORE everything else (client/consumables.lua playUse), so the water flask, champagne and
+-- moonshine held the player for their 6.5 s. The flask and champagne now play their walking quick-drink clip
+-- (Anims bottle_small / bottle), moonshine its native QUICK_LEFT_HAND interaction like the other bottles.
 Config.Consumables.rdr_cigarette.scenario = 'WORLD_HUMAN_SMOKE'
-Config.Consumables.consumable_moonshine.scenario = 'WORLD_HUMAN_DRINKING_MOONSHINE'
 
 -- User-approved: both pack types contain 20 individual cigarettes.
 for _, item in ipairs({ 'consumable_cigarette_box', 'consumable_cigarette_box_cheap' }) do
