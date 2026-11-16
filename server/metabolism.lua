@@ -127,31 +127,43 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 -- Loading and saving
 -- ════════════════════════════════════════════════════════════════════════════
+local function readNeeds(cid)
+    return MySQL.single.await('SELECT hunger, thirst FROM w_hud_needs WHERE cid = ?', { cid })
+end
+
 local function load(src)
     local cid = cidOf(src); if not cid then return end
+    local previous = State[src]
+    if previous and Owner[src] == cid then return broadcast(src) end
 
-    local row = MySQL.single.await(
-        'SELECT hunger, thirst FROM w_hud_needs WHERE cid = ?', { cid })
-
-    local s = { buffs = {}, cleanliness = 100 }
+    -- Another load can finish, or the player can switch characters, during a database wait.
+    local function stillCurrent()
+        return State[src] == previous and cidOf(src) == cid
+    end
 
     -- ★ No row with us? Ask the framework before assuming a hundred.
     --   On RSG hunger and thirst live in the core metadata, so an existing character
     --   has a real value -- and the assumption would wipe it. (Details in server/framework.lua)
-    local seed = (not row) and WFwSrv and WFwSrv.seed and WFwSrv.seed(src) or nil
+    local row = readNeeds(cid)
+    if not row then
+        if not stillCurrent() then return end
+        local seed = WFwSrv and WFwSrv.seed and WFwSrv.seed(src) or DEFAULTS
+        MySQL.update.await([[
+            INSERT INTO w_hud_needs (cid, hunger, thirst) VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE cid = cid
+        ]], { cid, seed.hunger or DEFAULTS.hunger, seed.thirst or DEFAULTS.thirst })
+        -- A concurrent first load or offline update may have created the row with different values.
+        row = readNeeds(cid)
+    end
+    if not row or not stillCurrent() then return end
 
+    local s = { buffs = {}, cleanliness = 100 }
     for i = 1, #PERSIST do
         local key = PERSIST[i]
-        s[key] = (row and row[key]) or (seed and seed[key]) or DEFAULTS[key]
+        s[key] = row[key] or DEFAULTS[key]
     end
 
     State[src], Owner[src] = s, cid
-
-    if not row then
-        MySQL.insert(
-            'INSERT INTO w_hud_needs (cid, hunger, thirst) VALUES (?, ?, ?)',
-            { cid, s.hunger, s.thirst })
-    end
 
     broadcast(src)
 end
