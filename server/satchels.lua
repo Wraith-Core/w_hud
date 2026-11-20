@@ -79,7 +79,7 @@ local function apply(src)
     -- ⚠️ pcall: the inventory may be restarting, and a HUD must never take a login
     --    down with it.
     pcall(function()
-        exports.w_inventory:SetMaxWeight(src, baseWeight() + (b.bonus or 0) + b.vip)
+        exports.w_lib:InvSetMaxWeight(src, baseWeight() + (b.bonus or 0) + b.vip)
     end)
 end
 
@@ -105,7 +105,7 @@ local function load(src)
         -- the pause inside the predicate keeps the poll at two reads a second.
         local ok = pcall(w.waitFor, function()
             Wait(500)
-            local found, inv = pcall(function() return exports.w_inventory:GetInventory(src) end)
+            local found, inv = pcall(function() return exports.w_lib:InvGetInventory(src) end)
             if found and inv then return true end
         end, 'no player inventory', 15000)
 
@@ -148,10 +148,8 @@ AddEventHandler('onResourceStart', function(resource)
 end)
 
 -- ★ And when the inventory itself restarts: it rebuilds every player from the convar,
---   wiping our bonus with no event of its own. Nobody tells us -- so we watch for it.
-AddEventHandler('onResourceStart', function(resource)
-    if resource ~= 'w_inventory' then return end
-
+--   wiping our bonus with no event of its own. Watch via w_lib's inventory restart hook.
+exports.w_lib:InvOnRestart(function()
     CreateThread(function()
         Wait(4000)
         for _, src in ipairs(GetPlayers()) do apply(tonumber(src)) end
@@ -237,7 +235,7 @@ local function registerAll(why)
 
     for item in pairs(Config.Satchels) do
         local ok, accepted = pcall(function()
-            return exports.w_inventory:RegisterUsableItem(item, function(source)
+            return exports.w_lib:InvRegisterUsableItem(item, false, function(source)
                 -- ★ useSatchel takes the satchel out itself once the upgrade is accepted; a
                 --   refused upgrade keeps it. The return value is only a status.
                 return useSatchel(source, item)
@@ -251,18 +249,18 @@ local function registerAll(why)
 end
 
 CreateThread(function()
-    -- w_inventory is the only bag with SetMaxWeight; wait for it without a deadline
+    -- w_inventory is the only bag with SetMaxWeight; wait for it through w_lib
     w.waitFor(function()
         Wait(500)
-        if GetResourceState('w_inventory') == 'started' then return true end
+        local ok, name = pcall(function() return exports.w_lib:InvName() end)
+        if ok and name == 'w_inventory' then return true end
     end, nil, false)
     Wait(1500)
     registerAll('w_hud start')
 end)
 
-AddEventHandler('onResourceStart', function(resource)
-    if resource ~= 'w_inventory' then return end
-    CreateThread(function() Wait(1500); registerAll('after w_inventory start') end)
+exports.w_lib:InvOnRestart(function()
+    CreateThread(function() Wait(1500); registerAll('after inventory restart') end)
 end)
 
 -- ════════════════════════════════════════════════════════════════════════════

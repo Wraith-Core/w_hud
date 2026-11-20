@@ -164,8 +164,7 @@ local function loadSoon()
     end)
 end
 
-RegisterNetEvent('vorp:SelectedCharacter', loadSoon)
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', loadSoon)
+exports.w_lib:FwOnCharacterLoaded(loadSoon)
 
 --- ★ Pushed to everyone the moment an admin saves, not on the next login. A feature
 ---   switched off has to leave every screen at once; a player who must reconnect to see

@@ -88,23 +88,11 @@ local function onLogout()
     LocalPlayer.state:set('isLoggedIn', false, true)
 end
 
--- Character-load events for every framework
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', onLoaded)      -- RSG
-RegisterNetEvent('qbr-core:client:OnPlayerLoaded', onLoaded)     -- QBR
-RegisterNetEvent('vorp:SelectedCharacter', onLoaded)            -- VORP
-RegisterNetEvent('vorp:selectedCharacter', onLoaded)           -- VORP (alternate spelling)
+-- Character-load and logout events through w_lib's unified bridge
+exports.w_lib:FwOnCharacterLoaded(onLoaded)
+exports.w_lib:FwOnCharacterUnloaded(onLogout)
 -- The server pushes this after a live resource restart (no selection event is replayed)
 RegisterNetEvent('w_hud:client:forceLoaded', onLoaded)
-
--- Logout events
-RegisterNetEvent('RSGCore:Client:OnPlayerUnload', onLogout)
-RegisterNetEvent('qbr-core:client:OnPlayerUnload', onLogout)
-RegisterNetEvent('vorp:playerUnloaded', onLogout)
-
--- w_lib's framework bridge -- covers whatever framework the library supports
-w.ready(function()
-    pcall(function() w.framework:onCharacterSelected(onLoaded) end)
-end)
 
 -- Fallback for a live resource restart: ask the server (the authority) whether a
 -- character really is selected. It will not light the HUD on the character-selection

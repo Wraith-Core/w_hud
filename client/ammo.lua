@@ -237,9 +237,7 @@ CreateThread(function()
 end)
 
 AddEventHandler('playerSpawned', applyNativeHudState)
-RegisterNetEvent('vorp:SelectedCharacter', applyNativeHudState)
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', applyNativeHudState)
-RegisterNetEvent('qbr-core:client:OnPlayerLoaded', applyNativeHudState)
+exports.w_lib:FwOnCharacterLoaded(applyNativeHudState)
 
 -- And we restore everything when the resource stops, or the player is left with neither HUD.
 AddEventHandler('onResourceStop', function(resource)
@@ -302,12 +300,12 @@ local ammoItemOf = {} -- ammo type hash -> item name, filled once vorp_inventory
 local ammoItemsAsked = false
 
 local function askAmmoItems()
-    if ammoItemsAsked or GetResourceState('vorp_inventory') ~= 'started' then return end
+    if ammoItemsAsked or exports.w_lib:InvName() ~= 'vorp_inventory' then return end
     ammoItemsAsked = true
     pcall(function()
         -- SHARED_DATA.AMMO_ITEMS is vorp's; its config is a shared script, so the map is
         -- reachable through a small export if the inventory offers one, else left empty.
-        local map = exports.vorp_inventory:getWeaponWheelAmmoItems()
+        local map = exports.w_lib:InvNativeCall('getWeaponWheelAmmoItems')
         for ammoType, entry in pairs(type(map) == 'table' and map or {}) do
             if type(entry) == 'table' and entry.item then ammoItemOf[joaat(ammoType) & 0xFFFFFFFF] = entry.item end
         end
@@ -340,8 +338,9 @@ local function nativeHand(ped, hand, active)
     if objectType == 0 then objectType = nil end
     if objectType then objectType = objectType & 0xFFFFFFFF end
     local chosenType = nil
-    if GetResourceState('vorp_inventory') == 'started' then
-        local okSel, sel = pcall(function() return exports.vorp_inventory:getSelectedAmmoTypeForHash(weapon) end)
+    local activeInv = exports.w_lib:InvName()
+    if activeInv == 'vorp_inventory' then
+        local okSel, sel = pcall(function() return exports.w_lib:InvNativeCall('getSelectedAmmoTypeForHash', weapon) end)
         if okSel and type(sel) == 'string' then chosenType = joaat(sel) & 0xFFFFFFFF end
     end
     local ammoType = chosenType or objectType
@@ -360,7 +359,7 @@ local function nativeHand(ped, hand, active)
         local clipOfShownType = objectType == nil or ammoType == objectType
         reserve = math.max(0, total - (clipOfShownType and clip or 0))
     end
-    local base = GetResourceState('vorp_inventory') == 'started' and IMAGE_BASE.vorp_inventory or nil
+    local base = activeInv == 'vorp_inventory' and (exports.w_lib:InvImageBase() or IMAGE_BASE.vorp_inventory) or nil
 
     return {
         slot = hand + 1, label = '', hand = hand,
@@ -388,7 +387,7 @@ CreateThread(function()
         local armed = false
 
         if not inventoryReady then
-            inventoryReady = GetResourceState('w_inventory') == 'started'
+            inventoryReady = exports.w_lib:InvName() == 'w_inventory'
         end
 
         if SHOW_OWN_AMMO and showUI ~= false then
@@ -399,7 +398,7 @@ CreateThread(function()
             if held and held ~= 0 and held ~= UNARMED_HASH then
                 local hands
                 if inventoryReady then
-                    local ok, result = pcall(function() return exports.w_inventory:getHeldAmmoState() end)
+                    local ok, result = pcall(function() return exports.w_lib:InvGetHeldAmmoState() end)
                     if ok and type(result) == 'table' then hands = result end
                 else
                     askAmmoItems()

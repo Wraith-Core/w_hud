@@ -12,4 +12,4 @@ end)
 AddEventHandler('onClientResourceStop', function(resource)
     if resource=='w_pets' then SendNUIMessage({action='companion',pet=false}) end
 end)
-AddEventHandler('WCore:Client:OnPlayerUnload',function()SendNUIMessage({action='companion',pet=false})end)
+exports.w_lib:FwOnCharacterUnloaded(function()SendNUIMessage({action='companion',pet=false})end)

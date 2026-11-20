@@ -38,17 +38,6 @@ function WFw.name()
         return cached
     end
 
-    -- ★ Fall back to resource state rather than the bridge: on server boot w_hud
-    --   can start before w_lib finishes detecting (detection is a retry loop).
-    --   Without this the first call reads nil, caches it, and the HUD stays
-    --   framework-less forever.
-    --
-    --   This branch is deliberately NOT cached: it is a guess until the bridge
-    --   answers for itself.
-    if GetResourceState('vorp_core') == 'started' then return 'vorp' end
-    if GetResourceState('rsg-core') == 'started' then return 'rsgcore' end
-    if GetResourceState('qbr-core') == 'started' then return 'qbr' end
-
     return nil
 end
 

@@ -151,14 +151,13 @@ local function setCharacter(id)
     loadQuickSlots()
 end
 
-RegisterNetEvent('vorp:SelectedCharacter', setCharacter)
-
--- ★ RSG does not pass the identifier with its login event, so we read it from the player data.
---   Without this characterId stays 'default' and all of a player's characters share one
---   default list -- so one of them draws a weapon it does not own.
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', function()
-    local ok, pd = pcall(function() return exports.w_lib:FwGetPlayerData() end)
-    setCharacter(ok and pd and pd.citizenid or nil)
+exports.w_lib:FwOnCharacterLoaded(function(id)
+    if id ~= nil then
+        setCharacter(id)
+    else
+        local ok, pd = pcall(function() return exports.w_lib:FwGetPlayerData() end)
+        setCharacter(ok and pd and pd.citizenid or nil)
+    end
 end)
 
 ----------------------------------------------------------------
@@ -1393,23 +1392,12 @@ local function refreshSoon()
     SetTimeout(50, function() if isOpen and not busy then refresh() end end)
 end
 
-RegisterNetEvent('w_inventory:setPlayerInventory', refreshSoon)
-
--- And the same on VORP: its events are what say the loadout changed.
---
--- ⚠️ A longer delay here: the VORP snapshot goes through the server (see client/inventory.lua),
--- so fifty milliseconds is not enough for the call to go and come back.
-for _, event in ipairs({
-    'vorp_inventory:onWeaponEquipped', 'vorpinventory:loaded',
-    -- RSG broadcasts all of its data on any change, the inventory included.
-    'RSGCore:Player:SetPlayerData', 'RSGCore:Client:UseItem',
-}) do
-    if event:sub(1, 8) == 'RSGCore:' then RegisterNetEvent(event) end
-    AddEventHandler(event, function()
-        if not isOpen or busy then return end
-        SetTimeout(250, function() if isOpen and not busy then refresh() end end)
-    end)
-end
+exports.w_lib:InvOnWheelRefresh(function(ev)
+    if not isOpen or busy then return end
+    local okInv, invName = pcall(function() return exports.w_lib:InvName() end)
+    local delay = (okInv and invName == 'w_inventory') and 50 or 250
+    SetTimeout(delay, function() if isOpen and not busy then refresh() end end)
+end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end

@@ -42,7 +42,7 @@ local function alive(src)
 end
 local function sameSlot(src, p)
     if Inv.name() ~= 'w_inventory' then return count(src, p.item) > 0 end
-    local slot = exports.w_inventory:GetSlot(src, p.slot)
+    local slot = exports.w_lib:InvGetSlot(src, p.slot)
     return slot and slot.name == p.item and slot.count > 0 and
         (not p.metadata or json.encode(slot.metadata or {}) == p.metadata)
 end
@@ -78,7 +78,7 @@ local function beginUse(src, item, data)
         character = exports.w_lib:FwGetCharacterIdentifier(src),
         expires = GetGameTimer() + Config.Use.Timeout, stage = 'select' }
     if Inv.name() == 'w_inventory' then
-        local slot = p.slot and exports.w_inventory:GetSlot(src, p.slot)
+        local slot = p.slot and exports.w_lib:InvGetSlot(src, p.slot)
         if not slot or slot.name ~= item then return false end
         p.metadata = json.encode(slot.metadata or {})
     end
@@ -137,7 +137,7 @@ exports('GetAnimalFoods', function(src, netId)
 end)
 exports('FeedAnimal', function(src,netId,item)
     if type(item)~='string' or not WHudAnimalUse.validate(src,netId,item) then return false end
-    local slot = Inv.name()=='w_inventory' and exports.w_inventory:GetSlotIdWithItem(src,item) or nil
+    local slot = Inv.name()=='w_inventory' and exports.w_lib:InvGetSlotIdWithItem(src,item) or nil
     return guarded(src,item,{slot=slot,targetNetId=netId})
 end)
 onUseEvent('w_hud:server:selectUse', function(src, token, target, netId)

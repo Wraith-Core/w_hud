@@ -571,8 +571,8 @@ AddEventHandler('onResourceStop', function(resource)
 end)
 
 AddEventHandler('playerSpawned', clearFx)          -- a respawn sobers you up
-RegisterNetEvent('vorp:SelectedCharacter', clearFx) -- and so does a new character
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', clearFx)
+exports.w_lib:FwOnCharacterLoaded(clearFx) -- and so does a new character
+
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- /hudfx -- clear a stuck screen effect
@@ -785,8 +785,8 @@ AddEventHandler('onResourceStop', function(resource)
     if resource == GetCurrentResourceName() then release() end
 end)
 AddEventHandler('playerSpawned', release)
-RegisterNetEvent('vorp:SelectedCharacter', release)
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', release)
+exports.w_lib:FwOnCharacterLoaded(release)
+
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- ★ The safety net for hudConsuming

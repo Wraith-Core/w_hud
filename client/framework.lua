@@ -152,15 +152,11 @@ local function fromRsgPlayerData(pd)
     })
 end
 
-RegisterNetEvent('RSGCore:Player:SetPlayerData', fromRsgPlayerData)
+exports.w_lib:FwOnPlayerData(fromRsgPlayerData)
 
--- ★ A second money event on purpose even though SetPlayerData covers it: rsg-core
---   builds differ, and some fire OnMoneyChange alone for small changes. The overlap
---   throttles itself (the line below) so it costs nothing, and its absence means a
---   frozen number.
 local lastRsgSync = 0
 
-RegisterNetEvent('RSGCore:Client:OnMoneyChange', function()
+exports.w_lib:FwOnMoneyChange(function()
     local now = GetGameTimer()
     if now - lastRsgSync < 150 then return end
     lastRsgSync = now
@@ -172,23 +168,16 @@ RegisterNetEvent('RSGCore:Client:OnMoneyChange', function()
     if ok then fromRsgPlayerData(pd) end
 end)
 
-RegisterNetEvent('RSGCore:Client:PvpHasToggled', function(enabled)
+exports.w_lib:FwOnPvpChange(function(enabled)
     pushPvp(enabled)
 end)
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- First fill
---
--- ⚠️ These events fire on **change**, not on login. So a player who has not spent
---   anything since logging in had an empty panel until their first transaction. We
---   read it once as soon as things are ready.
---
---   VORP keeps no local player data (FwGetPlayerData returns nil there), so we settle
---   for asking the server for money -- the rest arrives with the first updateUi.
 -- ════════════════════════════════════════════════════════════════════════════
---- RSG and QBR together -- one PlayerData contract (citizenid · money · metadata).
 local function isRsgFamily()
-    return w.framework:is('rsg') or w.framework:is('qbr')
+    local fw = exports.w_lib:FwName()
+    return fw == 'rsgcore' or fw == 'rsg' or fw == 'qbr'
 end
 
 local function primeInfo()
@@ -200,11 +189,7 @@ local function primeInfo()
     TriggerServerEvent('w_hud:server:updateMoney')
 end
 
-RegisterNetEvent('RSGCore:Client:OnPlayerLoaded', function()
-    CreateThread(function() Wait(1200); primeInfo() end)
-end)
-
-RegisterNetEvent('vorp:SelectedCharacter', function()
+exports.w_lib:FwOnCharacterLoaded(function()
     CreateThread(function() Wait(1200); primeInfo() end)
 end)
 

@@ -23,8 +23,7 @@
 --- Is VORP the source of truth right now?
 ---@return boolean
 local function vorpOwnsInventory()
-    if GetResourceState('w_inventory') == 'started' then return false end
-    return GetResourceState('vorp_inventory') == 'started'
+    return exports.w_lib:InvName() == 'vorp_inventory'
 end
 
 --- Turn a callback-style call into a synchronous value, with a time limit.
@@ -103,8 +102,8 @@ w.callback.register(('%s:vorp:state'):format(GetCurrentResourceName()), function
 
     if not vorpOwnsInventory() then return state end
 
-    local weapons = await1(function(cb) exports.vorp_inventory:getUserInventoryWeapons(source, cb) end)
-    local items   = await1(function(cb) exports.vorp_inventory:getUserInventoryItems(source, cb) end)
+    local weapons = await1(function(cb) exports.w_lib:InvNativeCall('getUserInventoryWeapons', source, cb) end)
+    local items   = await1(function(cb) exports.w_lib:InvNativeCall('getUserInventoryItems', source, cb) end)
 
     -- Either may come back nil (a player whose character has not loaded yet) -- a
     -- not-ready snapshot beats an empty one that reads as "owns nothing".

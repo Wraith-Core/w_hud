@@ -257,17 +257,18 @@ RegisterCommand('needsdebug', function(source)
     print('^3== w_hud - NEEDS DIAGNOSTIC ==============================^0')
 
     -- 1) is the inventory running?
-    local invOk = GetResourceState('w_inventory') == 'started'
-    line('w_inventory started', invOk, GetResourceState('w_inventory'))
+    local invName = exports.w_lib:InvName()
+    local invOk = exports.w_lib:InvReady() == true
+    line('inventory bridge ready', invOk, tostring(invName or 'none'))
 
     -- 2) does the inventory accept registration? (its registry is lost on every restart)
     local registered = false
     if invOk then
         registered = pcall(function()
-            return exports.w_inventory:RegisterUsableItem('__w_hud_probe__', function() end)
+            return exports.w_lib:InvCall('RegisterUsableItem', '__w_hud_probe__', function() end)
         end)
         -- ★ Do not leave a phantom entry in the inventory registry after the probe
-        pcall(function() exports.w_inventory:UnregisterUsableItem('__w_hud_probe__') end)
+        pcall(function() exports.w_lib:InvCall('UnregisterUsableItem', '__w_hud_probe__') end)
     end
     line('export RegisterUsableItem', registered,
         registered and '' or '^1inventory refuses registration^7')
@@ -275,7 +276,7 @@ RegisterCommand('needsdebug', function(source)
     -- 3) is the item in the inventory catalogue?
     local probe, catalogued = 'cooked_meat', false
     if invOk then
-        local ok, item = pcall(function() return exports.w_inventory:Items(probe) end)
+        local ok, item = pcall(function() return exports.w_lib:InvItems(probe) end)
         catalogued = ok and item ~= nil
     end
     line(('item "%s" in catalogue'):format(probe), catalogued,
@@ -285,19 +286,15 @@ RegisterCommand('needsdebug', function(source)
     local known = Config.Consumables and Config.Consumables[probe] ~= nil
     line(('entry "%s" in shared/consumables.lua'):format(probe), known)
 
-    -- ★ The silent link: is it actually in the registry that server.UseItem reads?
-    --   Registration prints its success, but the framework build (compat) may replace
-    --   the reader -- and then every item we registered goes quiet with no error and
-    --   no message.
     local okReg, isReg = pcall(function()
-        return exports.w_inventory:IsUsableItemRegistered(probe)
+        return exports.w_lib:InvCall('IsUsableItemRegistered', probe)
     end)
     line(('"%s" in usable-item registry'):format(probe), okReg and isReg == true,
         okReg and (isReg and '' or '^1NOT registered - restart w_hud^7')
-        or '^3old w_inventory (no IsUsableItemRegistered export)^7')
+        or '^3inventory has no IsUsableItemRegistered export^7')
 
     local okWho, who = pcall(function()
-        return exports.w_inventory:WhichUseItemHandler()
+        return exports.w_lib:InvCall('WhichUseItemHandler')
     end)
     line('active server.UseItem handler', okWho and who == 'bridge (shared registry)',
         okWho and tostring(who) or '^3unknown^7')
@@ -318,7 +315,6 @@ end, true)
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- /useprobe -- what exactly does RegisterUsableItem return?
---   We print the raw values and their types instead of inferring from behaviour.
 -- ════════════════════════════════════════════════════════════════════════════
 RegisterCommand('useprobe', function()
     local NAME = '__w_hud_probe__'
@@ -326,32 +322,22 @@ RegisterCommand('useprobe', function()
 
     print('^3== w_hud - RegisterUsableItem PROBE ======================^0')
 
-    -- 1) colon call (what we use)
-    local a1, a2, a3 = exports.w_inventory:RegisterUsableItem(NAME, cb)
-    print(('  colon  → 1=%s(%s)  2=%s(%s)  3=%s(%s)')
+    local a1, a2, a3 = exports.w_lib:InvCall('RegisterUsableItem', NAME, cb)
+    print(('  bridge → 1=%s(%s)  2=%s(%s)  3=%s(%s)')
         :format(tostring(a1), type(a1), tostring(a2), type(a2), tostring(a3), type(a3)))
-    print(('  registered? %s'):format(tostring(exports.w_inventory:IsUsableItemRegistered(NAME))))
+    print(('  registered? %s'):format(tostring(exports.w_lib:InvCall('IsUsableItemRegistered', NAME))))
 
-    exports.w_inventory:UnregisterUsableItem(NAME)
+    exports.w_lib:InvCall('UnregisterUsableItem', NAME)
 
-    -- 2) dot call (no self)
-    local b1, b2 = exports.w_inventory.RegisterUsableItem(NAME, cb)
-    print(('  dot    → 1=%s(%s)  2=%s(%s)'):format(tostring(b1), type(b1), tostring(b2), type(b2)))
-    print(('  registered? %s'):format(tostring(exports.w_inventory:IsUsableItemRegistered(NAME))))
-
-    exports.w_inventory:UnregisterUsableItem(NAME)
-
-    -- 3) the alternative name CreateUseableItem
-    local c1 = exports.w_inventory:CreateUseableItem(NAME, cb)
+    local c1 = exports.w_lib:InvCall('CreateUseableItem', NAME, cb)
     print(('  Create -> 1=%s(%s)  registered? %s')
-        :format(tostring(c1), type(c1), tostring(exports.w_inventory:IsUsableItemRegistered(NAME))))
+        :format(tostring(c1), type(c1), tostring(exports.w_lib:InvCall('IsUsableItemRegistered', NAME))))
 
-    exports.w_inventory:UnregisterUsableItem(NAME)
+    exports.w_lib:InvCall('UnregisterUsableItem', NAME)
 
-    -- 4) how many are in the registry now?
-    local ok, names = pcall(function() return exports.w_inventory:GetUsableItemNames() end)
-    print(('  registry size: %s'):format(ok and #names or 'unknown'))
-    if ok and #names > 0 then
+    local ok, names = pcall(function() return exports.w_lib:InvCall('GetUsableItemNames') end)
+    print(('  registry size: %s'):format(ok and type(names) == 'table' and #names or 'unknown'))
+    if ok and type(names) == 'table' and #names > 0 then
         print('  sample: ' .. table.concat(names, ', ', 1, math.min(8, #names)))
     end
 

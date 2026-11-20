@@ -27,10 +27,7 @@
 --- Is RSG the source of truth right now?
 ---@return boolean
 local function rsgOwnsInventory()
-    if GetResourceState('w_inventory') == 'started' then return false end
-
-    return GetResourceState('rsg-inventory') == 'started'
-        and GetResourceState('rsg-core') == 'started'
+    return exports.w_lib:InvName() == 'rsg-inventory' and exports.w_lib:FwReady() == true
 end
 
 --- The core object, through the library's bridge -- fetched on demand, never cached:

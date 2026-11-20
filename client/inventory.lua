@@ -73,12 +73,12 @@ PROVIDERS.w_inventory = {
     },
 
     ready = function()
-        return GetResourceState('w_inventory') == 'started'
+        return exports.w_lib:InvName() == 'w_inventory'
     end,
 
     read = function()
         local ok, state = pcall(function()
-            return exports.w_inventory:getWeaponWheelState()
+            return exports.w_lib:InvGetWeaponWheelState()
         end)
 
         if not ok or type(state) ~= 'table' or not state.ready then return nil end
@@ -87,50 +87,31 @@ PROVIDERS.w_inventory = {
 
     equip = function(weapon)
         local ok, result = pcall(function()
-            return exports.w_inventory:selectWeaponSlot(weapon.slot)
+            return exports.w_lib:InvSelectWeaponSlot(weapon.slot)
         end)
 
         return ok and result == true
     end,
 
     --- ═══ Holstering specifically: one hand empties and the other stays as it was ═══
-    ---
-    --- ★ Deliberately the same call as equipping, not a second path.
-    ---
-    ---   selectWeaponSlot on a slot that is **already held** hands the job to useSlot,
-    ---   which is the full holstering transaction: it suspends the weapon guard for the
-    ---   duration, saves the magazine's reserve, releases the GUID, syncs both hands with
-    ---   the server, and plays the holster animation.
-    ---
-    ---   There is a shorter call (w_inventory:disarmSlot) that reaches Weapon.Disarm
-    ---   directly -- but it skips suspending the guard and clearing the tracked variables,
-    ---   so the guard sees the player 'unarmed' mid-transaction and counts it as an
-    ---   external change. The long path is the correct one, and the tested one.
-    ---
-    --- ★ And where the weapon comes to rest is none of our business: the inventory owns
-    ---   the attach-point map and puts the sidearm in its holster and the longarm on the
-    ---   back. We ask 'put it away', not 'hang it here'.
     stow = function(weapon)
-        -- Already holstered: it is on the body right now (the decorative-copy thread shows
-        -- quick-bar slots), and calling selectWeaponSlot on it would **draw** it -- exactly
-        -- the opposite of what was asked.
         if not weapon.held then return true end
 
         local ok, result = pcall(function()
-            return exports.w_inventory:selectWeaponSlot(weapon.slot)
+            return exports.w_lib:InvSelectWeaponSlot(weapon.slot)
         end)
 
         return ok and result == true
     end,
 
     useItem = function(item)
-        pcall(function() exports.w_inventory:useSlot(item.slot) end)
+        pcall(function() exports.w_lib:InvUseSlot(item.slot) end)
         return true
     end,
 
     switchAmmo = function(weapon, ammoItem)
         local ok, result, reason = pcall(function()
-            return exports.w_inventory:switchWeaponAmmo(weapon.slot, ammoItem)
+            return exports.w_lib:InvSwitchWeaponAmmo(weapon.slot, ammoItem)
         end)
 
         return ok and result == true, reason
@@ -140,7 +121,7 @@ PROVIDERS.w_inventory = {
         local response = { ok = false, reason = 'error' }
 
         pcall(function()
-            local begun = exports.w_inventory:beginWeaponInspection(weapon.slot, weapon.name, weapon.serial)
+            local begun = exports.w_lib:InvBeginWeaponInspection(weapon.slot, weapon.name, weapon.serial)
 
             if type(begun) ~= 'table' or begun.ok ~= true then
                 response = type(begun) == 'table' and begun or { ok = false, reason = 'inspect_failed' }
@@ -148,11 +129,11 @@ PROVIDERS.w_inventory = {
             end
 
             Wait(250)
-            response = exports.w_inventory:cleanInspectedWeapon(weapon.slot, weapon.name, weapon.serial)
+            response = exports.w_lib:InvCleanInspectedWeapon(weapon.slot, weapon.name, weapon.serial)
                 or { ok = false, reason = 'clean_failed' }
 
             Wait((type(response) == 'table' and response.state and response.state.cleanDuration) or 2800)
-            exports.w_inventory:endWeaponInspection()
+            exports.w_lib:InvEndWeaponInspection()
         end)
 
         return response
@@ -240,7 +221,7 @@ PROVIDERS.vorp_inventory = {
     },
 
     ready = function()
-        return GetResourceState('vorp_inventory') == 'started'
+        return exports.w_lib:InvName() == 'vorp_inventory'
     end,
 
     read = function()
@@ -251,7 +232,7 @@ PROVIDERS.vorp_inventory = {
 
     equip = function(weapon)
         local sent = pcall(function()
-            exports.vorp_inventory:useWeapon({ id = weapon.weaponId, name = weapon.name })
+            exports.w_lib:InvNativeCall('useWeapon', { id = weapon.weaponId, name = weapon.name })
         end)
 
         if not sent then
@@ -268,7 +249,7 @@ PROVIDERS.vorp_inventory = {
         if not weapon.held then return true end
 
         local sent = pcall(function()
-            exports.vorp_inventory:useWeapon({ id = weapon.weaponId, name = weapon.name })
+            exports.w_lib:InvNativeCall('useWeapon', { id = weapon.weaponId, name = weapon.name })
         end)
 
         if not sent then
@@ -284,7 +265,7 @@ PROVIDERS.vorp_inventory = {
         -- (The old server-side fallback is gone: vorp has no client event to relay a use
         -- through, so it could never have worked.)
         pcall(function()
-            exports.vorp_inventory:useItem({ id = item.itemId or item.slot, item = item.name, name = item.name, type = 'item_standard' })
+            exports.w_lib:InvNativeCall('useItem', { id = item.itemId or item.slot, item = item.name, name = item.name, type = 'item_standard' })
         end)
 
         vorpRefresh()
@@ -296,18 +277,11 @@ PROVIDERS.vorp_inventory = {
 }
 
 -- Refresh the snapshot on every event that touches the player's loadout -- cheaper than polling.
-for _, event in ipairs({
-    'vorp_inventory:onWeaponEquipped',
-    'vorp_inventory:componentAdded',
-    'vorp_inventory:componentRemoved',
-    'vorpinventory:loaded',
-}) do
-    AddEventHandler(event, function()
-        if providerName == 'vorp_inventory' then vorpRefresh() end
-    end)
-end
+exports.w_lib:InvOnWheelRefresh(function()
+    if providerName == 'vorp_inventory' then vorpRefresh() end
+end)
 
-RegisterNetEvent('vorp_inventory:Client:OnInvStateChange', function(isOpen)
+exports.w_lib:InvOnInvStateChange(function(isOpen)
     -- On close only: whatever was swapped inside the inventory must be visible to the wheel afterwards.
     if not isOpen and providerName == 'vorp_inventory' then vorpRefresh() end
 end)
@@ -340,23 +314,15 @@ end)
 --- RSGCore:Client:UpdateObject and a cached copy would go stale.
 ---@return table|nil
 local function rsgPlayerData()
-    if not w.framework:is('rsg') and not w.framework:is('qbr') then return nil end
+    local fw = exports.w_lib:FwName()
+    if fw ~= 'rsgcore' and fw ~= 'rsg' and fw ~= 'qbr' then return nil end
 
     local ok, data = pcall(function() return exports.w_lib:FwGetPlayerData() end)
     return (ok and type(data) == 'table') and data or nil
 end
 
---- The serial of the weapon held right now, from rsg-weapons.
----
---- ★ This is the correct source, not a hash comparison: two weapons of one model share one
----   hash, and 'which of them is in my hand' is never answered by a hash. rsg-weapons
----   tracks the instance by its serial and answers exactly.
----@return string?
 local function rsgHeldSerial()
-    if GetResourceState('rsg-weapons') ~= 'started' then return nil end
-
-    local ok, serial = pcall(function() return exports['rsg-weapons']:CheckWeaponSerial() end)
-
+    local ok, serial = pcall(function() return exports.w_lib:FwWeaponSerial() end)
     return (ok and type(serial) == 'string' and serial ~= '') and serial or nil
 end
 
@@ -401,7 +367,7 @@ PROVIDERS['rsg-inventory'] = {
     },
 
     ready = function()
-        return GetResourceState('rsg-inventory') == 'started' and rsgPlayerData() ~= nil
+        return exports.w_lib:InvName() == 'rsg-inventory' and rsgPlayerData() ~= nil
     end,
 
     read = function()

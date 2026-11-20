@@ -197,9 +197,12 @@ end
 local described = {}
 local function describeItem(item)
     if described[item] then return described[item] end
-    local out = { image = ('nui://w_inventory/web/images/%s.png'):format(item) }
-    if GetResourceState('w_inventory') == 'started' then
-        local ok, data = pcall(function() return exports.w_inventory:Items(item) end)
+    local okBase, imgBase = pcall(function() return exports.w_lib:InvImageBase() end)
+    imgBase = (okBase and type(imgBase) == 'string' and imgBase ~= '') and imgBase or 'nui://w_inventory/web/images/'
+    local out = { image = imgBase .. item .. '.png' }
+    local okReady, ready = pcall(function() return exports.w_lib:InvReady() end)
+    if okReady and ready then
+        local ok, data = pcall(function() return exports.w_lib:InvItems(item) end)
         if ok and type(data) == 'table' then
             local source = type(data.i18n) == 'table' and data.i18n or data
             local label = source.label
@@ -212,7 +215,7 @@ local function describeItem(item)
             end
             local image = type(data.client) == 'table' and data.client.image or nil
             if type(image) == 'string' and image:match('^[%w_%-%.]+$') then
-                out.image = 'nui://w_inventory/web/images/' .. image
+                out.image = imgBase .. image
             end
             described[item] = out
         end
