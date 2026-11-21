@@ -21,7 +21,7 @@
      Small numbers are EB Garamond lining figures; the big figures (the wallet, the ammo) RDR Catalogue. */
   --f-title: 'RDR Lino', 'Lalezar', Georgia, serif;          /* the server's name: the wordmark */
   --f-head:  'EB Garamond', 'Lalezar', Georgia, serif;       /* the announcement's title */
-  --f-num:   'EB Garamond', 'Lalezar', Georgia, serif;       /* small figures: id, level, positions */
+  --f-num:   'RDR Catalogue', 'EB Garamond', 'Lalezar', Georgia, serif; /* unified figures: id, level, positions */
   --f-fig:   'RDR Catalogue', 'EB Garamond', Georgia, sans-serif; /* big figures: money, the ammo readout */
   /* the label tokens the rules below read (they came from w_lib's theme before 2.2.0) */
   --w-wt-label: 600;

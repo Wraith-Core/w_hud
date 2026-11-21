@@ -32,6 +32,8 @@ try {
   const FONTS = `${ABS_BASE}fonts/`;
   const AR = 'U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+200C-200E,U+2010-2011,U+0660-0669';
   const LALEZAR = `url("${FONTS}Lalezar-400-arabic.woff2") format("woff2")`;
+  const CAT = `url("${FONTS}RDRCatalogueBold-Bold.woff2") format("woff2")`;
+  const NUM = 'U+0030-0039';
   const faces = document.createElement('style');
   faces.textContent = `
     @font-face { font-family: "EB Garamond"; font-style: normal; font-weight: 400 800; src: url("${FONTS}EBGaramond-latin.woff2") format("woff2"); font-display: swap; }
@@ -42,7 +44,15 @@ try {
     @font-face { font-family: "Tajawal"; font-weight: 700; src: ${LALEZAR}; unicode-range: ${AR}; font-display: swap; }
     @font-face { font-family: "Noto Sans Arabic"; font-weight: 100 900; src: ${LALEZAR}; font-display: swap; }
     @font-face { font-family: "RDR Lino"; font-weight: 100 900; src: url("${FONTS}RDRLino-Regular.woff2") format("woff2"); font-display: swap; }
-    @font-face { font-family: "RDR Catalogue"; font-weight: 100 900; src: url("${FONTS}RDRCatalogueBold-Bold.woff2") format("woff2"); font-display: swap; }
+    @font-face { font-family: "RDR Catalogue"; font-weight: 100 900; src: ${CAT}; font-display: swap; }
+    @font-face { font-family: "EB Garamond"; font-style: normal; font-weight: 400 800; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "Lalezar"; font-weight: 100 900; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "Amiri"; font-weight: 400; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "Amiri"; font-weight: 700; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "Tajawal"; font-weight: 400; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "Tajawal"; font-weight: 700; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "Noto Sans Arabic"; font-weight: 100 900; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
+    @font-face { font-family: "RDR Lino"; font-weight: 100 900; src: ${CAT}; unicode-range: ${NUM}; font-display: swap; }
   `;
   document.head.appendChild(faces);
 
