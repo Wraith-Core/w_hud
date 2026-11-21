@@ -217,7 +217,9 @@ body { font-family: var(--f-title); color: var(--cream); -webkit-font-smoothing:
 .wallet .plate-val { color: var(--row, var(--cream)); font-family: var(--f-fig); } /* 2.2.0: money = the big figures */
 .wallet .plate-ic { color: var(--row, var(--gold-2)); }
 .plate-row.is-cash .plate-val { font-size: 3rem; }
+.wallet .plate-row.is-cash { gap: 1.25rem; }
 .wallet .plate-row.is-cash .plate-ic { color: var(--row, var(--gold-1)); }
+.wallet .plate-row.is-cash .plate-ic .money-ic { transform: scale(1.42); }
 .wallet .plate-row.is-dirty .plate-val, .wallet .plate-row.is-dirty .plate-ic { color: var(--row, var(--dim)); }
 .plate-row.is-pvp .plate-ic, .plate-row.is-pvp .plate-val { color: var(--dim); }
 .plate-row.is-pvp.is-on .plate-ic, .plate-row.is-pvp.is-on .plate-val { color: var(--cream); }
