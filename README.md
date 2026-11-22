@@ -1,26 +1,37 @@
-# w_hud — واجهة اللاعب
+# w_hud
 
-دوائر الحالة والمحفظة والذخيرة والبوصلة واسم المكان والإعلانات، ولوحة إعدادات يرتّب بها كلُّ لاعب واجهته.
-نظام الحاجات (الجوع والعطش والمنشّطات): انظر `NEEDS.md`.
+Player HUD, server-authoritative needs (hunger & thirst), satchel weight bonus, voice proximity indicator, and server-wide announcements for **Wraith Framework RedM**.
 
-## 2.2.6
+## Key Features
 
-عند دخول الشخصية لأول مرة، يحفظ الخادم الجوع والعطش مرة واحدة حتى لو طلبت الواجهة تحميلهما مرتين معًا. يحتفظ اللاعب بالقيم المحفوظة عند عودته.
+- **Clean RedM HUD:** Health, stamina, hunger, thirst, money balances, and voice proximity level.
+- **Server-Authoritative Needs:** Hunger and thirst tracked and saved server-side (`w_hud_needs`).
+- **Player Customization:** Per-player HUD settings panel (`/hudsettings`, saved in `w_hud_settings`).
+- **Server Announcements:** Top-center announcement banner via `exports.w_hud:Announce(...)`.
 
-## 2.2.1
+## Installation
 
-- لوحة إعدادات الواجهة رجعت تفتح على يمين الشاشة في العربية والإنجليزية، قريبة من الأعلى، كما كانت قبل الشكل الجديد.
+1. Place `w_hud` in `resources/[wraith]/w_hud`.
+2. Import the SQL files in `sql/` (also auto-created on startup).
+3. Add `ensure w_hud` to `server.cfg` after `w_lib` and `w_core`.
 
-## 2.2.0
+## Key Exports
 
-- لوحة إعدادات الواجهة صارت لوحةً بشكل باقي لوحات السيرفر: عنوان في الأعلى، وبطاقات ممزّقة الحواف،
-  والأقسام تبويبات نصّية في سطر واحد بدل عمود الأيقونات، وزرّا الحفظ والإغلاق في شريط سفلي.
-- تظهر اللوحة على جانب البداية (يمين الشاشة بالعربية، يسارها بالإنجليزية) ولا تغطّي دوائر الحالة.
-  ويمكن سحبها من عنوانها كما كانت، ويبقى مكانها محفوظًا.
-- الخيارات: مفاتيح «مفعّل/معطّل»، وأشرطة بسهمين وخطٍّ رفيع، وخيارات تتنقّل بالسهمين.
-- الحذف (استعادة كلّ الإعدادات، مسح تخطيط محفوظ) يسأل أولًا بورقة «هل أنت متأكد؟».
-  وأزرار التخطيطات تعمل على الخانة التي يختارها اللاعب فقط.
-- الواجهة نفسها في مكانها لم تتغيّر. تغيّرت الخطوط فقط: الأرقام الصغيرة بخط EB Garamond،
-  والمال والذخيرة بخط RDR Catalogue، والعربية بخط Lalezar. ألوان اللاعبين المحفوظة تبقى كما هي.
-- لا تعتمد الواجهة على ثيم المتجر ولا على ملفات w_lib للشكل بعد الآن.
-- خطوط غير مستعملة حُذفت من الحزمة (Hapna وNoto Sans Arabic وTajawal).
+```lua
+-- Server-wide announcement
+exports.w_hud:Announce('Server restart in 5 minutes.', 15, { title = 'Announcement', target = -1 })
+
+-- Needs management (Server)
+exports.w_hud:AddNeed(source, 'hunger', 25)
+exports.w_hud:SetNeed(source, 'thirst', 100)
+exports.w_hud:ResetNeeds(source)
+
+-- Client HUD toggle
+exports.w_hud:SetDisplay(true)
+exports.w_hud:OpenHudSettings()
+```
+
+## Documentation & Links
+
+- **Developer Docs:** https://wraith-core.github.io/docs/#/resources/interface-world
+- **txAdmin Recipe:** https://github.com/Wraith-Core/txAdminRecipe
